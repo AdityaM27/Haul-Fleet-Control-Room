@@ -1101,39 +1101,105 @@
     .card-body { padding: 16px 18px; flex: 1; }
 
     /* Map */
-    #fleetMap { height: 460px; width: 100%; background: #070b14; }
+    .map-card-header {
+      padding: 12px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .map-header-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+      margin-left: auto;
+    }
 
     .map-layer-toggle-group {
       display: inline-flex;
-      background: rgba(11, 16, 28, 0.90);
+      background: rgba(11, 16, 28, 0.95);
       border: 1px solid var(--panel-border);
-      border-radius: 6px;
+      border-radius: 7px;
       overflow: hidden;
-      margin-right: 4px;
+      flex-shrink: 0;
     }
 
     .map-toggle-btn {
       background: transparent;
       border: none;
       color: var(--text-muted);
-      font-size: 10px;
+      font-size: 10.5px;
       font-weight: 700;
-      padding: 4px 10px;
+      padding: 5px 12px;
       cursor: pointer;
-      transition: all 0.2s;
-      display: flex;
+      transition: all 0.2s ease;
+      display: inline-flex;
       align-items: center;
       gap: 5px;
+      white-space: nowrap;
+      flex-shrink: 0;
     }
 
     .map-toggle-btn.active {
-      background: rgba(56, 189, 248, 0.22);
+      background: linear-gradient(135deg, #0284c7, #0369a1);
       color: #ffffff;
-      box-shadow: inset 0 0 8px rgba(56, 189, 248, 0.2);
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.35);
     }
 
     .map-toggle-btn:hover:not(.active) {
-      background: rgba(255, 255, 255, 0.05);
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text);
+    }
+
+    .map-viewport-wrap {
+      position: relative;
+      width: 100%;
+    }
+
+    #fleetMap { height: 460px; width: 100%; background: #070b14; }
+
+    .map-floating-layer-switcher {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      z-index: 800;
+      display: flex;
+      background: rgba(11, 16, 28, 0.92);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      border-radius: 8px;
+      padding: 3px;
+      box-shadow: 0 4px 18px rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(8px);
+      pointer-events: auto;
+    }
+
+    .map-pill-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 5px 13px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    .map-pill-btn.active {
+      background: linear-gradient(135deg, #0284c7, #0369a1);
+      color: #ffffff;
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.45);
+    }
+
+    .map-pill-btn:hover:not(.active) {
+      background: rgba(255, 255, 255, 0.08);
       color: var(--text);
     }
 
@@ -1532,26 +1598,33 @@
 
         <!-- PANEL 2: LEAFLET FLEET MAP & DYNAMIC FOG HEATMAP -->
         <div class="card">
-          <div class="card-header">
-            <div class="card-title">Dynamic Fog Heatmap & Fleet GPS Tracking</div>
-            <div style="display:flex;gap:6px;align-items:center">
+          <div class="card-header map-card-header">
+            <div class="card-title" style="white-space:nowrap">Fleet GPS & Fog Map</div>
+            <div class="map-header-controls">
               <div class="map-layer-toggle-group">
-                <button type="button" class="map-toggle-btn active" id="btnStreetLayer" onclick="switchMapLayer('street')">
-                  <span>🗺️</span> <span>Street Map</span>
+                <button type="button" class="map-toggle-btn active btn-map-street" id="btnStreetLayer" onclick="switchMapLayer('street')" title="Switch to OpenStreetMap default map">
+                  <span>🗺️</span> <span>Existing Map</span>
                 </button>
-                <button type="button" class="map-toggle-btn" id="btnSatLayer" onclick="switchMapLayer('satellite')">
-                  <span>🛰️</span> <span>Satellite View</span>
+                <button type="button" class="map-toggle-btn btn-map-sat" id="btnSatLayer" onclick="switchMapLayer('satellite')" title="Switch to High-Resolution Satellite Map">
+                  <span>🛰️</span> <span>Satellite Map</span>
                 </button>
               </div>
-              <button class="ctrl-btn" style="flex:none;padding:4px 9px;font-size:10px" onclick="centerOnSelected()">
-                Focus Selected
-              </button>
-              <button class="ctrl-btn" style="flex:none;padding:4px 9px;font-size:10px;border-color:rgba(56,189,248,0.4);color:var(--teal)" onclick="selectVehicle('TRUCK_01')">
-                📍 Focus GPS Node
+              <button type="button" class="ctrl-btn" style="flex:none;padding:5px 12px;font-size:10.5px;white-space:nowrap" onclick="centerOnSelected()">
+                🎯 Focus Selected
               </button>
             </div>
           </div>
-          <div id="fleetMap"></div>
+          <div class="map-viewport-wrap">
+            <div id="fleetMap"></div>
+            <div class="map-floating-layer-switcher">
+              <button type="button" class="map-pill-btn active btn-map-street" id="pillStreet" onclick="switchMapLayer('street')" title="Switch to OpenStreetMap default map">
+                <span>🗺️</span> <span>Existing Map</span>
+              </button>
+              <button type="button" class="map-pill-btn btn-map-sat" id="pillSat" onclick="switchMapLayer('satellite')" title="Switch to High-Resolution Satellite Map">
+                <span>🛰️</span> <span>Satellite Map</span>
+              </button>
+            </div>
+          </div>
           <div class="map-telemetry-bar">
             <div class="mstat-box">
               <div class="mstat-lbl">Latitude</div>
@@ -1871,22 +1944,30 @@ streetTileLayer.addTo(map);
 
 function switchMapLayer(layerName) {
   if (layerName === 'satellite') {
-    if (map.hasLayer(streetTileLayer)) map.removeLayer(streetTileLayer);
-    satTileLayer.addTo(map);
+    if (map.hasLayer(streetTileLayer)) {
+      map.removeLayer(streetTileLayer);
+    }
+    if (!map.hasLayer(satTileLayer)) {
+      satTileLayer.addTo(map);
+    }
     currentMapLayer = 'satellite';
-    const satBtn = document.getElementById('btnSatLayer');
-    const streetBtn = document.getElementById('btnStreetLayer');
-    if (satBtn) satBtn.classList.add('active');
-    if (streetBtn) streetBtn.classList.remove('active');
   } else {
-    if (map.hasLayer(satTileLayer)) map.removeLayer(satTileLayer);
-    streetTileLayer.addTo(map);
+    if (map.hasLayer(satTileLayer)) {
+      map.removeLayer(satTileLayer);
+    }
+    if (!map.hasLayer(streetTileLayer)) {
+      streetTileLayer.addTo(map);
+    }
     currentMapLayer = 'street';
-    const streetBtn = document.getElementById('btnStreetLayer');
-    const satBtn = document.getElementById('btnSatLayer');
-    if (streetBtn) streetBtn.classList.add('active');
-    if (satBtn) satBtn.classList.remove('active');
   }
+
+  // Synchronize all toggle buttons and floating pills across the DOM
+  document.querySelectorAll('.btn-map-street, #btnStreetLayer, #pillStreet').forEach(el => {
+    el.classList.toggle('active', currentMapLayer === 'street');
+  });
+  document.querySelectorAll('.btn-map-sat, #btnSatLayer, #pillSat').forEach(el => {
+    el.classList.toggle('active', currentMapLayer === 'satellite');
+  });
 }
 
 const vehicleMarkers = {};
