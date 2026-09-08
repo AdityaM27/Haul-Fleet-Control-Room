@@ -366,12 +366,102 @@ simulation_config = {
 MAX_TRAIL_LEN = 80
 MAX_VEHICLE_LOG = 35
 
+# ==============================================================================
+# REALISTIC HETEROGENEOUS INDUSTRIAL SIMULATION PROFILES
+# Ensures each simulated haul unit has distinctly different speed, payload,
+# cycle stage, tire pressure, temperature, gear, and proximity behavior!
+# ==============================================================================
+SIMULATION_PROFILES = {
+    "TRUCK_02": {
+        "desc": "Loaded High-Grade Ore Hauler (Incline Ramp 1)",
+        "wp_idx": 1,
+        "target_speed": 19.5,
+        "gear": "D2",
+        "payload_pct": 0.96,   # 230.4 tons (heavy ore load)
+        "engine_temp": 95.4,   # High load thermal profile
+        "tire_pressure": 107.5,
+        "dist_front_range": (140, 195),
+        "dist_left_range": (110, 160),
+        "dist_right_range": (120, 170),
+    },
+    "TRUCK_03": {
+        "desc": "Empty High-Speed Return Unit (Crest Haulway)",
+        "wp_idx": 3,
+        "target_speed": 36.5,
+        "gear": "D4",
+        "payload_pct": 0.0,    # 0.0 tons (empty hopper return)
+        "engine_temp": 83.2,   # Cool running unloaded diesel
+        "tire_pressure": 98.5,
+        "dist_front_range": (210, 280),
+        "dist_left_range": (160, 220),
+        "dist_right_range": (160, 220),
+    },
+    "TRUCK_04": {
+        "desc": "Mountain Switchback Turn (Fog Caution Corridor)",
+        "wp_idx": 2,
+        "target_speed": 13.0,
+        "gear": "D1",
+        "payload_pct": 0.94,   # 341.2 tons (heavy Liebherr load)
+        "engine_temp": 99.1,   # Hot heavy switchback climb
+        "tire_pressure": 105.2,
+        "dist_front_range": (35, 68),   # Switchback caution trigger
+        "dist_left_range": (45, 90),
+        "dist_right_range": (40, 85),
+    },
+    "TRUCK_05": {
+        "desc": "Ultra-Class Behemoth (Deposit 5 Loading Crawl)",
+        "wp_idx": 0,
+        "target_speed": 8.5,
+        "gear": "D1",
+        "payload_pct": 0.97,   # 436.5 tons (450t mega capacity)
+        "engine_temp": 88.6,
+        "tire_pressure": 114.8, # Extreme load tire rating
+        "dist_front_range": (55, 105),
+        "dist_left_range": (70, 130),
+        "dist_right_range": (70, 130),
+    },
+    "TRUCK_06": {
+        "desc": "Primary Gyratory Crusher Terminal Approach",
+        "wp_idx": 5,
+        "target_speed": 25.0,
+        "gear": "D3",
+        "payload_pct": 0.62,   # 183.5 tons (partial haul)
+        "engine_temp": 91.5,
+        "tire_pressure": 103.4,
+        "dist_front_range": (160, 220),
+        "dist_left_range": (130, 185),
+        "dist_right_range": (130, 185),
+    },
+}
+
+
+def decide_action(front, left, right):
+    if front < 15:
+        if left > right and left > 45:
+            return "TURN LEFT"
+        if right > left and right > 45:
+            return "TURN RIGHT"
+        return "STOP"
+    if front < 40:
+        if left > right and left > 40:
+            return "TURN LEFT"
+        if right > left and right > 40:
+            return "TURN RIGHT"
+        return "SLOW DOWN"
+    return "CLEAR"
+
+
 # Initialize vehicle states
 for vdef in FLEET_DEFS:
     vid = vdef["id"]
     is_truck_01 = (vid == "TRUCK_01")
+    prof = SIMULATION_PROFILES.get(vid)
 
-    wp_idx = vdef["base_wp_idx"] % len(QUARRY_WAYPOINTS)
+    if prof:
+        wp_idx = prof["wp_idx"]
+    else:
+        wp_idx = vdef["base_wp_idx"] % len(QUARRY_WAYPOINTS)
+
     wp = QUARRY_WAYPOINTS[wp_idx]
     next_wp = QUARRY_WAYPOINTS[(wp_idx + 1) % len(QUARRY_WAYPOINTS)]
 
@@ -390,6 +480,11 @@ for vdef in FLEET_DEFS:
         engine_temp_c = None
         tire_pressure_psi = None
         payload_tons = None
+        dist_front = 180
+        dist_left = 150
+        dist_right = 150
+        action = "CLEAR"
+        status = "NORMAL"
         risk_score = None
         has_risk_data = False
         has_diagnostics = False
@@ -397,12 +492,30 @@ for vdef in FLEET_DEFS:
         init_lat = round(wp["lat"], 6)
         init_lng = round(wp["lng"], 6)
         zone = get_zone_for_point(init_lat, init_lng)
-        speed_kmh = round(min(wp["speed_limit"], zone["max_safe_speed"]) * random.uniform(0.85, 1.02), 1)
-        target_speed = zone["max_safe_speed"]
-        gear = "D3"
-        engine_temp_c = round(random.uniform(84.0, 92.0), 1)
-        tire_pressure_psi = round(random.uniform(101.0, 104.5), 1)
-        payload_tons = round(vdef["max_payload"] * random.uniform(0.65, 0.98), 1)
+
+        if prof:
+            speed_kmh = round(prof["target_speed"] * random.uniform(0.96, 1.04), 1)
+            target_speed = prof["target_speed"]
+            gear = prof["gear"]
+            engine_temp_c = round(prof["engine_temp"] + random.uniform(-0.6, 0.6), 1)
+            tire_pressure_psi = round(prof["tire_pressure"] + random.uniform(-0.4, 0.4), 1)
+            payload_tons = round(vdef["max_payload"] * prof["payload_pct"], 1)
+            dist_front = random.randint(*prof["dist_front_range"])
+            dist_left = random.randint(*prof["dist_left_range"])
+            dist_right = random.randint(*prof["dist_right_range"])
+        else:
+            speed_kmh = round(min(wp["speed_limit"], zone["max_safe_speed"]) * random.uniform(0.85, 1.02), 1)
+            target_speed = zone["max_safe_speed"]
+            gear = "D3"
+            engine_temp_c = round(random.uniform(84.0, 92.0), 1)
+            tire_pressure_psi = round(random.uniform(101.0, 104.5), 1)
+            payload_tons = round(vdef["max_payload"] * random.uniform(0.65, 0.98), 1)
+            dist_front = random.randint(140, 220)
+            dist_left = random.randint(120, 200)
+            dist_right = random.randint(120, 200)
+
+        action = decide_action(dist_front, dist_left, dist_right)
+        status = "CRITICAL" if action == "STOP" else ("CAUTION" if action != "CLEAR" else "NORMAL")
         risk_score = {
             "total": 24,
             "level": "LOW",
@@ -425,8 +538,8 @@ for vdef in FLEET_DEFS:
         "hardware_status": "ONLINE" if vdef["default_source"] == "REAL_HARDWARE" else "N/A",
         "last_hardware_packet": None,
         "packet_count": 0,
-        "status": "NORMAL",
-        "action": "CLEAR",
+        "status": status,
+        "action": action,
         "speed_kmh": speed_kmh,
         "target_speed": target_speed,
         "gear": gear,
@@ -434,9 +547,9 @@ for vdef in FLEET_DEFS:
         "engine_temp_c": engine_temp_c,
         "tire_pressure_psi": tire_pressure_psi,
         "payload_tons": payload_tons,
-        "dist_front": random.randint(140, 220),
-        "dist_left": random.randint(120, 200),
-        "dist_right": random.randint(120, 200),
+        "dist_front": dist_front,
+        "dist_left": dist_left,
+        "dist_right": dist_right,
         "gps_valid": True,
         "lat": init_lat,
         "lng": init_lng,
@@ -472,22 +585,6 @@ for vdef in FLEET_DEFS:
         "manual_obstacle_until": 0,
         "last_update": datetime.now().strftime("%H:%M:%S"),
     }
-
-
-def decide_action(front, left, right):
-    if front < 15:
-        if left > right and left > 45:
-            return "TURN LEFT"
-        if right > left and right > 45:
-            return "TURN RIGHT"
-        return "STOP"
-    if front < 40:
-        if left > right and left > 40:
-            return "TURN LEFT"
-        if right > left and right > 40:
-            return "TURN RIGHT"
-        return "SLOW DOWN"
-    return "CLEAR"
 
 
 # ==============================================================================
@@ -653,19 +750,30 @@ def simulation_loop():
                 next_wp_idx = (v["wp_idx"] + 1) % len(QUARRY_WAYPOINTS)
                 next_wp = QUARRY_WAYPOINTS[next_wp_idx]
 
+                prof = SIMULATION_PROFILES.get(vid)
                 if now_ts < v.get("manual_obstacle_until", 0):
                     front = v["dist_front"]
                     left = v["dist_left"]
                     right = v["dist_right"]
                 else:
-                    if random.random() < simulation_config["obstacle_probability"]:
-                        front = random.randint(8, 38)
-                        left = random.randint(20, 150)
-                        right = random.randint(20, 150)
+                    if prof:
+                        if random.random() < simulation_config["obstacle_probability"]:
+                            front = random.randint(10, 38)
+                            left = random.randint(25, 120)
+                            right = random.randint(25, 120)
+                        else:
+                            front = random.randint(*prof["dist_front_range"])
+                            left = random.randint(*prof["dist_left_range"])
+                            right = random.randint(*prof["dist_right_range"])
                     else:
-                        front = random.randint(85, 230)
-                        left = random.randint(70, 200)
-                        right = random.randint(70, 200)
+                        if random.random() < simulation_config["obstacle_probability"]:
+                            front = random.randint(8, 38)
+                            left = random.randint(20, 150)
+                            right = random.randint(20, 150)
+                        else:
+                            front = random.randint(85, 230)
+                            left = random.randint(70, 200)
+                            right = random.randint(70, 200)
 
                 action = decide_action(front, left, right)
                 prev_action = v["action"]
@@ -676,8 +784,9 @@ def simulation_loop():
                 v["action"] = action
                 v["last_update"] = now_str
 
-                # Speed & Gear adaptation: Governed by Zone Max Safe Fog Speed!
-                target_speed = min(cur_wp["speed_limit"], zone["max_safe_speed"])
+                # Speed & Gear adaptation: Governed by Profile & Zone Max Safe Fog Speed!
+                base_target = prof["target_speed"] if prof else cur_wp["speed_limit"]
+                target_speed = min(base_target, zone["max_safe_speed"])
                 v["target_speed"] = target_speed
 
                 if action == "STOP":
@@ -691,10 +800,14 @@ def simulation_loop():
                 else:
                     v["status"] = "NORMAL"
                     if v["speed_kmh"] < target_speed:
-                        v["speed_kmh"] = round(min(target_speed, v["speed_kmh"] + random.uniform(1.5, 4.0)), 1)
+                        v["speed_kmh"] = round(min(target_speed, v["speed_kmh"] + random.uniform(1.2, 2.8)), 1)
                     elif v["speed_kmh"] > target_speed:
-                        v["speed_kmh"] = round(max(target_speed, v["speed_kmh"] - random.uniform(2.0, 4.0)), 1)
-                    v["gear"] = "D3" if v["speed_kmh"] > 22 else "D2"
+                        v["speed_kmh"] = round(max(target_speed, v["speed_kmh"] - random.uniform(1.5, 3.0)), 1)
+
+                    if prof:
+                        v["gear"] = prof["gear"] if v["speed_kmh"] > 10 else "D1"
+                    else:
+                        v["gear"] = "D3" if v["speed_kmh"] > 22 else "D2"
 
                 # Update Risk Score
                 v["risk_score"] = compute_risk_score(v, closest_info[vid]["distance_m"], zone)
@@ -742,9 +855,10 @@ def simulation_loop():
                             trail.pop(0)
 
                 v["battery_pct"] = round(max(5.0, v["battery_pct"] - 0.006 * multiplier), 1)
-                temp_delta = 0.3 if v["speed_kmh"] > 22 else -0.15
+                base_temp = prof["engine_temp"] if prof else 88.0
+                temp_delta = 0.25 if v["speed_kmh"] > 20 else -0.12
                 v["engine_temp_c"] = round(
-                    max(80.0, min(104.0, v["engine_temp_c"] + temp_delta * random.uniform(0.5, 1.2))),
+                    max(base_temp - 3.0, min(base_temp + 6.0, v["engine_temp_c"] + temp_delta * random.uniform(0.4, 1.1))),
                     1,
                 )
 
@@ -1366,11 +1480,19 @@ def simulate_obstacle():
         v["dist_front"] = distance
         v["action"] = decide_action(distance, v["dist_left"], v["dist_right"])
         v["status"] = "CRITICAL" if v["action"] == "STOP" else "CAUTION"
+        if v["action"] == "STOP":
+            v["speed_kmh"] = 0.0
+            v["gear"] = "N"
         v["manual_obstacle_until"] = time.time() + duration
         v["last_update"] = datetime.now().strftime("%H:%M:%S")
 
-        zone = get_zone_for_point(v["lat"], v["lng"])
-        v["risk_score"] = compute_risk_score(v, v["closest_truck"]["distance_m"], zone)
+        is_truck_01 = (vid == "TRUCK_01")
+        if is_truck_01:
+            v["speed_kmh"] = 0.0
+            v["risk_score"] = None
+        else:
+            zone = get_zone_for_point(v["lat"], v["lng"])
+            v["risk_score"] = compute_risk_score(v, v["closest_truck"]["distance_m"], zone)
 
         v["log"].insert(0, {
             "time": v["last_update"],
@@ -1380,7 +1502,13 @@ def simulate_obstacle():
         })
         del v["log"][MAX_VEHICLE_LOG:]
 
-    return jsonify({"status": "ok", "vehicle_id": vid, "action": v["action"], "dist_front": distance})
+    return jsonify({
+        "status": "ok",
+        "vehicle_id": vid,
+        "action": v["action"],
+        "dist_front": distance,
+        "msg": f"Obstacle injected on {vid}: {distance} cm ({v['action']})"
+    })
 
 
 @app.route("/api/simulate/control", methods=["POST"])

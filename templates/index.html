@@ -975,16 +975,20 @@
     }
 
     .risk-progress-bg {
-      height: 7px;
-      background: rgba(30, 41, 59, 0.85);
+      height: 10px;
+      background: rgba(15, 23, 42, 0.95);
+      border: 1px solid rgba(148, 163, 184, 0.25);
       border-radius: 99px;
       overflow: hidden;
+      box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.6);
     }
 
     .risk-progress-fill {
       height: 100%;
+      min-width: 10px;
       border-radius: 99px;
-      background: var(--teal);
+      background: linear-gradient(90deg, #0284c7, var(--teal));
+      box-shadow: 0 0 8px rgba(56, 189, 248, 0.5);
       transition: width 0.35s ease, background-color 0.35s ease;
     }
 
@@ -1099,6 +1103,40 @@
     /* Map */
     #fleetMap { height: 460px; width: 100%; background: #070b14; }
 
+    .map-layer-toggle-group {
+      display: inline-flex;
+      background: rgba(11, 16, 28, 0.90);
+      border: 1px solid var(--panel-border);
+      border-radius: 6px;
+      overflow: hidden;
+      margin-right: 4px;
+    }
+
+    .map-toggle-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 10px;
+      font-weight: 700;
+      padding: 4px 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .map-toggle-btn.active {
+      background: rgba(56, 189, 248, 0.22);
+      color: #ffffff;
+      box-shadow: inset 0 0 8px rgba(56, 189, 248, 0.2);
+    }
+
+    .map-toggle-btn:hover:not(.active) {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text);
+    }
+
     .map-telemetry-bar {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
@@ -1126,8 +1164,22 @@
 
     .sensor-dir { font-size: 10.5px; font-weight: 700; text-transform: uppercase; color: var(--text); }
     .sensor-num { font-family: "Space Grotesk", sans-serif; font-size: 16px; font-weight: 700; }
-    .sensor-bar-bg { height: 6px; background: rgba(30, 41, 59, 0.8); border-radius: 99px; overflow: hidden; }
-    .sensor-bar-fill { height: 100%; border-radius: 99px; background: var(--teal); transition: width 0.3s; }
+    .sensor-bar-bg {
+      height: 10px;
+      background: rgba(15, 23, 42, 0.95);
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      border-radius: 99px;
+      overflow: hidden;
+      box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.6);
+    }
+    .sensor-bar-fill {
+      height: 100%;
+      min-width: 10px;
+      border-radius: 99px;
+      background: linear-gradient(90deg, #0284c7, var(--teal));
+      box-shadow: 0 0 8px rgba(56, 189, 248, 0.5);
+      transition: width 0.3s ease, background-color 0.3s ease;
+    }
 
     .radar-visual-wrap {
       margin-top: 10px; padding: 12px;
@@ -1482,7 +1534,15 @@
         <div class="card">
           <div class="card-header">
             <div class="card-title">Dynamic Fog Heatmap & Fleet GPS Tracking</div>
-            <div style="display:flex;gap:6px">
+            <div style="display:flex;gap:6px;align-items:center">
+              <div class="map-layer-toggle-group">
+                <button type="button" class="map-toggle-btn active" id="btnStreetLayer" onclick="switchMapLayer('street')">
+                  <span>🗺️</span> <span>Street Map</span>
+                </button>
+                <button type="button" class="map-toggle-btn" id="btnSatLayer" onclick="switchMapLayer('satellite')">
+                  <span>🛰️</span> <span>Satellite View</span>
+                </button>
+              </div>
               <button class="ctrl-btn" style="flex:none;padding:4px 9px;font-size:10px" onclick="centerOnSelected()">
                 Focus Selected
               </button>
@@ -1596,7 +1656,7 @@
       <!-- FEATURES 10 & 11: DYNAMIC FOG & 10-MINUTE PREDICTION -->
       <section class="fog-prediction-grid">
         <!-- Current Fog Status & Speed Governor -->
-        <div class="fog-zone-panel">
+        <div class="fog-zone-panel" id="fogGovernorPanel">
           <div class="fog-panel-title">
             <span>🌫️</span>
             <span>Current Zone Visibility & Safe Speed Governor</span>
@@ -1626,7 +1686,7 @@
         </div>
 
         <!-- 10-Minute Predictive Forecasting -->
-        <div class="fog-zone-panel">
+        <div class="fog-zone-panel" id="fogPredictivePanel">
           <div class="fog-panel-title">
             <span>🔮</span>
             <span>10-Minute Fog Predictive Engine (Atmospheric Model)</span>
@@ -1796,10 +1856,38 @@ const map = L.map('fleetMap', {
   zoomControl: true
 });
 
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+const streetTileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '&copy; OpenStreetMap contributors',
   maxZoom: 19
-}).addTo(map);
+});
+
+const satTileLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+  attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+  maxZoom: 19
+});
+
+let currentMapLayer = 'street';
+streetTileLayer.addTo(map);
+
+function switchMapLayer(layerName) {
+  if (layerName === 'satellite') {
+    if (map.hasLayer(streetTileLayer)) map.removeLayer(streetTileLayer);
+    satTileLayer.addTo(map);
+    currentMapLayer = 'satellite';
+    const satBtn = document.getElementById('btnSatLayer');
+    const streetBtn = document.getElementById('btnStreetLayer');
+    if (satBtn) satBtn.classList.add('active');
+    if (streetBtn) streetBtn.classList.remove('active');
+  } else {
+    if (map.hasLayer(satTileLayer)) map.removeLayer(satTileLayer);
+    streetTileLayer.addTo(map);
+    currentMapLayer = 'street';
+    const streetBtn = document.getElementById('btnStreetLayer');
+    const satBtn = document.getElementById('btnSatLayer');
+    if (streetBtn) streetBtn.classList.add('active');
+    if (satBtn) satBtn.classList.remove('active');
+  }
+}
 
 const vehicleMarkers = {};
 const zoneLayers = {};
@@ -1887,10 +1975,17 @@ updateClock();
 // =============================================================================
 function selectVehicle(vid) {
   isFleetOverviewMode = false;
-  document.getElementById('fleetOverviewBtn').classList.remove('active');
+  const overviewBtn = document.getElementById('fleetOverviewBtn');
+  if (overviewBtn) overviewBtn.classList.remove('active');
   selectedVehicleId = vid;
   window.location.hash = vid;
   renderSidebar();
+
+  const cached = fleetList.find(x => x.id === vid);
+  if (cached) {
+    applyVehicleToUI(cached);
+  }
+
   fetchVehicleDetails();
   centerOnSelected();
 }
@@ -2042,6 +2137,10 @@ async function fetchFleet() {
 
     renderSidebar();
     updateMapMarkers(fleetList);
+    const activeV = fleetList.find(x => x.id === selectedVehicleId);
+    if (activeV) {
+      applyVehicleToUI(activeV);
+    }
   } catch (err) {
     console.error('fetchFleet err:', err);
   }
@@ -2089,6 +2188,298 @@ function updateMapMarkers(vehicles) {
 }
 
 // =============================================================================
+// APPLY VEHICLE STATE TO UI (INSTANT 0MS UPDATE & DATA REFRESH)
+// =============================================================================
+function applyVehicleToUI(v) {
+  if (!v) return;
+  const isTruck1 = (v.id === 'TRUCK_01');
+  const speedVal = isTruck1 ? 0.0 : (parseFloat(v.speed_kmh) || 0.0);
+
+  // Hero Info
+  const num = v.id.replace('TRUCK_0', '').replace('TRUCK_', '');
+  const badgeEl = document.getElementById('heroBadge');
+  if (badgeEl) badgeEl.textContent = num || '1';
+
+  const nameEl = document.getElementById('heroName');
+  if (nameEl) nameEl.textContent = v.name || v.id;
+
+  const modelEl = document.getElementById('heroModel');
+  if (modelEl) modelEl.textContent = v.model || 'Autonomous Hauler';
+
+  const speedEl = document.getElementById('heroSpeed');
+  if (speedEl) speedEl.textContent = speedVal.toFixed(1);
+
+  const payloadEl = document.getElementById('heroPayload');
+  if (payloadEl && v.payload_tons !== null && v.payload_tons !== undefined) {
+    payloadEl.textContent = parseFloat(v.payload_tons).toFixed(1);
+  }
+
+  const updateEl = document.getElementById('heroLastUpdate');
+  if (updateEl && v.last_update) updateEl.textContent = v.last_update;
+
+  const isReal = v.source_type === 'REAL_HARDWARE';
+  const isConnected = v.is_connected !== undefined ? v.is_connected : (isReal ? v.hardware_status === 'CONNECTED_LIVE' : simRunning);
+  const isMoving = isTruck1 ? false : (v.is_moving !== undefined ? v.is_moving : (speedVal > 0.5 && v.action !== 'STOP'));
+
+  // Update Hero Status Pills
+  const heroConnPill = document.getElementById('heroConnPill');
+  if (heroConnPill) {
+    heroConnPill.className = 'hero-status-pill ' + (isConnected ? 'connected' : 'disconnected');
+    const connText = document.getElementById('heroConnText');
+    if (connText) connText.textContent = isConnected ? 'CONNECTED' : 'DISCONNECTED';
+    const beacon = heroConnPill.querySelector('.status-beacon');
+    if (beacon) beacon.className = 'status-beacon ' + (isConnected ? 'beacon-online' : 'beacon-offline');
+  }
+
+  const heroMotionPill = document.getElementById('heroMotionPill');
+  if (heroMotionPill) {
+    if (isTruck1) {
+      heroMotionPill.className = 'hero-status-pill stopped';
+      const motionText = document.getElementById('heroMotionText');
+      if (motionText) motionText.textContent = '🛑 STOPPED (0.0 km/h)';
+    } else {
+      heroMotionPill.className = 'hero-status-pill ' + (isMoving ? 'moving' : 'stopped');
+      const motionText = document.getElementById('heroMotionText');
+      if (motionText) motionText.textContent = isMoving ? `⚡ MOVING (${speedVal.toFixed(1)} km/h)` : `🛑 STOPPED (0.0 km/h)`;
+    }
+  }
+
+  const tag = document.getElementById('heroSourceTag');
+  if (tag) {
+    tag.className = 'source-tag ' + (isReal ? 'real' : 'sim');
+    tag.textContent = isReal ? '🟢 REAL ESP32 HARDWARE' : '🔷 SIMULATED AUTONOMOUS';
+  }
+
+  const hwStatusBadge = document.getElementById('hwStatusBadge');
+  if (hwStatusBadge) {
+    hwStatusBadge.textContent = isReal ? `🟢 ESP32 + GPS ACTIVE (${v.packet_count || 0} packets received)` : `🔷 RUNNING IN AUTONOMOUS SIMULATION`;
+    hwStatusBadge.style.color = isReal ? 'var(--green)' : 'var(--blue)';
+  }
+
+  const hwToggleBtn = document.getElementById('hwToggleModeBtn');
+  if (hwToggleBtn) {
+    hwToggleBtn.textContent = isReal ? 'Switch to Autonomous Simulation' : 'Bind to Real ESP32 Prototype';
+  }
+
+  // Zone Tag: Dynamically shows the real-time area or mining zone
+  const zone = v.current_zone || {};
+  const heroZoneTag = document.getElementById('heroZoneTag');
+  if (heroZoneTag) heroZoneTag.textContent = zone.name || 'Real-Time Operational Area';
+
+  const activeZoneTitle = document.getElementById('activeZoneTitle');
+  if (activeZoneTitle) activeZoneTitle.textContent = zone.name || 'Real-Time Operational Area';
+
+  const activeZoneVis = document.getElementById('activeZoneVis');
+  if (activeZoneVis) {
+    activeZoneVis.textContent = `${zone.visibility_m || 50} m — ${zone.severity || 'NORMAL'}`;
+    activeZoneVis.style.color = zone.color || 'var(--green)';
+  }
+
+  const activeSafeSpeedText = document.getElementById('activeSafeSpeedText');
+  if (activeSafeSpeedText) activeSafeSpeedText.textContent = `${zone.max_safe_speed || 35} km/h`;
+
+  // 10-Minute Fog Predictive Engine: REMOVED / HIDDEN SPECIFICALLY FOR VEHICLE 1 (TRUCK_01)
+  const fogPredictivePanel = document.getElementById('fogPredictivePanel');
+  const fogGovernorPanel = document.getElementById('fogGovernorPanel');
+  if (isTruck1) {
+    if (fogPredictivePanel) fogPredictivePanel.style.display = 'none';
+    if (fogGovernorPanel) fogGovernorPanel.style.gridColumn = '1 / -1';
+  } else {
+    if (fogPredictivePanel) fogPredictivePanel.style.display = 'flex';
+    if (fogGovernorPanel) fogGovernorPanel.style.gridColumn = 'auto';
+
+    // 10-Min Prediction for this zone / area
+    const fullZone = fogZones.find(z => z.id === zone.id) || {};
+    if (fullZone.prediction_10m) {
+      const elTemp = document.getElementById('weatherTemp');
+      if (elTemp) elTemp.textContent = `${fullZone.temperature_c}°C`;
+      const elHum = document.getElementById('weatherHum');
+      if (elHum) elHum.textContent = `${fullZone.humidity_pct}%`;
+      const elDew = document.getElementById('weatherDew');
+      if (elDew) elDew.textContent = `${fullZone.dew_point_c}°C`;
+      const elWind = document.getElementById('weatherWind');
+      if (elWind) elWind.textContent = `${fullZone.wind_speed_kmh} km/h (${fullZone.wind_dir})`;
+      const elAdv = document.getElementById('predictionAdvisory');
+      if (elAdv) elAdv.textContent = `${fullZone.prediction_10m.trend}. ${fullZone.prediction_10m.advisory}`;
+    } else if (zone.prediction_10m) {
+      const elAdv = document.getElementById('predictionAdvisory');
+      if (elAdv) elAdv.textContent = `${zone.prediction_10m.trend}: ${zone.prediction_10m.advisory}`;
+    }
+  }
+
+  // RISK SCORE (FEATURE 28) - REMOVED FOR VEHICLE 1
+  const heroRiskScoreItem = document.getElementById('heroRiskScoreItem');
+  const heroPayloadItem = document.getElementById('heroPayloadItem');
+  const riskScoreCard = document.getElementById('riskScoreCard');
+
+  if (isTruck1 || !v.has_risk_data || !v.risk_score) {
+    if (heroRiskScoreItem) heroRiskScoreItem.style.display = 'none';
+    if (heroPayloadItem) heroPayloadItem.style.display = 'none';
+    if (riskScoreCard) riskScoreCard.style.display = 'none';
+  } else {
+    if (heroRiskScoreItem) heroRiskScoreItem.style.display = 'block';
+    if (heroPayloadItem) heroPayloadItem.style.display = 'block';
+    if (riskScoreCard) riskScoreCard.style.display = 'grid';
+
+    const risk = v.risk_score || { total: 20, level: 'LOW', speed_factor: 15, fog_factor: 25, traffic_factor: 10, hazard_factor: 5 };
+    const heroRiskScore = document.getElementById('heroRiskScore');
+    if (heroRiskScore) heroRiskScore.textContent = `${risk.total}/100`;
+
+    const riskBig = document.getElementById('riskScoreBigVal');
+    if (riskBig) riskBig.textContent = risk.total;
+
+    const riskBadge = document.getElementById('riskScoreLevelBadge');
+    if (riskBadge) riskBadge.textContent = `${risk.level} RISK`;
+
+    if (riskScoreCard) {
+      riskScoreCard.className = 'risk-score-card';
+      if (risk.total >= 80) {
+        riskScoreCard.classList.add('critical-risk');
+        if (riskBig) riskBig.style.color = 'var(--red)';
+        if (riskBadge) {
+          riskBadge.style.background = 'rgba(255,79,85,0.2)';
+          riskBadge.style.color = 'var(--red)';
+        }
+      } else if (risk.total >= 60) {
+        riskScoreCard.classList.add('high-risk');
+        if (riskBig) riskBig.style.color = 'var(--orange)';
+        if (riskBadge) {
+          riskBadge.style.background = 'rgba(255,136,0,0.2)';
+          riskBadge.style.color = 'var(--orange)';
+        }
+      } else if (risk.total >= 35) {
+        if (riskBig) riskBig.style.color = 'var(--amber)';
+        if (riskBadge) {
+          riskBadge.style.background = 'rgba(255,182,46,0.15)';
+          riskBadge.style.color = 'var(--amber)';
+        }
+      } else {
+        if (riskBig) riskBig.style.color = 'var(--green)';
+        if (riskBadge) {
+          riskBadge.style.background = 'rgba(56,231,138,0.15)';
+          riskBadge.style.color = 'var(--green)';
+        }
+      }
+    }
+
+    const setBar = (barId, valId, val) => {
+      const barEl = document.getElementById(barId);
+      const valEl = document.getElementById(valId);
+      const num = Math.max(0, Math.min(100, Math.round(val || 0)));
+      if (barEl) barEl.style.width = `${Math.max(10, num)}%`;
+      if (valEl) valEl.textContent = `${num}%`;
+    };
+    setBar('rfSpeedBar', 'rfSpeedVal', risk.speed_factor);
+    setBar('rfFogBar', 'rfFogVal', risk.fog_factor);
+    setBar('rfTrafficBar', 'rfTrafficVal', risk.traffic_factor);
+    setBar('rfHazardBar', 'rfHazardVal', risk.hazard_factor);
+  }
+
+  // Command Banner
+  const cmdCard = document.getElementById('commandCard');
+  const cmdVal = document.getElementById('cmdValue');
+  const cmdIcon = document.getElementById('cmdIcon');
+  const cmdDesc = document.getElementById('cmdDesc');
+
+  if (cmdCard) {
+    cmdCard.className = 'command-card';
+    if (v.action === 'STOP') {
+      cmdCard.classList.add('stop');
+      if (cmdVal) { cmdVal.textContent = 'EMERGENCY STOP'; cmdVal.style.color = 'var(--red)'; }
+      if (cmdIcon) { cmdIcon.textContent = '⛔'; cmdIcon.style.color = 'var(--red)'; cmdIcon.style.background = 'rgba(255, 79, 85, 0.2)'; }
+      if (cmdDesc) cmdDesc.textContent = `Immediate hazard detected ahead (${v.dist_front} cm). Emergency brakes activated. Propulsion halted.`;
+    } else if (v.action === 'SLOW DOWN') {
+      cmdCard.classList.add('slow');
+      if (cmdVal) { cmdVal.textContent = 'SLOW DOWN (CAUTION)'; cmdVal.style.color = 'var(--amber)'; }
+      if (cmdIcon) { cmdIcon.textContent = '⚠️'; cmdIcon.style.color = 'var(--amber)'; cmdIcon.style.background = 'rgba(255, 182, 46, 0.2)'; }
+      if (cmdDesc) cmdDesc.textContent = `Caution zone trigger: Obstacle within ${v.dist_front} cm or current fog visibility requires speed reduction.`;
+    } else if (v.action === 'TURN LEFT' || v.action === 'TURN RIGHT') {
+      cmdCard.classList.add('turn');
+      if (cmdVal) { cmdVal.textContent = `${v.action} (EVASIVE)`; cmdVal.style.color = 'var(--amber)'; }
+      if (cmdIcon) { cmdIcon.textContent = v.action === 'TURN LEFT' ? '↰' : '↱'; cmdIcon.style.color = 'var(--amber)'; cmdIcon.style.background = 'rgba(255, 182, 46, 0.2)'; }
+      if (cmdDesc) cmdDesc.textContent = `Obstacle ahead. Navigating evasive steering corridor to the ${v.action.toLowerCase().replace('turn ', '')}.`;
+    } else {
+      if (cmdVal) { cmdVal.textContent = 'CLEAR ROUTE'; cmdVal.style.color = 'var(--green)'; }
+      if (cmdIcon) { cmdIcon.textContent = '✓'; cmdIcon.style.color = 'var(--green)'; cmdIcon.style.background = 'rgba(56, 231, 138, 0.12)'; }
+      if (cmdDesc) cmdDesc.textContent = 'All ultrasonic safety corridors clear. Vehicle operating under nominal cruise conditions.';
+    }
+  }
+
+  // Sensors & Top-down Radar
+  updateSensorBox('front', v.dist_front);
+  updateSensorBox('left', v.dist_left);
+  updateSensorBox('right', v.dist_right);
+
+  updateRadarCone('radarFrontCone', v.dist_front);
+  updateRadarCone('radarLeftCone', v.dist_left);
+  updateRadarCone('radarRightCone', v.dist_right);
+
+  // Map Footer Telemetry (Real-Time GPS Location)
+  if (v.lat !== undefined) document.getElementById('mstatLat').textContent = Number(v.lat).toFixed(6);
+  if (v.lng !== undefined) document.getElementById('mstatLng').textContent = Number(v.lng).toFixed(6);
+  const elevEl = document.getElementById('mstatElev');
+  if (elevEl) elevEl.textContent = `${v.elevation_m || 580} m`;
+
+  const nearest = v.closest_truck || {};
+  const nearEl = document.getElementById('mstatNearest');
+  if (nearEl) nearEl.textContent = (nearest.name && nearest.name !== 'None') ? `${nearest.name} (${nearest.distance_m}m)` : 'Clear (>500m)';
+
+  // Trail line
+  if (v.trail && v.trail.length) {
+    selectedTrailPolyline.setLatLngs(v.trail);
+    if (v.avatar_color) selectedTrailPolyline.setStyle({ color: v.avatar_color });
+  }
+
+  // DIAGNOSTICS & MECHANICAL HEALTH - REMOVED FOR VEHICLE 1
+  const diagnosticsCard = document.getElementById('diagnosticsCard');
+  const vehicleLogCard = document.getElementById('vehicleLogCard');
+  if (isTruck1 || v.has_diagnostics === false) {
+    if (diagnosticsCard) diagnosticsCard.style.display = 'none';
+    if (vehicleLogCard) vehicleLogCard.style.gridColumn = '1 / -1';
+  } else {
+    if (diagnosticsCard) diagnosticsCard.style.display = 'block';
+    if (vehicleLogCard) vehicleLogCard.style.gridColumn = 'auto';
+
+    const diagGear = document.getElementById('diagGear');
+    if (diagGear) diagGear.textContent = v.gear || 'D3';
+
+    const diagTemp = document.getElementById('diagTemp');
+    if (diagTemp) diagTemp.textContent = `${v.engine_temp_c || 88}°C`;
+
+    const diagTire = document.getElementById('diagTire');
+    if (diagTire) diagTire.textContent = `${v.tire_pressure_psi || 102} PSI`;
+
+    const payloadVal = v.payload_tons !== undefined ? v.payload_tons : 0;
+    const maxPayload = v.max_payload || 320;
+    const payloadPct = Math.min(100, Math.round((payloadVal / maxPayload) * 100));
+
+    const payloadText = document.getElementById('payloadPctText');
+    if (payloadText) payloadText.textContent = `${payloadPct}% (${payloadVal}/${maxPayload}t)`;
+
+    const payloadBar = document.getElementById('payloadBar');
+    if (payloadBar) payloadBar.style.width = `${Math.max(10, payloadPct)}%`;
+  }
+
+  // Event Log
+  const logContainer = document.getElementById('vehicleLogContainer');
+  if (logContainer && v.log && v.log.length) {
+    logContainer.innerHTML = v.log.map(item => {
+      const dotColor = item.action === 'STOP' ? 'var(--red)' : item.action !== 'CLEAR' ? 'var(--amber)' : 'var(--green)';
+      return `
+        <div class="log-entry">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span class="log-dot" style="background:${dotColor}"></span>
+            <span style="font-size:9.5px;color:var(--text-muted);font-family:monospace">${item.time}</span>
+            <span style="font-weight:700;color:${dotColor}">${item.action}</span>
+          </div>
+          <div style="color:var(--text-muted);font-size:9.5px">${item.note || ''}</div>
+        </div>
+      `;
+    }).join('');
+  }
+}
+
+// =============================================================================
 // FETCH SELECTED VEHICLE DETAILS
 // =============================================================================
 async function fetchVehicleDetails() {
@@ -2096,230 +2487,7 @@ async function fetchVehicleDetails() {
     const res = await fetch(`/api/vehicle/${selectedVehicleId}`, { cache: 'no-store' });
     if (!res.ok) return;
     const v = await res.json();
-
-    const isTruck1 = (v.id === 'TRUCK_01');
-    const speedVal = isTruck1 ? 0.0 : (v.speed_kmh || 0.0);
-
-    // Hero Info
-    const num = v.id.replace('TRUCK_0', '').replace('TRUCK_', '');
-    document.getElementById('heroBadge').textContent = num || '1';
-    document.getElementById('heroName').textContent = v.name; // Clean name without duplicate brackets
-    document.getElementById('heroModel').textContent = v.model;
-    document.getElementById('heroSpeed').textContent = speedVal.toFixed(1);
-    if (v.payload_tons !== null && v.payload_tons !== undefined) {
-      document.getElementById('heroPayload').textContent = v.payload_tons.toFixed(1);
-    }
-    document.getElementById('heroLastUpdate').textContent = v.last_update;
-
-    const isReal = v.source_type === 'REAL_HARDWARE';
-    const isConnected = v.is_connected !== undefined ? v.is_connected : (isReal ? v.hardware_status === 'CONNECTED_LIVE' : simRunning);
-    const isMoving = isTruck1 ? false : (v.is_moving !== undefined ? v.is_moving : (speedVal > 0.5 && v.action !== 'STOP'));
-
-    // Update Hero Status Pills
-    const heroConnPill = document.getElementById('heroConnPill');
-    if (heroConnPill) {
-      heroConnPill.className = 'hero-status-pill ' + (isConnected ? 'connected' : 'disconnected');
-      const connText = document.getElementById('heroConnText');
-      if (connText) connText.textContent = isConnected ? 'CONNECTED' : 'DISCONNECTED';
-      const beacon = heroConnPill.querySelector('.status-beacon');
-      if (beacon) beacon.className = 'status-beacon ' + (isConnected ? 'beacon-online' : 'beacon-offline');
-    }
-
-    const heroMotionPill = document.getElementById('heroMotionPill');
-    if (heroMotionPill) {
-      if (isTruck1) {
-        heroMotionPill.className = 'hero-status-pill stopped';
-        const motionText = document.getElementById('heroMotionText');
-        if (motionText) motionText.textContent = '🛑 STOPPED (0.0 km/h)';
-      } else {
-        heroMotionPill.className = 'hero-status-pill ' + (isMoving ? 'moving' : 'stopped');
-        const motionText = document.getElementById('heroMotionText');
-        if (motionText) motionText.textContent = isMoving ? `⚡ MOVING (${speedVal.toFixed(1)} km/h)` : `🛑 STOPPED (0.0 km/h)`;
-      }
-    }
-
-    const tag = document.getElementById('heroSourceTag');
-    tag.className = 'source-tag ' + (isReal ? 'real' : 'sim');
-    tag.textContent = isReal ? '🟢 REAL ESP32 HARDWARE' : '🔷 SIMULATED AUTONOMOUS';
-
-    const hwStatusBadge = document.getElementById('hwStatusBadge');
-    hwStatusBadge.textContent = isReal ? `🟢 ESP32 + GPS ACTIVE (${v.packet_count} packets received)` : `🔷 RUNNING IN AUTONOMOUS SIMULATION`;
-    hwStatusBadge.style.color = isReal ? 'var(--green)' : 'var(--blue)';
-
-    document.getElementById('hwToggleModeBtn').textContent = isReal ? 'Switch to Autonomous Simulation' : 'Bind to Real ESP32 Prototype';
-
-    // Zone Tag: Dynamically shows the real-time area or mining zone
-    const zone = v.current_zone || {};
-    document.getElementById('heroZoneTag').textContent = zone.name || 'Real-Time Operational Area';
-    document.getElementById('activeZoneTitle').textContent = zone.name || 'Real-Time Operational Area';
-    document.getElementById('activeZoneVis').textContent = `${zone.visibility_m || 50} m — ${zone.severity || 'NORMAL'}`;
-    document.getElementById('activeZoneVis').style.color = zone.color || 'var(--green)';
-    document.getElementById('activeSafeSpeedText').textContent = `${zone.max_safe_speed || 35} km/h`;
-
-    // 10-Min Prediction for this zone / area
-    const fullZone = fogZones.find(z => z.id === zone.id) || {};
-    if (fullZone.prediction_10m) {
-      document.getElementById('weatherTemp').textContent = `${fullZone.temperature_c}°C`;
-      document.getElementById('weatherHum').textContent = `${fullZone.humidity_pct}%`;
-      document.getElementById('weatherDew').textContent = `${fullZone.dew_point_c}°C`;
-      document.getElementById('weatherWind').textContent = `${fullZone.wind_speed_kmh} km/h (${fullZone.wind_dir})`;
-      document.getElementById('predictionAdvisory').textContent = `${fullZone.prediction_10m.trend}. ${fullZone.prediction_10m.advisory}`;
-    } else if (zone.prediction_10m) {
-      document.getElementById('predictionAdvisory').textContent = `${zone.prediction_10m.trend}: ${zone.prediction_10m.advisory}`;
-    }
-
-    // RISK SCORE (FEATURE 28) - REMOVED FOR VEHICLE 1
-    const heroRiskScoreItem = document.getElementById('heroRiskScoreItem');
-    const heroPayloadItem = document.getElementById('heroPayloadItem');
-    const riskScoreCard = document.getElementById('riskScoreCard');
-
-    if (isTruck1 || !v.has_risk_data || !v.risk_score) {
-      if (heroRiskScoreItem) heroRiskScoreItem.style.display = 'none';
-      if (heroPayloadItem) heroPayloadItem.style.display = 'none';
-      if (riskScoreCard) riskScoreCard.style.display = 'none';
-    } else {
-      if (heroRiskScoreItem) heroRiskScoreItem.style.display = 'block';
-      if (heroPayloadItem) heroPayloadItem.style.display = 'block';
-      if (riskScoreCard) riskScoreCard.style.display = 'flex';
-
-      const risk = v.risk_score || { total: 20, level: 'LOW', speed_factor: 15, fog_factor: 25, traffic_factor: 10, hazard_factor: 5 };
-      document.getElementById('heroRiskScore').textContent = `${risk.total}/100`;
-      document.getElementById('riskScoreBigVal').textContent = risk.total;
-      document.getElementById('riskScoreLevelBadge').textContent = `${risk.level} RISK`;
-
-      riskCard.className = 'risk-score-card';
-      if (risk.total >= 80) {
-        riskCard.classList.add('critical-risk');
-        document.getElementById('riskScoreBigVal').style.color = 'var(--red)';
-        document.getElementById('riskScoreLevelBadge').style.background = 'rgba(255,79,85,0.2)';
-        document.getElementById('riskScoreLevelBadge').style.color = 'var(--red)';
-      } else if (risk.total >= 60) {
-        riskCard.classList.add('high-risk');
-        document.getElementById('riskScoreBigVal').style.color = 'var(--orange)';
-        document.getElementById('riskScoreLevelBadge').style.background = 'rgba(255,136,0,0.2)';
-        document.getElementById('riskScoreLevelBadge').style.color = 'var(--orange)';
-      } else if (risk.total >= 35) {
-        document.getElementById('riskScoreBigVal').style.color = 'var(--amber)';
-        document.getElementById('riskScoreLevelBadge').style.background = 'rgba(255,182,46,0.15)';
-        document.getElementById('riskScoreLevelBadge').style.color = 'var(--amber)';
-      } else {
-        document.getElementById('riskScoreBigVal').style.color = 'var(--green)';
-        document.getElementById('riskScoreLevelBadge').style.background = 'rgba(56,231,138,0.15)';
-        document.getElementById('riskScoreLevelBadge').style.color = 'var(--green)';
-      }
-
-      document.getElementById('rfSpeedBar').style.width = `${risk.speed_factor}%`;
-      document.getElementById('rfSpeedVal').textContent = `${risk.speed_factor}%`;
-      document.getElementById('rfFogBar').style.width = `${risk.fog_factor}%`;
-      document.getElementById('rfFogVal').textContent = `${risk.fog_factor}%`;
-      document.getElementById('rfTrafficBar').style.width = `${risk.traffic_factor}%`;
-      document.getElementById('rfTrafficVal').textContent = `${risk.traffic_factor}%`;
-      document.getElementById('rfHazardBar').style.width = `${risk.hazard_factor}%`;
-      document.getElementById('rfHazardVal').textContent = `${risk.hazard_factor}%`;
-    }
-
-    // Command Banner
-    const cmdCard = document.getElementById('commandCard');
-    const cmdVal = document.getElementById('cmdValue');
-    const cmdIcon = document.getElementById('cmdIcon');
-    const cmdDesc = document.getElementById('cmdDesc');
-
-    cmdCard.className = 'command-card';
-    if (v.action === 'STOP') {
-      cmdCard.classList.add('stop');
-      cmdVal.textContent = 'EMERGENCY STOP';
-      cmdVal.style.color = 'var(--red)';
-      cmdIcon.textContent = '⛔';
-      cmdIcon.style.color = 'var(--red)';
-      cmdIcon.style.background = 'rgba(255, 79, 85, 0.2)';
-      cmdDesc.textContent = `Immediate hazard detected ahead (${v.dist_front} cm). Emergency brakes activated. Vehicle propulsion halted.`;
-    } else if (v.action === 'SLOW DOWN') {
-      cmdCard.classList.add('slow');
-      cmdVal.textContent = 'SLOW DOWN (CAUTION)';
-      cmdVal.style.color = 'var(--amber)';
-      cmdIcon.textContent = '⚠️';
-      cmdIcon.style.color = 'var(--amber)';
-      cmdIcon.style.background = 'rgba(255, 182, 46, 0.2)';
-      cmdDesc.textContent = `Caution zone trigger: Obstacle within ${v.dist_front} cm or current fog visibility requires speed reduction.`;
-    } else if (v.action === 'TURN LEFT' || v.action === 'TURN RIGHT') {
-      cmdCard.classList.add('turn');
-      cmdVal.textContent = `${v.action} (EVASIVE)`;
-      cmdVal.style.color = 'var(--amber)';
-      cmdIcon.textContent = v.action === 'TURN LEFT' ? '↰' : '↱';
-      cmdIcon.style.color = 'var(--amber)';
-      cmdIcon.style.background = 'rgba(255, 182, 46, 0.2)';
-      cmdDesc.textContent = `Obstacle ahead. Navigating evasive steering corridor to the ${v.action.toLowerCase().replace('turn ', '')}.`;
-    } else {
-      cmdVal.textContent = 'CLEAR ROUTE';
-      cmdVal.style.color = 'var(--green)';
-      cmdIcon.textContent = '✓';
-      cmdIcon.style.color = 'var(--green)';
-      cmdIcon.style.background = 'rgba(56, 231, 138, 0.12)';
-      cmdDesc.textContent = 'All ultrasonic safety corridors clear. Vehicle operating under nominal cruise conditions.';
-    }
-
-    // Sensors
-    updateSensorBox('front', v.dist_front);
-    updateSensorBox('left', v.dist_left);
-    updateSensorBox('right', v.dist_right);
-
-    updateRadarCone('radarFrontCone', v.dist_front);
-    updateRadarCone('radarLeftCone', v.dist_left);
-    updateRadarCone('radarRightCone', v.dist_right);
-
-    // Map Footer Telemetry (Real-Time GPS Location)
-    document.getElementById('mstatLat').textContent = v.lat.toFixed(6);
-    document.getElementById('mstatLng').textContent = v.lng.toFixed(6);
-    document.getElementById('mstatElev').textContent = `${v.elevation_m} m`;
-
-    const nearest = v.closest_truck || {};
-    document.getElementById('mstatNearest').textContent = nearest.name !== 'None' ? `${nearest.name} (${nearest.distance_m}m)` : 'Clear (>500m)';
-
-    // Trail
-    if (v.trail && v.trail.length) {
-      selectedTrailPolyline.setLatLngs(v.trail);
-      selectedTrailPolyline.setStyle({ color: v.avatar_color });
-    }
-
-    // DIAGNOSTICS & MECHANICAL HEALTH - REMOVED FOR VEHICLE 1
-    const diagnosticsCard = document.getElementById('diagnosticsCard');
-    const vehicleLogCard = document.getElementById('vehicleLogCard');
-    if (isTruck1 || v.has_diagnostics === false) {
-      if (diagnosticsCard) diagnosticsCard.style.display = 'none';
-      if (vehicleLogCard) vehicleLogCard.style.gridColumn = '1 / -1';
-    } else {
-      if (diagnosticsCard) diagnosticsCard.style.display = 'block';
-      if (vehicleLogCard) vehicleLogCard.style.gridColumn = 'auto';
-
-      document.getElementById('diagGear').textContent = v.gear || 'D3';
-      document.getElementById('diagTemp').textContent = `${v.engine_temp_c || 88}°C`;
-      document.getElementById('diagTire').textContent = `${v.tire_pressure_psi || 102} PSI`;
-
-      const payloadVal = v.payload_tons || 0;
-      const maxPayload = v.max_payload || 320;
-      const payloadPct = Math.min(100, Math.round((payloadVal / maxPayload) * 100));
-      document.getElementById('payloadPctText').textContent = `${payloadPct}% (${payloadVal}/${maxPayload}t)`;
-      document.getElementById('payloadBar').style.width = `${payloadPct}%`;
-    }
-
-    // Event Log
-    const logContainer = document.getElementById('vehicleLogContainer');
-    if (v.log && v.log.length) {
-      logContainer.innerHTML = v.log.map(item => {
-        const dotColor = item.action === 'STOP' ? 'var(--red)' : item.action !== 'CLEAR' ? 'var(--amber)' : 'var(--green)';
-        return `
-          <div class="log-entry">
-            <div style="display:flex;align-items:center;gap:8px">
-              <span class="log-dot" style="background:${dotColor}"></span>
-              <span style="font-size:9.5px;color:var(--text-muted);font-family:monospace">${item.time}</span>
-              <span style="font-weight:700;color:${dotColor}">${item.action}</span>
-            </div>
-            <div style="color:var(--text-muted);font-size:9.5px">${item.note || ''}</div>
-          </div>
-        `;
-      }).join('');
-    }
-
+    applyVehicleToUI(v);
   } catch (err) {
     console.error('fetchVehicleDetails err:', err);
   }
@@ -2329,28 +2497,32 @@ function updateSensorBox(dir, dist) {
   const box = document.getElementById(`${dir}SensorBox`);
   const valEl = document.getElementById(`${dir}Val`);
   const bar = document.getElementById(`${dir}Bar`);
+  if (!valEl || !bar) return;
 
-  valEl.textContent = dist;
+  valEl.textContent = (dist !== undefined && dist !== null) ? dist : '--';
   let color = 'var(--teal)';
-  if (dist < 15) {
+  const d = parseInt(dist, 10) || 0;
+  if (d < 15) {
     color = 'var(--red)';
-  } else if (dist < 40) {
+  } else if (d < 40) {
     color = 'var(--amber)';
   }
 
-  const capped = Math.max(0, Math.min(dist, 200));
-  const widthPct = Math.round((1 - capped / 200) * 100);
-  bar.style.width = `${Math.max(8, widthPct)}%`;
+  // Range up to 250 cm
+  const capped = Math.max(0, Math.min(d, 250));
+  const widthPct = Math.min(100, Math.max(14, Math.round((capped / 250) * 100)));
+  bar.style.width = `${widthPct}%`;
   bar.style.backgroundColor = color;
 }
 
 function updateRadarCone(elementId, dist) {
   const cone = document.getElementById(elementId);
   if (!cone) return;
-  if (dist < 15) {
+  const d = parseInt(dist, 10) || 0;
+  if (d < 15) {
     cone.setAttribute('fill', 'rgba(239, 68, 68, 0.55)');
     cone.setAttribute('stroke', 'var(--red)');
-  } else if (dist < 40) {
+  } else if (d < 40) {
     cone.setAttribute('fill', 'rgba(245, 158, 11, 0.40)');
     cone.setAttribute('stroke', 'var(--amber)');
   } else {
@@ -2410,19 +2582,48 @@ async function setSimSpeed(speed) {
 }
 
 async function triggerTestObstacle() {
+  const btn = document.querySelector('.test-obs-btn');
+  const originalHtml = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.innerHTML = '<span>💥</span> <span>OBSTACLE INJECTED (10 cm)!</span>';
+    btn.style.background = 'rgba(239, 68, 68, 0.35)';
+    btn.style.borderColor = 'var(--red)';
+  }
+
   try {
-    await fetch('/api/simulate/obstacle', {
+    const res = await fetch('/api/simulate/obstacle', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         vehicle_id: selectedVehicleId,
         distance: 10,
-        duration: 6
+        duration: 8
       })
     });
-    fetchVehicleDetails();
+    const d = await res.json();
+    console.log('Obstacle simulation result:', d);
+
+    // Update local vehicle state immediately so user sees immediate response
+    const v = fleetList.find(x => x.id === selectedVehicleId);
+    if (v) {
+      v.dist_front = 10;
+      v.action = 'STOP';
+      v.status = 'CRITICAL';
+      v.speed_kmh = 0.0;
+      applyVehicleToUI(v);
+    }
+    await fetchVehicleDetails();
+    await fetchFleet();
   } catch (e) {
     console.error('trigger obstacle err', e);
+  } finally {
+    setTimeout(() => {
+      if (btn) {
+        btn.innerHTML = originalHtml;
+        btn.style.background = '';
+        btn.style.borderColor = '';
+      }
+    }, 2500);
   }
 }
 
