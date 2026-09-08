@@ -1340,11 +1340,11 @@
             <div class="hstat-label">Velocity</div>
             <div class="hstat-value"><span id="heroSpeed">0.0</span> <span style="font-size:11px;color:var(--text-muted)">km/h</span></div>
           </div>
-          <div class="hstat-item">
+          <div class="hstat-item" id="heroRiskScoreItem">
             <div class="hstat-label">Risk Score</div>
             <div class="hstat-value" id="heroRiskScore" style="color:var(--green)">24/100</div>
           </div>
-          <div class="hstat-item">
+          <div class="hstat-item" id="heroPayloadItem">
             <div class="hstat-label">Payload</div>
             <div class="hstat-value"><span id="heroPayload">--</span> <span style="font-size:11px;color:var(--text-muted)">t</span></div>
           </div>
@@ -1482,9 +1482,14 @@
         <div class="card">
           <div class="card-header">
             <div class="card-title">Dynamic Fog Heatmap & Fleet GPS Tracking</div>
-            <button class="ctrl-btn" style="flex:none;padding:4px 9px;font-size:10px" onclick="centerOnSelected()">
-              Focus Selected
-            </button>
+            <div style="display:flex;gap:6px">
+              <button class="ctrl-btn" style="flex:none;padding:4px 9px;font-size:10px" onclick="centerOnSelected()">
+                Focus Selected
+              </button>
+              <button class="ctrl-btn" style="flex:none;padding:4px 9px;font-size:10px;border-color:rgba(56,189,248,0.4);color:var(--teal)" onclick="selectVehicle('TRUCK_01')">
+                📍 Focus GPS Node
+              </button>
+            </div>
           </div>
           <div id="fleetMap"></div>
           <div class="map-telemetry-bar">
@@ -1528,8 +1533,8 @@
       </section>
 
       <!-- BOTTOM ROW: DIAGNOSTICS & EVENT LOG -->
-      <section class="bottom-grid">
-        <div class="card">
+      <section class="bottom-grid" id="bottomGrid">
+        <div class="card" id="diagnosticsCard">
           <div class="card-header">
             <div class="card-title">Vehicle Diagnostics & Mechanical Health</div>
           </div>
@@ -1561,7 +1566,7 @@
           </div>
         </div>
 
-        <div class="card">
+        <div class="card" id="vehicleLogCard">
           <div class="card-header">
             <div class="card-title">Obstacle & Telemetry Audit Log</div>
             <div style="font-size:9px;color:var(--text-muted)">SELECTED VEHICLE EVENTS</div>
@@ -1940,15 +1945,20 @@ function renderSidebar() {
     const isSel = v.id === selectedVehicleId && !isFleetOverviewMode;
     const num = v.id.replace('TRUCK_0', '').replace('TRUCK_', '');
     const isReal = v.source_type === 'REAL_HARDWARE';
-    const risk = v.risk_score ? v.risk_score.total : 20;
+    const isTruck1 = (v.id === 'TRUCK_01');
+    const speed = isTruck1 ? 0.0 : (v.speed_kmh || 0.0);
+    const risk = v.risk_score ? v.risk_score.total : null;
 
     const isConnected = v.is_connected !== undefined ? v.is_connected : (isReal ? v.hardware_status === 'CONNECTED_LIVE' : simRunning);
-    const isMoving = v.is_moving !== undefined ? v.is_moving : (v.speed_kmh > 0.5 && v.action !== 'STOP');
+    const isMoving = isTruck1 ? false : (v.is_moving !== undefined ? v.is_moving : (speed > 0.5 && v.action !== 'STOP'));
 
     let riskClass = 'low';
-    if (risk >= 80) riskClass = 'critical';
-    else if (risk >= 60) riskClass = 'high';
-    else if (risk >= 35) riskClass = 'moderate';
+    if (risk !== null) {
+      if (risk >= 80) riskClass = 'critical';
+      else if (risk >= 60) riskClass = 'high';
+      else if (risk >= 35) riskClass = 'moderate';
+    }
+    const hasRiskPill = !isTruck1 && risk !== null && v.has_risk_data !== false;
 
     return `
       <div class="vehicle-card ${isSel ? 'active' : ''}" onclick="selectVehicle('${v.id}')">
@@ -1962,11 +1972,11 @@ function renderSidebar() {
                 ${v.name}
                 <span class="source-tag ${isReal ? 'real' : 'sim'}">${isReal ? 'REAL ESP32' : 'SIM'}</span>
               </div>
-              <div class="vcard-model">${v.model} • ${v.current_zone ? v.current_zone.name.split(':')[0] : 'Pit'}</div>
+              <div class="vcard-model">${v.model} • ${v.current_zone ? v.current_zone.name.split(':')[0] : 'Real Area'}</div>
             </div>
           </div>
           <div style="display:flex;align-items:center;gap:6px">
-            <span class="vcard-risk-pill ${riskClass}">RISK ${risk}</span>
+            ${hasRiskPill ? `<span class="vcard-risk-pill ${riskClass}">RISK ${risk}</span>` : ''}
             <button class="vcard-del-btn" title="Deregister device" onclick="confirmDeleteVehicle('${v.id}', '${v.name.replace(/'/g, "\\'")}', event)">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="3 6 5 6 21 6"></polyline>
@@ -1983,13 +1993,13 @@ function renderSidebar() {
             <span>${isConnected ? 'CONNECTED' : 'DISCONNECTED'}</span>
           </div>
           <div class="status-chip ${isMoving ? 'chip-moving' : 'chip-stopped'}">
-            <span>${isMoving ? `⚡ ${v.speed_kmh} km/h (MOVING)` : '🛑 STOPPED'}</span>
+            <span>${isMoving ? `⚡ ${speed.toFixed(1)} km/h (MOVING)` : '🛑 STOPPED (0.0 km/h)'}</span>
           </div>
         </div>
 
         <div class="vcard-metrics">
           <div>
-            <div class="vcard-metric-val">${v.speed_kmh} <span style="font-size:9px;color:var(--text-muted)">km/h</span></div>
+            <div class="vcard-metric-val">${speed.toFixed(1)} <span style="font-size:9px;color:var(--text-muted)">km/h</span></div>
             <div class="vcard-metric-lbl">Speed</div>
           </div>
           <div>
@@ -2052,8 +2062,7 @@ async function fetchFogZones() {
 }
 
 // =============================================================================
-// UPDATE MAP MARKERS
-// =============================================================================
+let initialCentered = false;
 function updateMapMarkers(vehicles) {
   vehicles.forEach(v => {
     const isSelected = v.id === selectedVehicleId && !isFleetOverviewMode;
@@ -2072,6 +2081,11 @@ function updateMapMarkers(vehicles) {
       entry.marker.setIcon(createVehicleIcon(v, isSelected));
     }
   });
+
+  if (!initialCentered && vehicleMarkers[selectedVehicleId]) {
+    initialCentered = true;
+    centerOnSelected();
+  }
 }
 
 // =============================================================================
@@ -2083,18 +2097,23 @@ async function fetchVehicleDetails() {
     if (!res.ok) return;
     const v = await res.json();
 
+    const isTruck1 = (v.id === 'TRUCK_01');
+    const speedVal = isTruck1 ? 0.0 : (v.speed_kmh || 0.0);
+
     // Hero Info
     const num = v.id.replace('TRUCK_0', '').replace('TRUCK_', '');
     document.getElementById('heroBadge').textContent = num || '1';
     document.getElementById('heroName').textContent = v.name; // Clean name without duplicate brackets
     document.getElementById('heroModel').textContent = v.model;
-    document.getElementById('heroSpeed').textContent = v.speed_kmh.toFixed(1);
-    document.getElementById('heroPayload').textContent = v.payload_tons.toFixed(1);
+    document.getElementById('heroSpeed').textContent = speedVal.toFixed(1);
+    if (v.payload_tons !== null && v.payload_tons !== undefined) {
+      document.getElementById('heroPayload').textContent = v.payload_tons.toFixed(1);
+    }
     document.getElementById('heroLastUpdate').textContent = v.last_update;
 
     const isReal = v.source_type === 'REAL_HARDWARE';
     const isConnected = v.is_connected !== undefined ? v.is_connected : (isReal ? v.hardware_status === 'CONNECTED_LIVE' : simRunning);
-    const isMoving = v.is_moving !== undefined ? v.is_moving : (v.speed_kmh > 0.5 && v.action !== 'STOP');
+    const isMoving = isTruck1 ? false : (v.is_moving !== undefined ? v.is_moving : (speedVal > 0.5 && v.action !== 'STOP'));
 
     // Update Hero Status Pills
     const heroConnPill = document.getElementById('heroConnPill');
@@ -2108,9 +2127,15 @@ async function fetchVehicleDetails() {
 
     const heroMotionPill = document.getElementById('heroMotionPill');
     if (heroMotionPill) {
-      heroMotionPill.className = 'hero-status-pill ' + (isMoving ? 'moving' : 'stopped');
-      const motionText = document.getElementById('heroMotionText');
-      if (motionText) motionText.textContent = isMoving ? `⚡ MOVING (${v.speed_kmh.toFixed(1)} km/h)` : `🛑 STOPPED (0.0 km/h)`;
+      if (isTruck1) {
+        heroMotionPill.className = 'hero-status-pill stopped';
+        const motionText = document.getElementById('heroMotionText');
+        if (motionText) motionText.textContent = '🛑 STOPPED (0.0 km/h)';
+      } else {
+        heroMotionPill.className = 'hero-status-pill ' + (isMoving ? 'moving' : 'stopped');
+        const motionText = document.getElementById('heroMotionText');
+        if (motionText) motionText.textContent = isMoving ? `⚡ MOVING (${speedVal.toFixed(1)} km/h)` : `🛑 STOPPED (0.0 km/h)`;
+      }
     }
 
     const tag = document.getElementById('heroSourceTag');
@@ -2123,15 +2148,15 @@ async function fetchVehicleDetails() {
 
     document.getElementById('hwToggleModeBtn').textContent = isReal ? 'Switch to Autonomous Simulation' : 'Bind to Real ESP32 Prototype';
 
-    // Zone Tag
+    // Zone Tag: Dynamically shows the real-time area or mining zone
     const zone = v.current_zone || {};
-    document.getElementById('heroZoneTag').textContent = zone.name || 'Bailadila Mining Corridor';
-    document.getElementById('activeZoneTitle').textContent = zone.name || '--';
+    document.getElementById('heroZoneTag').textContent = zone.name || 'Real-Time Operational Area';
+    document.getElementById('activeZoneTitle').textContent = zone.name || 'Real-Time Operational Area';
     document.getElementById('activeZoneVis').textContent = `${zone.visibility_m || 50} m — ${zone.severity || 'NORMAL'}`;
     document.getElementById('activeZoneVis').style.color = zone.color || 'var(--green)';
-    document.getElementById('activeSafeSpeedText').textContent = `${zone.max_safe_speed || 40} km/h`;
+    document.getElementById('activeSafeSpeedText').textContent = `${zone.max_safe_speed || 35} km/h`;
 
-    // 10-Min Prediction for this zone
+    // 10-Min Prediction for this zone / area
     const fullZone = fogZones.find(z => z.id === zone.id) || {};
     if (fullZone.prediction_10m) {
       document.getElementById('weatherTemp').textContent = `${fullZone.temperature_c}°C`;
@@ -2139,44 +2164,59 @@ async function fetchVehicleDetails() {
       document.getElementById('weatherDew').textContent = `${fullZone.dew_point_c}°C`;
       document.getElementById('weatherWind').textContent = `${fullZone.wind_speed_kmh} km/h (${fullZone.wind_dir})`;
       document.getElementById('predictionAdvisory').textContent = `${fullZone.prediction_10m.trend}. ${fullZone.prediction_10m.advisory}`;
+    } else if (zone.prediction_10m) {
+      document.getElementById('predictionAdvisory').textContent = `${zone.prediction_10m.trend}: ${zone.prediction_10m.advisory}`;
     }
 
-    // RISK SCORE (FEATURE 28)
-    const risk = v.risk_score || { total: 20, level: 'LOW', speed_factor: 15, fog_factor: 25, traffic_factor: 10, hazard_factor: 5 };
-    document.getElementById('heroRiskScore').textContent = `${risk.total}/100`;
-    document.getElementById('riskScoreBigVal').textContent = risk.total;
-    document.getElementById('riskScoreLevelBadge').textContent = `${risk.level} RISK`;
+    // RISK SCORE (FEATURE 28) - REMOVED FOR VEHICLE 1
+    const heroRiskScoreItem = document.getElementById('heroRiskScoreItem');
+    const heroPayloadItem = document.getElementById('heroPayloadItem');
+    const riskScoreCard = document.getElementById('riskScoreCard');
 
-    const riskCard = document.getElementById('riskScoreCard');
-    riskCard.className = 'risk-score-card';
-    if (risk.total >= 80) {
-      riskCard.classList.add('critical-risk');
-      document.getElementById('riskScoreBigVal').style.color = 'var(--red)';
-      document.getElementById('riskScoreLevelBadge').style.background = 'rgba(255,79,85,0.2)';
-      document.getElementById('riskScoreLevelBadge').style.color = 'var(--red)';
-    } else if (risk.total >= 60) {
-      riskCard.classList.add('high-risk');
-      document.getElementById('riskScoreBigVal').style.color = 'var(--orange)';
-      document.getElementById('riskScoreLevelBadge').style.background = 'rgba(255,136,0,0.2)';
-      document.getElementById('riskScoreLevelBadge').style.color = 'var(--orange)';
-    } else if (risk.total >= 35) {
-      document.getElementById('riskScoreBigVal').style.color = 'var(--amber)';
-      document.getElementById('riskScoreLevelBadge').style.background = 'rgba(255,182,46,0.15)';
-      document.getElementById('riskScoreLevelBadge').style.color = 'var(--amber)';
+    if (isTruck1 || !v.has_risk_data || !v.risk_score) {
+      if (heroRiskScoreItem) heroRiskScoreItem.style.display = 'none';
+      if (heroPayloadItem) heroPayloadItem.style.display = 'none';
+      if (riskScoreCard) riskScoreCard.style.display = 'none';
     } else {
-      document.getElementById('riskScoreBigVal').style.color = 'var(--green)';
-      document.getElementById('riskScoreLevelBadge').style.background = 'rgba(56,231,138,0.15)';
-      document.getElementById('riskScoreLevelBadge').style.color = 'var(--green)';
-    }
+      if (heroRiskScoreItem) heroRiskScoreItem.style.display = 'block';
+      if (heroPayloadItem) heroPayloadItem.style.display = 'block';
+      if (riskScoreCard) riskScoreCard.style.display = 'flex';
 
-    document.getElementById('rfSpeedBar').style.width = `${risk.speed_factor}%`;
-    document.getElementById('rfSpeedVal').textContent = `${risk.speed_factor}%`;
-    document.getElementById('rfFogBar').style.width = `${risk.fog_factor}%`;
-    document.getElementById('rfFogVal').textContent = `${risk.fog_factor}%`;
-    document.getElementById('rfTrafficBar').style.width = `${risk.traffic_factor}%`;
-    document.getElementById('rfTrafficVal').textContent = `${risk.traffic_factor}%`;
-    document.getElementById('rfHazardBar').style.width = `${risk.hazard_factor}%`;
-    document.getElementById('rfHazardVal').textContent = `${risk.hazard_factor}%`;
+      const risk = v.risk_score || { total: 20, level: 'LOW', speed_factor: 15, fog_factor: 25, traffic_factor: 10, hazard_factor: 5 };
+      document.getElementById('heroRiskScore').textContent = `${risk.total}/100`;
+      document.getElementById('riskScoreBigVal').textContent = risk.total;
+      document.getElementById('riskScoreLevelBadge').textContent = `${risk.level} RISK`;
+
+      riskCard.className = 'risk-score-card';
+      if (risk.total >= 80) {
+        riskCard.classList.add('critical-risk');
+        document.getElementById('riskScoreBigVal').style.color = 'var(--red)';
+        document.getElementById('riskScoreLevelBadge').style.background = 'rgba(255,79,85,0.2)';
+        document.getElementById('riskScoreLevelBadge').style.color = 'var(--red)';
+      } else if (risk.total >= 60) {
+        riskCard.classList.add('high-risk');
+        document.getElementById('riskScoreBigVal').style.color = 'var(--orange)';
+        document.getElementById('riskScoreLevelBadge').style.background = 'rgba(255,136,0,0.2)';
+        document.getElementById('riskScoreLevelBadge').style.color = 'var(--orange)';
+      } else if (risk.total >= 35) {
+        document.getElementById('riskScoreBigVal').style.color = 'var(--amber)';
+        document.getElementById('riskScoreLevelBadge').style.background = 'rgba(255,182,46,0.15)';
+        document.getElementById('riskScoreLevelBadge').style.color = 'var(--amber)';
+      } else {
+        document.getElementById('riskScoreBigVal').style.color = 'var(--green)';
+        document.getElementById('riskScoreLevelBadge').style.background = 'rgba(56,231,138,0.15)';
+        document.getElementById('riskScoreLevelBadge').style.color = 'var(--green)';
+      }
+
+      document.getElementById('rfSpeedBar').style.width = `${risk.speed_factor}%`;
+      document.getElementById('rfSpeedVal').textContent = `${risk.speed_factor}%`;
+      document.getElementById('rfFogBar').style.width = `${risk.fog_factor}%`;
+      document.getElementById('rfFogVal').textContent = `${risk.fog_factor}%`;
+      document.getElementById('rfTrafficBar').style.width = `${risk.traffic_factor}%`;
+      document.getElementById('rfTrafficVal').textContent = `${risk.traffic_factor}%`;
+      document.getElementById('rfHazardBar').style.width = `${risk.hazard_factor}%`;
+      document.getElementById('rfHazardVal').textContent = `${risk.hazard_factor}%`;
+    }
 
     // Command Banner
     const cmdCard = document.getElementById('commandCard');
@@ -2227,7 +2267,7 @@ async function fetchVehicleDetails() {
     updateRadarCone('radarLeftCone', v.dist_left);
     updateRadarCone('radarRightCone', v.dist_right);
 
-    // Map Footer Telemetry
+    // Map Footer Telemetry (Real-Time GPS Location)
     document.getElementById('mstatLat').textContent = v.lat.toFixed(6);
     document.getElementById('mstatLng').textContent = v.lng.toFixed(6);
     document.getElementById('mstatElev').textContent = `${v.elevation_m} m`;
@@ -2241,14 +2281,26 @@ async function fetchVehicleDetails() {
       selectedTrailPolyline.setStyle({ color: v.avatar_color });
     }
 
-    // Diagnostics
-    document.getElementById('diagGear').textContent = v.gear;
-    document.getElementById('diagTemp').textContent = `${v.engine_temp_c}°C`;
-    document.getElementById('diagTire').textContent = `${v.tire_pressure_psi} PSI`;
+    // DIAGNOSTICS & MECHANICAL HEALTH - REMOVED FOR VEHICLE 1
+    const diagnosticsCard = document.getElementById('diagnosticsCard');
+    const vehicleLogCard = document.getElementById('vehicleLogCard');
+    if (isTruck1 || v.has_diagnostics === false) {
+      if (diagnosticsCard) diagnosticsCard.style.display = 'none';
+      if (vehicleLogCard) vehicleLogCard.style.gridColumn = '1 / -1';
+    } else {
+      if (diagnosticsCard) diagnosticsCard.style.display = 'block';
+      if (vehicleLogCard) vehicleLogCard.style.gridColumn = 'auto';
 
-    const payloadPct = Math.min(100, Math.round((v.payload_tons / v.max_payload) * 100));
-    document.getElementById('payloadPctText').textContent = `${payloadPct}% (${v.payload_tons}/${v.max_payload}t)`;
-    document.getElementById('payloadBar').style.width = `${payloadPct}%`;
+      document.getElementById('diagGear').textContent = v.gear || 'D3';
+      document.getElementById('diagTemp').textContent = `${v.engine_temp_c || 88}°C`;
+      document.getElementById('diagTire').textContent = `${v.tire_pressure_psi || 102} PSI`;
+
+      const payloadVal = v.payload_tons || 0;
+      const maxPayload = v.max_payload || 320;
+      const payloadPct = Math.min(100, Math.round((payloadVal / maxPayload) * 100));
+      document.getElementById('payloadPctText').textContent = `${payloadPct}% (${payloadVal}/${maxPayload}t)`;
+      document.getElementById('payloadBar').style.width = `${payloadPct}%`;
+    }
 
     // Event Log
     const logContainer = document.getElementById('vehicleLogContainer');

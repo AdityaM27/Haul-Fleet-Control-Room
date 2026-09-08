@@ -11,11 +11,13 @@ Key Upgrades:
 - Dark Channel Prior OpenCV Dehazing Stream
 """
 
+import json
 import math
 import os
 import random
 import threading
 import time
+import urllib.request
 from datetime import datetime
 from flask import Flask, Response, jsonify, render_template, request
 import cv2
@@ -175,21 +177,6 @@ def point_in_polygon(lat, lng, poly):
     return inside
 
 
-def get_zone_for_point(lat, lng):
-    for zid, z in FOG_ZONES.items():
-        if point_in_polygon(lat, lng, z["polygon"]):
-            return z
-    # Fallback to closest zone center
-    closest_z = FOG_ZONES["ZONE_1"]
-    min_dist = float("inf")
-    for zid, z in FOG_ZONES.items():
-        d = (lat - z["center"][0]) ** 2 + (lng - z["center"][1]) ** 2
-        if d < min_dist:
-            min_dist = d
-            closest_z = z
-    return closest_z
-
-
 def haversine_distance_m(lat1, lon1, lat2, lon2):
     """Calculates ground distance between two GPS coordinates in meters."""
     R = 6371000.0
@@ -199,6 +186,98 @@ def haversine_distance_m(lat1, lon1, lat2, lon2):
     a = math.sin(delta_phi / 2.0) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(delta_lambda / 2.0) ** 2
     c = 2.0 * math.atan2(math.sqrt(a), math.sqrt(1.0 - a))
     return R * c
+
+
+# In-memory geo cache to store resolved real-world area names for GPS coordinates
+geo_cache = {}
+
+
+def fetch_nominatim_async(lat, lng, cache_key):
+    """Asynchronously fetches reverse geocoding from OpenStreetMap Nominatim."""
+    try:
+        url = f"https://nominatim.openstreetmap.org/reverse?format=json&lat={lat}&lon={lng}&zoom=16"
+        req = urllib.request.Request(url, headers={"User-Agent": "ResurgenceFleetControl/1.0"})
+        with urllib.request.urlopen(req, timeout=3.0) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            addr = data.get("address", {})
+            name_part = addr.get("amenity") or addr.get("building") or data.get("name")
+            suburb = addr.get("suburb") or addr.get("neighbourhood") or addr.get("city_district")
+            city = addr.get("city") or addr.get("town") or addr.get("county")
+            state = addr.get("state")
+
+            parts = [p for p in [name_part, suburb, city, state] if p]
+            if parts:
+                resolved = ", ".join(parts[:3])
+                geo_cache[cache_key] = resolved
+                with fleet_lock:
+                    if "TRUCK_01" in fleet_data:
+                        t1 = fleet_data["TRUCK_01"]
+                        if (round(t1["lat"], 3), round(t1["lng"], 3)) == cache_key:
+                            t1["current_zone"]["name"] = resolved
+    except Exception:
+        pass
+
+
+def get_real_area_name(lat, lng):
+    """Resolves human-readable real-world area name for GPS coordinates."""
+    cache_key = (round(lat, 3), round(lng, 3))
+    if cache_key in geo_cache:
+        return geo_cache[cache_key]
+
+    # Offline high-accuracy regional detection (instant 0ms response)
+    if 17.48 <= lat <= 17.62 and 78.30 <= lng <= 78.48:
+        default_name = "VNR VJIET Campus, Bachupally, Hyderabad"
+    elif 17.15 <= lat <= 17.70 and 78.10 <= lng <= 78.75:
+        default_name = "Hyderabad Regional Sector, Telangana"
+    else:
+        default_name = f"Real-Time Area ({lat:.4f}°N, {lng:.4f}°E)"
+
+    geo_cache[cache_key] = default_name
+    # Trigger background async lookup to enrich location if internet is available
+    threading.Thread(target=fetch_nominatim_async, args=(lat, lng, cache_key), daemon=True).start()
+    return default_name
+
+
+def get_zone_for_point(lat, lng):
+    """
+    Returns the dynamic fog zone or real-time area for the given GPS point.
+    If inside Bailadila mining polygons, returns the specific mine zone.
+    If outside the mine (e.g. real hardware GPS location), dynamically returns the real-time area.
+    """
+    for zid, z in FOG_ZONES.items():
+        if point_in_polygon(lat, lng, z["polygon"]):
+            return z
+
+    # Check if within Bailadila mountain vicinity (~5km radius)
+    d_to_bailadila = haversine_distance_m(lat, lng, BASE_LAT, BASE_LNG)
+    if d_to_bailadila < 5000.0:
+        closest_z = FOG_ZONES["ZONE_1"]
+        min_dist = float("inf")
+        for zid, z in FOG_ZONES.items():
+            d = (lat - z["center"][0]) ** 2 + (lng - z["center"][1]) ** 2
+            if d < min_dist:
+                min_dist = d
+                closest_z = z
+        return closest_z
+
+    # Outside Bailadila -> Dynamically resolve the real-world operational area
+    area_name = get_real_area_name(lat, lng)
+    return {
+        "id": "REAL_AREA",
+        "name": area_name,
+        "elevation_m": 580 if (17.0 <= lat <= 18.0) else 1040,
+        "visibility_m": 150,
+        "severity": "NORMAL",
+        "color": "#38bdf8",
+        "max_safe_speed": 35,
+        "is_real_location": True,
+        "prediction_10m": {
+            "visibility_m": 150,
+            "severity": "NORMAL",
+            "trend": "Live GPS Real-Time Area",
+            "advisory": f"Operating live in {area_name}. Telemetry streamed from onboard ESP32 + NEO-6M."
+        }
+    }
 
 
 # ==============================================================================
@@ -289,6 +368,9 @@ MAX_VEHICLE_LOG = 35
 
 # Initialize vehicle states
 for vdef in FLEET_DEFS:
+    vid = vdef["id"]
+    is_truck_01 = (vid == "TRUCK_01")
+
     wp_idx = vdef["base_wp_idx"] % len(QUARRY_WAYPOINTS)
     wp = QUARRY_WAYPOINTS[wp_idx]
     next_wp = QUARRY_WAYPOINTS[(wp_idx + 1) % len(QUARRY_WAYPOINTS)]
@@ -296,7 +378,41 @@ for vdef in FLEET_DEFS:
     d_lng = next_wp["lng"] - wp["lng"]
     d_lat = next_wp["lat"] - wp["lat"]
     heading = (math.degrees(math.atan2(d_lng, d_lat)) + 360) % 360
-    zone = get_zone_for_point(wp["lat"], wp["lng"])
+
+    if is_truck_01:
+        # Real-time GPS node coordinates (matches ESP32 hardware node location)
+        init_lat = 17.5389
+        init_lng = 78.3846
+        zone = get_zone_for_point(init_lat, init_lng)
+        speed_kmh = 0.0
+        target_speed = 0.0
+        gear = None
+        engine_temp_c = None
+        tire_pressure_psi = None
+        payload_tons = None
+        risk_score = None
+        has_risk_data = False
+        has_diagnostics = False
+    else:
+        init_lat = round(wp["lat"], 6)
+        init_lng = round(wp["lng"], 6)
+        zone = get_zone_for_point(init_lat, init_lng)
+        speed_kmh = round(min(wp["speed_limit"], zone["max_safe_speed"]) * random.uniform(0.85, 1.02), 1)
+        target_speed = zone["max_safe_speed"]
+        gear = "D3"
+        engine_temp_c = round(random.uniform(84.0, 92.0), 1)
+        tire_pressure_psi = round(random.uniform(101.0, 104.5), 1)
+        payload_tons = round(vdef["max_payload"] * random.uniform(0.65, 0.98), 1)
+        risk_score = {
+            "total": 24,
+            "level": "LOW",
+            "speed_factor": 15,
+            "fog_factor": 25,
+            "traffic_factor": 10,
+            "hazard_factor": 5,
+        }
+        has_risk_data = True
+        has_diagnostics = True
 
     fleet_data[vdef["id"]] = {
         "id": vdef["id"],
@@ -311,24 +427,24 @@ for vdef in FLEET_DEFS:
         "packet_count": 0,
         "status": "NORMAL",
         "action": "CLEAR",
-        "speed_kmh": round(min(wp["speed_limit"], zone["max_safe_speed"]) * random.uniform(0.85, 1.02), 1),
-        "target_speed": zone["max_safe_speed"],
-        "gear": "D3",
-        "battery_pct": round(random.uniform(82.0, 99.0), 1),
-        "engine_temp_c": round(random.uniform(84.0, 92.0), 1),
-        "tire_pressure_psi": round(random.uniform(101.0, 104.5), 1),
-        "payload_tons": round(vdef["max_payload"] * random.uniform(0.65, 0.98), 1),
+        "speed_kmh": speed_kmh,
+        "target_speed": target_speed,
+        "gear": gear,
+        "battery_pct": 100.0 if is_truck_01 else round(random.uniform(82.0, 99.0), 1),
+        "engine_temp_c": engine_temp_c,
+        "tire_pressure_psi": tire_pressure_psi,
+        "payload_tons": payload_tons,
         "dist_front": random.randint(140, 220),
         "dist_left": random.randint(120, 200),
         "dist_right": random.randint(120, 200),
         "gps_valid": True,
-        "lat": round(wp["lat"], 6),
-        "lng": round(wp["lng"], 6),
-        "elevation_m": zone["elevation_m"],
-        "heading": round(heading, 1),
+        "lat": init_lat,
+        "lng": init_lng,
+        "elevation_m": zone.get("elevation_m", 580 if is_truck_01 else 1040),
+        "heading": 0.0 if is_truck_01 else round(heading, 1),
         "wp_idx": wp_idx,
         "wp_t": 0.0,
-        "trail": [[round(wp["lat"], 6), round(wp["lng"], 6)]],
+        "trail": [[init_lat, init_lng]],
         "current_zone": {
             "id": zone["id"],
             "name": zone["name"],
@@ -337,14 +453,9 @@ for vdef in FLEET_DEFS:
             "max_safe_speed": zone["max_safe_speed"],
             "color": zone["color"],
         },
-        "risk_score": {
-            "total": 24,
-            "level": "LOW",
-            "speed_factor": 15,
-            "fog_factor": 25,
-            "traffic_factor": 10,
-            "hazard_factor": 5,
-        },
+        "risk_score": risk_score,
+        "has_risk_data": has_risk_data,
+        "has_diagnostics": has_diagnostics,
         "closest_truck": {
             "id": "NONE",
             "name": "None",
@@ -508,11 +619,23 @@ def simulation_loop():
                     "color": zone["color"],
                 }
 
-                # If this vehicle is bound to REAL_HARDWARE, do not simulate motion or sensors
+                # If this vehicle is bound to REAL_HARDWARE or is TRUCK_01, do not simulate motion or sensors
                 # Real hardware posts into /update directly.
-                if v["source_type"] == "REAL_HARDWARE":
-                    # Just refresh risk score and check hardware heartbeat
-                    v["risk_score"] = compute_risk_score(v, closest_info[vid]["distance_m"], zone)
+                is_truck_01 = (vid == "TRUCK_01")
+                if v["source_type"] == "REAL_HARDWARE" or is_truck_01:
+                    if is_truck_01:
+                        v["speed_kmh"] = 0.0
+                        v["is_moving"] = False
+                        v["risk_score"] = None
+                        v["has_risk_data"] = False
+                        v["has_diagnostics"] = False
+                        v["engine_temp_c"] = None
+                        v["tire_pressure_psi"] = None
+                        v["payload_tons"] = None
+                        v["gear"] = None
+                    else:
+                        v["risk_score"] = compute_risk_score(v, closest_info[vid]["distance_m"], zone)
+
                     if v["last_hardware_packet"]:
                         elapsed = now_ts - v["last_hardware_packet"]
                         if elapsed > 12.0:
@@ -790,6 +913,18 @@ def get_fleet():
         high_risk_count = 0
 
         for vid, v in list(fleet_data.items()):
+            is_truck_01 = (vid == "TRUCK_01")
+            if is_truck_01:
+                v["speed_kmh"] = 0.0
+                v["is_moving"] = False
+                v["risk_score"] = None
+                v["has_risk_data"] = False
+                v["has_diagnostics"] = False
+                v["payload_tons"] = None
+                v["engine_temp_c"] = None
+                v["tire_pressure_psi"] = None
+                v["gear"] = None
+
             # Calculate live connection status
             is_connected = False
             if v["source_type"] == "REAL_HARDWARE":
@@ -801,7 +936,7 @@ def get_fleet():
             else:
                 is_connected = simulation_config["running"]
 
-            is_moving = (v["speed_kmh"] > 0.5 and v["action"] != "STOP")
+            is_moving = False if is_truck_01 else (v["speed_kmh"] > 0.5 and v["action"] != "STOP")
             v["is_connected"] = is_connected
             v["is_moving"] = is_moving
 
@@ -817,19 +952,24 @@ def get_fleet():
                 "packet_count": v["packet_count"],
                 "status": v["status"],
                 "action": v["action"],
-                "speed_kmh": v["speed_kmh"],
+                "speed_kmh": 0.0 if is_truck_01 else v["speed_kmh"],
                 "battery_pct": v["battery_pct"],
-                "payload_tons": v["payload_tons"],
+                "payload_tons": None if is_truck_01 else v.get("payload_tons"),
+                "engine_temp_c": None if is_truck_01 else v.get("engine_temp_c"),
+                "tire_pressure_psi": None if is_truck_01 else v.get("tire_pressure_psi"),
+                "gear": None if is_truck_01 else v.get("gear"),
                 "dist_front": v["dist_front"],
                 "dist_left": v["dist_left"],
                 "dist_right": v["dist_right"],
                 "lat": v["lat"],
                 "lng": v["lng"],
-                "elevation_m": v.get("elevation_m", 1040),
+                "elevation_m": v.get("elevation_m", 580 if is_truck_01 else 1040),
                 "heading": v["heading"],
                 "avatar_color": v["avatar_color"],
                 "current_zone": v["current_zone"],
-                "risk_score": v["risk_score"],
+                "risk_score": None if is_truck_01 else v.get("risk_score"),
+                "has_risk_data": not is_truck_01,
+                "has_diagnostics": not is_truck_01,
                 "closest_truck": v["closest_truck"],
                 "last_update": v["last_update"],
             })
@@ -841,10 +981,10 @@ def get_fleet():
             else:
                 clear_count += 1
 
-            if v["risk_score"]["total"] >= 70:
+            if v.get("risk_score") and isinstance(v["risk_score"], dict) and v["risk_score"].get("total", 0) >= 70:
                 high_risk_count += 1
 
-            total_speed += v["speed_kmh"]
+            total_speed += (0.0 if is_truck_01 else v["speed_kmh"])
 
         avg_speed = round(total_speed / len(v_list), 1) if v_list else 0.0
 
@@ -874,6 +1014,18 @@ def get_vehicle(vehicle_id):
         if not v:
             return jsonify({"status": "error", "msg": f"Vehicle {vehicle_id} not found"}), 404
 
+        is_truck_01 = (norm_vid == "TRUCK_01")
+        if is_truck_01:
+            v["speed_kmh"] = 0.0
+            v["is_moving"] = False
+            v["risk_score"] = None
+            v["has_risk_data"] = False
+            v["has_diagnostics"] = False
+            v["payload_tons"] = None
+            v["engine_temp_c"] = None
+            v["tire_pressure_psi"] = None
+            v["gear"] = None
+
         if v["source_type"] == "REAL_HARDWARE":
             if v.get("last_hardware_packet"):
                 elapsed = time.time() - v["last_hardware_packet"]
@@ -883,7 +1035,7 @@ def get_vehicle(vehicle_id):
         else:
             is_connected = simulation_config["running"]
 
-        is_moving = (v["speed_kmh"] > 0.5 and v["action"] != "STOP")
+        is_moving = False if is_truck_01 else (v["speed_kmh"] > 0.5 and v["action"] != "STOP")
         v["is_connected"] = is_connected
         v["is_moving"] = is_moving
 
@@ -1135,16 +1287,33 @@ def update_telemetry():
         if "gps_valid" in data:
             v["gps_valid"] = bool(data["gps_valid"])
 
-        if "speed" in data:
-            v["speed_kmh"] = float(data["speed"])
-
-        if action == "STOP":
-            v["status"] = "CRITICAL"
+        is_truck_01 = (vid == "TRUCK_01")
+        if is_truck_01:
             v["speed_kmh"] = 0.0
-        elif action in ("SLOW DOWN", "TURN LEFT", "TURN RIGHT"):
-            v["status"] = "CAUTION"
+            v["is_moving"] = False
+            v["risk_score"] = None
+            v["has_risk_data"] = False
+            v["has_diagnostics"] = False
+            v["payload_tons"] = None
+            v["engine_temp_c"] = None
+            v["tire_pressure_psi"] = None
+            v["gear"] = None
+            if action == "STOP":
+                v["status"] = "CRITICAL"
+            elif action in ("SLOW DOWN", "TURN LEFT", "TURN RIGHT"):
+                v["status"] = "CAUTION"
+            else:
+                v["status"] = "NORMAL"
         else:
-            v["status"] = "NORMAL"
+            if "speed" in data:
+                v["speed_kmh"] = float(data["speed"])
+            if action == "STOP":
+                v["status"] = "CRITICAL"
+                v["speed_kmh"] = 0.0
+            elif action in ("SLOW DOWN", "TURN LEFT", "TURN RIGHT"):
+                v["status"] = "CAUTION"
+            else:
+                v["status"] = "NORMAL"
 
         zone = get_zone_for_point(v["lat"], v["lng"])
         v["current_zone"] = {
@@ -1155,7 +1324,10 @@ def update_telemetry():
             "max_safe_speed": zone["max_safe_speed"],
             "color": zone["color"],
         }
-        v["risk_score"] = compute_risk_score(v, v["closest_truck"]["distance_m"], zone)
+        v["elevation_m"] = zone.get("elevation_m", 580 if is_truck_01 else 1040)
+
+        if not is_truck_01:
+            v["risk_score"] = compute_risk_score(v, v["closest_truck"]["distance_m"], zone)
 
         if action != "CLEAR":
             v["log"].insert(0, {
@@ -1170,8 +1342,11 @@ def update_telemetry():
         "status": "ok",
         "vehicle_id": vid,
         "source_type": "REAL_HARDWARE",
-        "risk_score": v["risk_score"]["total"],
-        "zone": zone["name"]
+        "speed_kmh": 0.0 if is_truck_01 else v["speed_kmh"],
+        "risk_score": None if is_truck_01 else (v["risk_score"]["total"] if v.get("risk_score") else None),
+        "zone": zone["name"],
+        "lat": v["lat"],
+        "lng": v["lng"]
     })
 
 
