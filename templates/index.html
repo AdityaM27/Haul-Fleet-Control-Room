@@ -1269,6 +1269,71 @@
     }
     .cam-tag.dehazed { color: var(--teal); border-color: rgba(56, 189, 248, 0.35); }
 
+    .cam-action-btn {
+      background: rgba(56, 189, 248, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      color: var(--teal);
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.2s ease;
+    }
+    .cam-action-btn:hover {
+      background: rgba(56, 189, 248, 0.25);
+      border-color: var(--teal);
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.3);
+      transform: translateY(-1px);
+    }
+    .cam-action-btn.cam-btn-reset {
+      background: rgba(239, 68, 68, 0.12);
+      border-color: rgba(239, 68, 68, 0.35);
+      color: var(--red);
+    }
+    .cam-action-btn.cam-btn-reset:hover {
+      background: rgba(239, 68, 68, 0.22);
+      border-color: var(--red);
+      box-shadow: 0 0 10px rgba(239, 68, 68, 0.3);
+    }
+    .cam-preset-chip {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: var(--text);
+      padding: 4px 9px;
+      border-radius: 6px;
+      font-size: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .cam-preset-chip:hover {
+      background: rgba(56, 189, 248, 0.15);
+      border-color: var(--teal);
+      color: var(--teal);
+    }
+    .fog-preset-card {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+      padding: 10px 12px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .fog-preset-card:hover {
+      background: rgba(56, 189, 248, 0.08);
+      border-color: rgba(56, 189, 248, 0.35);
+      transform: translateY(-1px);
+    }
+    .fog-preset-card.active {
+      background: rgba(56, 189, 248, 0.15);
+      border-color: var(--teal);
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.2);
+    }
+
     /* Command Banner */
     .command-card {
       background: rgba(15, 23, 42, 0.90);
@@ -1645,20 +1710,79 @@
           </div>
         </div>
 
-        <!-- PANEL 3: DUAL CAMERA STREAM -->
-        <div class="card">
-          <div class="card-header">
-            <div class="card-title">Vision AI & Fog Dehazing</div>
-            <div class="status-pill clear" style="font-size:8px">LIVE MJPEG</div>
+        <!-- PANEL 3: DUAL CAMERA STREAM (DCP FOG DEHAZING) -->
+        <div class="card" id="cameraFeedCard">
+          <div class="card-header" style="flex-wrap:wrap;gap:8px;align-items:center">
+            <div>
+              <div class="card-title" style="display:flex;align-items:center;gap:7px">
+                <span>Vision AI & Fog Dehazing</span>
+                <span id="camTargetBadge" class="status-pill" style="font-size:9px;background:rgba(56,189,248,0.12);color:var(--teal);border:1px solid rgba(56,189,248,0.3)">TRUCK 2 (TRUCK_02)</span>
+              </div>
+            </div>
+            <div style="display:flex;gap:6px;align-items:center">
+              <select id="camVehicleSelect" onchange="onCamVehicleSelectChange(this.value)" class="form-select" style="padding:2px 8px;font-size:10.5px;height:26px;width:auto;background:rgba(15,23,42,0.9);border-color:rgba(56,189,248,0.3);color:var(--teal)">
+                <option value="TRUCK_02" selected>Truck 2 (Target Channel)</option>
+                <option value="TRUCK_01">Truck 1 (Hardware)</option>
+                <option value="TRUCK_03">Truck 3 (Caterpillar)</option>
+                <option value="TRUCK_04">Truck 4 (Komatsu)</option>
+                <option value="TRUCK_05">Truck 5 (Liebherr)</option>
+                <option value="TRUCK_06">Truck 6 (BelAZ)</option>
+              </select>
+              <button class="cam-action-btn" id="btnOpenInsertCamModal" onclick="openInsertImageModal()" title="Insert image into raw camera feed">
+                📷 Insert Fog Image
+              </button>
+              <button class="cam-action-btn cam-btn-reset" id="btnResetCamStream" onclick="resetCameraStream()" title="Reset to live stream" style="display:none">
+                ↺ Reset
+              </button>
+              <div class="status-pill clear" id="camStreamStatusPill" style="font-size:8px">LIVE MJPEG</div>
+            </div>
           </div>
           <div class="card-body" style="display:flex;flex-direction:column;gap:10px">
-            <div class="cam-viewport">
-              <div class="cam-tag">RAW CAMERA (DENSE FOG)</div>
-              <img src="/raw_feed" alt="Raw Camera Feed">
+            <!-- Custom Image Active Status Banner -->
+            <div id="customCamBanner" style="display:none;padding:7px 12px;background:rgba(56,189,248,0.08);border:1px solid rgba(56,189,248,0.3);border-radius:8px;font-size:11px;justify-content:space-between;align-items:center">
+              <div style="display:flex;align-items:center;gap:6px">
+                <span style="font-size:13px">✨</span>
+                <span><strong>Custom Image Active:</strong> <span id="customCamSourceName" style="color:var(--teal)">Sample Fog</span></span>
+                <span style="color:var(--green);font-weight:700">| DCP Dehazed (+88%)</span>
+              </div>
+              <button onclick="resetCameraStream()" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:11px;font-weight:700;text-decoration:underline">Restore Live Feed</button>
             </div>
+
+            <!-- Quick Presets Row for 1-Click Fog Testing -->
+            <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:4px 0">
+              <span style="font-size:10px;color:var(--text-muted);text-transform:uppercase;font-weight:700;letter-spacing:0.5px">Quick Presets (Truck 2):</span>
+              <button type="button" class="cam-preset-chip" onclick="quickInsertPreset('pit_dense_fog')">🌫️ Pit Dense Fog</button>
+              <button type="button" class="cam-preset-chip" onclick="quickInsertPreset('mountain_switchback')">🏔️ Switchback Mist</button>
+              <button type="button" class="cam-preset-chip" onclick="document.getElementById('directFileInput').click()">📁 Browse Image...</button>
+              <input type="file" id="directFileInput" accept="image/*" style="display:none" onchange="handleDirectFileUpload(event)">
+            </div>
+
+            <!-- RAW FEED VIEWPORT -->
             <div class="cam-viewport">
-              <div class="cam-tag dehazed">DEHAZED (DARK CHANNEL PRIOR)</div>
-              <img src="/dehazed_feed" alt="Dehazed Camera Feed">
+              <div class="cam-tag" id="rawCamTag">CAM-02 RAW CAMERA (TRUCK_02 DENSE FOG)</div>
+              <img id="rawCameraFeedImg" src="/raw_feed?v=TRUCK_02" alt="Raw Camera Feed">
+            </div>
+
+            <!-- DEHAZED FEED VIEWPORT -->
+            <div class="cam-viewport">
+              <div class="cam-tag dehazed" id="dehazedCamTag">CAM-02 DEHAZED (DARK CHANNEL PRIOR)</div>
+              <img id="dehazedCameraFeedImg" src="/dehazed_feed?v=TRUCK_02" alt="Dehazed Camera Feed">
+            </div>
+
+            <!-- AI Telemetry Info Chips -->
+            <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:6px;font-size:9.5px;color:var(--text-muted)">
+              <div style="background:rgba(255,255,255,0.02);padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.04);text-align:center">
+                <span style="display:block;font-size:8px;text-transform:uppercase">Algorithm</span>
+                <span style="color:var(--teal);font-weight:700">Dark Channel Prior</span>
+              </div>
+              <div style="background:rgba(255,255,255,0.02);padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.04);text-align:center">
+                <span style="display:block;font-size:8px;text-transform:uppercase">Clarity Recovery</span>
+                <span id="camClarityGain" style="color:var(--green);font-weight:700">+88% Contrast</span>
+              </div>
+              <div style="background:rgba(255,255,255,0.02);padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.04);text-align:center">
+                <span style="display:block;font-size:8px;text-transform:uppercase">Optical Channel</span>
+                <span id="camChannelId" style="color:var(--amber);font-weight:700">Truck 2 Primary</span>
+              </div>
             </div>
           </div>
         </div>
@@ -1903,6 +2027,68 @@
   </div>
 </div>
 
+<!-- INSERT FOG IMAGE MODAL (VEHICLE 2 DEHAZING) -->
+<div class="modal-overlay" id="insertImageModal">
+  <div class="modal-box" style="max-width: 520px;">
+    <div class="modal-header">
+      <div class="modal-title">
+        <span>📷</span>
+        <span>Insert Raw Fog Image — Truck 2 Dehazing Channel</span>
+      </div>
+      <button type="button" class="modal-close-btn" onclick="closeInsertImageModal()">✕</button>
+    </div>
+
+    <div style="font-size: 12px; color: var(--text-muted); line-height: 1.5; margin-bottom: 14px;">
+      Inject a raw foggy frame into the optical feed pipeline for <strong style="color: var(--teal);">Truck 2 (TRUCK_02)</strong>. The Dark Channel Prior (DCP) optical restoration algorithm will remove atmospheric scattering, extract obstacle contours, and render the dehazed video stream in real-time.
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Target Vehicle Optical Channel</label>
+      <select id="insertModalVehicleSelect" class="form-select" style="font-weight: 700;">
+        <option value="TRUCK_02" selected>Truck 2 (TRUCK_02 - Bucyrus MT4400) [Target Dehazing Channel]</option>
+        <option value="TRUCK_01">Truck 1 (TRUCK_01 - ESP32 Hardware Node)</option>
+        <option value="TRUCK_03">Truck 3 (TRUCK_03 - Caterpillar 797F)</option>
+        <option value="TRUCK_04">Truck 4 (TRUCK_04 - Komatsu 930E-5)</option>
+        <option value="TRUCK_05">Truck 5 (TRUCK_05 - Liebherr T 284)</option>
+        <option value="TRUCK_06">Truck 6 (TRUCK_06 - BelAZ 75710)</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Option A: Upload Image File (JPG / PNG)</label>
+      <div id="imageDropzone" onclick="document.getElementById('modalImageFileInput').click()" style="border: 2px dashed rgba(56, 189, 248, 0.35); border-radius: 10px; padding: 20px; text-align: center; cursor: pointer; background: rgba(56, 189, 248, 0.03); transition: all 0.2s;">
+        <div style="font-size: 28px; margin-bottom: 6px;">📁</div>
+        <div id="dropzoneText" style="font-size: 12px; color: var(--text); font-weight: 600;">Click to browse or drop foggy image here</div>
+        <div style="font-size: 10px; color: var(--text-muted); margin-top: 4px;">Supports PNG, JPG, JPEG, WEBP</div>
+      </div>
+      <input type="file" id="modalImageFileInput" accept="image/*" style="display:none" onchange="handleModalFilePicked(event)">
+    </div>
+
+    <div style="text-align: center; font-size: 11px; color: var(--text-muted); margin: 10px 0;">— OR CHOOSE A MINING FOG PRESET —</div>
+
+    <div class="form-group">
+      <label class="form-label">Option B: High-Contrast Mining Fog Scenarios</label>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+        <div class="fog-preset-card active" id="presetPit" onclick="selectPresetOption('pit_dense_fog')">
+          <div style="font-weight: 700; font-size: 12px; color: var(--text);">🌫️ Bailadila Pit Bottom</div>
+          <div style="font-size: 10px; color: var(--text-muted); margin-top: 3px;">Valley cloud inversion with forward hauler silhouette</div>
+        </div>
+        <div class="fog-preset-card" id="presetMountain" onclick="selectPresetOption('mountain_switchback')">
+          <div style="font-weight: 700; font-size: 12px; color: var(--text);">🏔️ Ridge Switchback Mist</div>
+          <div style="font-size: 10px; color: var(--text-muted); margin-top: 3px;">Mountain slope mist with haul road boulder hazard</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="insertModalFeedback" style="display: none; padding: 10px; border-radius: 8px; font-size: 11.5px; margin-top: 10px;"></div>
+
+    <div class="modal-actions">
+      <button type="button" class="btn-cancel" onclick="closeInsertImageModal()">Cancel</button>
+      <button type="button" class="btn-submit" id="btnSubmitInsertImage" onclick="executeImageInsertion()">⚡ Process & Dehaze</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // =============================================================================
 // GLOBAL STATE
@@ -2069,6 +2255,12 @@ function selectVehicle(vid) {
 
   fetchVehicleDetails();
   centerOnSelected();
+
+  if (vid === 'TRUCK_02') {
+    activeCameraVid = 'TRUCK_02';
+    updateCameraFeedUrls();
+    checkCameraStatus();
+  }
 }
 
 function showAllTruckLocations() {
@@ -2850,6 +3042,233 @@ async function executeDeleteVehicle() {
 }
 
 // =============================================================================
+// VISION AI & FOG DEHAZING (VEHICLE 2 DEHAZING CHANNEL)
+// =============================================================================
+let activeCameraVid = "TRUCK_02";
+let selectedPresetId = "pit_dense_fog";
+let chosenImageFile = null;
+
+function onCamVehicleSelectChange(vid) {
+  activeCameraVid = vid;
+  updateCameraFeedUrls();
+  checkCameraStatus();
+}
+
+function updateCameraFeedUrls() {
+  const rawImg = document.getElementById('rawCameraFeedImg');
+  const dehazedImg = document.getElementById('dehazedCameraFeedImg');
+  const rawTag = document.getElementById('rawCamTag');
+  const dehazedTag = document.getElementById('dehazedCamTag');
+  const targetBadge = document.getElementById('camTargetBadge');
+  const channelId = document.getElementById('camChannelId');
+  const camSelect = document.getElementById('camVehicleSelect');
+
+  const vNum = activeCameraVid.replace('TRUCK_0', '').replace('TRUCK_', '');
+  const camId = `CAM-${vNum.padStart(2, '0')}`;
+
+  if (camSelect && camSelect.value !== activeCameraVid) {
+    camSelect.value = activeCameraVid;
+  }
+  if (targetBadge) {
+    targetBadge.textContent = `TRUCK ${parseInt(vNum, 10) || vNum} (${activeCameraVid})`;
+  }
+  if (rawTag) {
+    rawTag.textContent = `${camId} RAW CAMERA (${activeCameraVid} DENSE FOG)`;
+  }
+  if (dehazedTag) {
+    dehazedTag.textContent = `${camId} DEHAZED (DARK CHANNEL PRIOR)`;
+  }
+  if (channelId) {
+    channelId.textContent = `Truck ${parseInt(vNum, 10) || vNum} Primary`;
+  }
+
+  const t = Date.now();
+  if (rawImg) rawImg.src = `/raw_feed?v=${encodeURIComponent(activeCameraVid)}&t=${t}`;
+  if (dehazedImg) dehazedImg.src = `/dehazed_feed?v=${encodeURIComponent(activeCameraVid)}&t=${t}`;
+}
+
+async function checkCameraStatus() {
+  try {
+    const res = await fetch(`/api/camera/status?vehicle_id=${encodeURIComponent(activeCameraVid)}`, { cache: 'no-store' });
+    if (!res.ok) return;
+    const data = await res.json();
+    const banner = document.getElementById('customCamBanner');
+    const resetBtn = document.getElementById('btnResetCamStream');
+    const sourceNameEl = document.getElementById('customCamSourceName');
+    const clarityEl = document.getElementById('camClarityGain');
+
+    if (data.has_custom_image) {
+      if (banner) banner.style.display = 'flex';
+      if (resetBtn) resetBtn.style.display = 'inline-flex';
+      if (sourceNameEl) sourceNameEl.textContent = data.source_name;
+      if (clarityEl) clarityEl.textContent = `+${data.clarity_gain || 88}% Contrast`;
+    } else {
+      if (banner) banner.style.display = 'none';
+      if (resetBtn) resetBtn.style.display = 'none';
+      if (clarityEl) clarityEl.textContent = '+88% Contrast';
+    }
+  } catch (e) {
+    console.error('checkCameraStatus err:', e);
+  }
+}
+
+function openInsertImageModal() {
+  const modal = document.getElementById('insertImageModal');
+  const sel = document.getElementById('insertModalVehicleSelect');
+  if (sel) sel.value = activeCameraVid;
+  chosenImageFile = null;
+  selectedPresetId = "pit_dense_fog";
+  updatePresetSelectionUI();
+  const dropText = document.getElementById('dropzoneText');
+  if (dropText) dropText.textContent = "Click to browse or drop foggy image here";
+  const fb = document.getElementById('insertModalFeedback');
+  if (fb) fb.style.display = 'none';
+  if (modal) modal.classList.add('open');
+}
+
+function closeInsertImageModal() {
+  const modal = document.getElementById('insertImageModal');
+  if (modal) modal.classList.remove('open');
+}
+
+function selectPresetOption(sampleId) {
+  selectedPresetId = sampleId;
+  chosenImageFile = null;
+  const dropText = document.getElementById('dropzoneText');
+  if (dropText) dropText.textContent = "Click to browse or drop foggy image here";
+  updatePresetSelectionUI();
+}
+
+function updatePresetSelectionUI() {
+  const pPit = document.getElementById('presetPit');
+  const pMtn = document.getElementById('presetMountain');
+  if (pPit) pPit.classList.toggle('active', selectedPresetId === 'pit_dense_fog' && !chosenImageFile);
+  if (pMtn) pMtn.classList.toggle('active', selectedPresetId === 'mountain_switchback' && !chosenImageFile);
+}
+
+function handleModalFilePicked(event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+  chosenImageFile = file;
+  selectedPresetId = null;
+  updatePresetSelectionUI();
+  const dropText = document.getElementById('dropzoneText');
+  if (dropText) dropText.textContent = `Selected: ${file.name} (${Math.round(file.size / 1024)} KB)`;
+}
+
+async function executeImageInsertion() {
+  const targetVid = document.getElementById('insertModalVehicleSelect').value || 'TRUCK_02';
+  const btn = document.getElementById('btnSubmitInsertImage');
+  const fb = document.getElementById('insertModalFeedback');
+
+  btn.disabled = true;
+  btn.innerHTML = '⚙️ Dehazing...';
+  if (fb) {
+    fb.style.display = 'block';
+    fb.style.background = 'rgba(56,189,248,0.1)';
+    fb.style.color = 'var(--teal)';
+    fb.textContent = 'Computing Dark Channel Prior transmission map and optical restoration...';
+  }
+
+  try {
+    let res;
+    if (chosenImageFile) {
+      const formData = new FormData();
+      formData.append('image', chosenImageFile);
+      formData.append('vehicle_id', targetVid);
+      res = await fetch('/api/camera/insert', { method: 'POST', body: formData });
+    } else {
+      res = await fetch('/api/camera/insert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          vehicle_id: targetVid,
+          sample_id: selectedPresetId || 'pit_dense_fog'
+        })
+      });
+    }
+
+    const data = await res.json();
+    if (data.status === 'ok') {
+      activeCameraVid = targetVid;
+      updateCameraFeedUrls();
+      await checkCameraStatus();
+      closeInsertImageModal();
+    } else {
+      if (fb) {
+        fb.style.background = 'rgba(239,68,68,0.1)';
+        fb.style.color = 'var(--red)';
+        fb.textContent = `Error: ${data.message || 'Failed to process image'}`;
+      }
+    }
+  } catch (err) {
+    console.error('executeImageInsertion err:', err);
+    if (fb) {
+      fb.style.background = 'rgba(239,68,68,0.1)';
+      fb.style.color = 'var(--red)';
+      fb.textContent = 'Connection error processing camera image.';
+    }
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '⚡ Process & Dehaze';
+  }
+}
+
+async function quickInsertPreset(sampleId) {
+  try {
+    const res = await fetch('/api/camera/insert', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        vehicle_id: activeCameraVid || 'TRUCK_02',
+        sample_id: sampleId
+      })
+    });
+    const data = await res.json();
+    if (data.status === 'ok') {
+      updateCameraFeedUrls();
+      await checkCameraStatus();
+    }
+  } catch (err) {
+    console.error('quickInsertPreset err:', err);
+  }
+}
+
+async function handleDirectFileUpload(event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+  try {
+    const formData = new FormData();
+    formData.append('image', file);
+    formData.append('vehicle_id', activeCameraVid || 'TRUCK_02');
+    const res = await fetch('/api/camera/insert', { method: 'POST', body: formData });
+    const data = await res.json();
+    if (data.status === 'ok') {
+      updateCameraFeedUrls();
+      await checkCameraStatus();
+    }
+  } catch (err) {
+    console.error('handleDirectFileUpload err:', err);
+  } finally {
+    event.target.value = '';
+  }
+}
+
+async function resetCameraStream() {
+  try {
+    await fetch('/api/camera/reset', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ vehicle_id: activeCameraVid || 'TRUCK_02' })
+    });
+    updateCameraFeedUrls();
+    await checkCameraStatus();
+  } catch (err) {
+    console.error('resetCameraStream err:', err);
+  }
+}
+
+// =============================================================================
 // POLLING INTERVALS
 // =============================================================================
 setInterval(() => {
@@ -2857,9 +3276,12 @@ setInterval(() => {
   fetchVehicleDetails();
 }, 1000);
 
+setInterval(checkCameraStatus, 3000);
+
 fetchFogZones();
 fetchFleet();
 fetchVehicleDetails();
+checkCameraStatus();
 </script>
 </body>
 </html>
