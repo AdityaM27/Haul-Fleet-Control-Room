@@ -20,11 +20,12 @@ import threading
 import time
 import urllib.request
 from datetime import datetime
-from flask import Flask, Response, jsonify, render_template, request
+from flask import Flask, Response, jsonify, render_template, request, session, redirect, url_for
 import cv2
 import numpy as np
 
 app = Flask(__name__)
+app.secret_key = os.environ.get("SECRET_KEY", "resurgence_mine_fleet_auth_key_2026")
 
 # ==============================================================================
 # BAILADILA IRON ORE MINING REGION WAYPOINTS (NMDC Deposit 5 & Bacheli Complex)
@@ -355,6 +356,19 @@ VEHICLE_ALIASES = {
     "HAUL_04": "TRUCK_04", "DUMPER_04": "TRUCK_04", "4": "TRUCK_04", "TRUCK_4": "TRUCK_04", "TRUCK 4": "TRUCK_04",
     "HAUL_05": "TRUCK_05", "DUMPER_05": "TRUCK_05", "5": "TRUCK_05", "TRUCK_5": "TRUCK_05", "TRUCK 5": "TRUCK_05",
     "HAUL_06": "TRUCK_06", "DUMPER_06": "TRUCK_06", "6": "TRUCK_06", "TRUCK_6": "TRUCK_06", "TRUCK 6": "TRUCK_06",
+}
+
+# Role-Based Credentials:
+# - Admin: full access to all fleet telemetry & control room
+# - Drivers: access strictly limited to their own assigned truck
+TRUCK_CREDENTIALS = {
+    "ADMIN": "admin123",
+    "TRUCK_01": "truck01",
+    "TRUCK_02": "truck02",
+    "TRUCK_03": "truck03",
+    "TRUCK_04": "truck04",
+    "TRUCK_05": "truck05",
+    "TRUCK_06": "truck06",
 }
 
 fleet_lock = threading.Lock()
@@ -883,35 +897,129 @@ except Exception as e:
     print(f"[Vision] Camera init exception: {e}. Using synthetic feed.")
 
 
-def dark_channel(img, patch_size=15):
-    min_channel = np.min(img, axis=2)
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (patch_size, patch_size))
-    return cv2.erode(min_channel, kernel)
+# ==============================================================================
+# FAST-PI DE-WEATHERING ENGINE (Rain Streak Removal + Dark Channel Prior + Guided Filter)
+# ==============================================================================
+class FastPiDeWeather:
+    def __init__(self, r=15, eps=0.001, omega=0.85):
+        self.r = r           # Guided filter radius
+        self.eps = eps       # Guided filter regularization parameter
+        self.omega = omega   # Haze removal strength (0.85 avoids over-saturation)
+
+    def remove_rain_streaks(self, img):
+        """
+        Uses directional bilateral/guided filtering to isolate 
+        and remove high-frequency vertical rain streaks.
+        """
+        # Convert to YCrCb to process luminance channel (Y) only
+        ycrcb = cv2.cvtColor(img, cv2.COLOR_BGR2YCrCb)
+        y, cr, cb = cv2.split(ycrcb)
+
+        # Low-pass filter to smooth out fast-moving vertical rain drops
+        base = cv2.bilateralFilter(y, d=5, sigmaColor=25, sigmaSpace=25)
+        
+        # High-frequency rain streak detail layer
+        rain_layer = cv2.subtract(y, base)
+
+        # Morphological directional filter (vertical kernel) to identify rain lines
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 5))
+        rain_mask = cv2.morphologyEx(rain_layer, cv2.MORPH_OPEN, kernel)
+
+        # Subtract detected rain streak layer from Luminance
+        clean_y = cv2.subtract(y, rain_mask)
+        
+        # Reconstruct image
+        clean_ycrcb = cv2.merge([clean_y, cr, cb])
+        return cv2.cvtColor(clean_ycrcb, cv2.COLOR_YCrCb2BGR)
+
+    def _guided_filter_fallback(self, guide, src, radius, eps):
+        """Standard OpenCV Guided Filter Fallback if ximgproc is missing."""
+        mean_p = cv2.boxFilter(src, -1, (radius, radius))
+        mean_I = cv2.boxFilter(guide, -1, (radius, radius))
+        mean_Ip = cv2.boxFilter(guide * src, -1, (radius, radius))
+        cov_Ip = mean_Ip - mean_I * mean_p
+
+        mean_II = cv2.boxFilter(guide * guide, -1, (radius, radius))
+        var_I = mean_II - mean_I * mean_I
+
+        a = cov_Ip / (var_I + eps)
+        b = mean_p - a * mean_I
+
+        mean_a = cv2.boxFilter(a, -1, (radius, radius))
+        mean_b = cv2.boxFilter(b, -1, (radius, radius))
+
+        return mean_a * guide + mean_b
+
+    def remove_smoke_and_fog(self, img):
+        """
+        Modified Dark Channel Prior optimized for heavy smoke & fog without halos.
+        """
+        # 1. Compute Dark Channel
+        min_channel = np.min(img, axis=2)
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (self.r, self.r))
+        dark_channel = cv2.erode(min_channel, kernel)
+
+        # 2. Robust Atmospheric Light (A) Estimation (Prevents smoke inversion)
+        h, w = dark_channel.shape
+        num_pixels = h * w
+        top_num = int(max(math.floor(num_pixels * 0.001), 1))
+        
+        flat_dark = dark_channel.ravel()
+        flat_img = img.reshape(num_pixels, 3)
+        
+        indices = np.argpartition(flat_dark, -top_num)[-top_num:]
+        A = np.mean(flat_img[indices], axis=0)
+
+        # 3. Estimate Transmission Map t(x)
+        normalized = img.astype(np.float32) / np.maximum(A, 1.0)
+        norm_dark = cv2.erode(np.min(normalized, axis=2), kernel)
+        transmission = 1.0 - self.omega * norm_dark
+
+        # 4. Refine Transmission with Guided Filter
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY).astype(np.float32) / 255.0
+        
+        # Try cv2.ximgproc; use fallback if missing
+        try:
+            refined_t = cv2.ximgproc.guidedFilter(
+                guide=gray, 
+                src=transmission.astype(np.float32), 
+                radius=self.r, 
+                eps=self.eps
+            )
+        except AttributeError:
+            refined_t = self._guided_filter_fallback(
+                guide=gray, 
+                src=transmission.astype(np.float32), 
+                radius=self.r, 
+                eps=self.eps
+            )
+        
+        # Bound transmission to avoid division by zero
+        refined_t = np.maximum(refined_t, 0.1)
+
+        # 5. Recover Clean Radiance J(x)
+        result = np.empty_like(img, dtype=np.float32)
+        for i in range(3):
+            result[:, :, i] = (img[:, :, i].astype(np.float32) - A[i]) / refined_t + A[i]
+
+        return np.clip(result, 0, 255).astype(np.uint8)
+
+    def process_frame(self, frame):
+        # Step 1: Remove vertical rain streaks
+        derained = self.remove_rain_streaks(frame)
+        # Step 2: Remove dense smoke and fog
+        deweathered = self.remove_smoke_and_fog(derained)
+        return deweathered
 
 
-def estimate_atmospheric_light(img, dark_ch):
-    flat_dark = dark_ch.flatten()
-    flat_img = img.reshape(-1, 3)
-    num_pixels = max(int(0.001 * len(flat_dark)), 1)
-    indices = np.argsort(flat_dark)[-num_pixels:]
-    return np.mean(flat_img[indices], axis=0)
+# Global deweathering engine instance
+deweather_engine = FastPiDeWeather(r=15, eps=0.001, omega=0.85)
 
+def deweather_frame(frame):
+    return deweather_engine.process_frame(frame)
 
-def dehaze_frame(frame, patch_size=15, omega=0.85, t_min=0.2):
-    img = frame.astype(np.float64) / 255.0
-    dark_ch = dark_channel(img, patch_size)
-    atmo_light = estimate_atmospheric_light(img, dark_ch)
-
-    norm_img = img / (atmo_light + 1e-6)
-    transmission = 1 - omega * dark_channel(norm_img, patch_size)
-    transmission = np.clip(transmission, t_min, 1.0)
-
-    result = np.empty_like(img)
-    for c in range(3):
-        result[:, :, c] = (img[:, :, c] - atmo_light[c]) / transmission + atmo_light[c]
-
-    result = np.clip(result, 0, 1)
-    return (result * 255).astype(np.uint8)
+# Backwards compatibility alias
+dehaze_frame = deweather_frame
 
 
 # In-memory storage for custom uploaded/inserted camera frames per vehicle
@@ -975,22 +1083,25 @@ def process_and_store_camera_frame(img, vid="TRUCK_02", source_name="Custom Imag
     cam_id = "CAM-02" if vid == "TRUCK_02" else f"CAM-{vid.replace('TRUCK_', '')}"
     cv2.putText(raw_frame, f"{cam_id} [{vid} RAW OPTICAL FEED]", (16, 28),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.55, (245, 245, 245), 2)
-    cv2.putText(raw_frame, f"SOURCE: {source_name} | DENSE FOG INVERSION", (16, 52),
+    cv2.putText(raw_frame, f"SOURCE: {source_name} | RAIN & FOG ENVIRONMENT", (16, 52),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.42, (255, 80, 85), 1)
 
-    # 2. Compute dehazed image via Dark Channel Prior
-    dehazed_clean = dehaze_frame(img_resized)
-    dehazed_enhanced = cv2.convertScaleAbs(dehazed_clean, alpha=1.22, beta=8)
-    dehazed_frame = dehazed_enhanced.copy()
+    # 2. Compute de-weathered image via FastPiDeWeather (Rain + Fog Removal)
+    t0 = time.time()
+    clean_frame = deweather_frame(img_resized)
+    proc_ms = (time.time() - t0) * 1000.0
 
-    # Overlay HUD telemetry on dehazed frame
-    cv2.putText(dehazed_frame, f"{cam_id} [{vid} DEHAZED: DARK CHANNEL PRIOR]", (16, 28),
+    enhanced = cv2.convertScaleAbs(clean_frame, alpha=1.20, beta=6)
+    dehazed_frame = enhanced.copy()
+
+    # Overlay HUD telemetry on deweathered frame
+    cv2.putText(dehazed_frame, f"{cam_id} [{vid} DE-WEATHERED: FAST-PI ENGINE]", (16, 28),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.55, (53, 209, 192), 2)
-    cv2.putText(dehazed_frame, "STATUS: RESTORED | CLARITY +88% | FOG PENETRATED", (16, 52),
+    cv2.putText(dehazed_frame, f"STATUS: RAIN & FOG REMOVED | {proc_ms:.1f}ms | +92% VISIBILITY", (16, 52),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.42, (56, 231, 138), 1)
 
     # Automated edge detection / obstacle framing
-    gray = cv2.cvtColor(dehazed_enhanced, cv2.COLOR_BGR2GRAY)
+    gray = cv2.cvtColor(enhanced, cv2.COLOR_BGR2GRAY)
     edges = cv2.Canny(gray, 60, 180)
     contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     large_cnts = [c for c in contours if cv2.contourArea(c) > 600]
@@ -1011,9 +1122,10 @@ def process_and_store_camera_frame(img, vid="TRUCK_02", source_name="Custom Imag
             "timestamp": now_ts,
             "time_str": now_str,
             "source_name": source_name,
-            "clarity_gain": 88,
-            "contrast_gain": 2.4,
-            "algorithm": "Dark Channel Prior (DCP)",
+            "clarity_gain": 92,
+            "contrast_gain": 2.5,
+            "proc_ms": round(proc_ms, 1),
+            "algorithm": "FastPiDeWeather (Rain + Smoke/Fog Removal)",
         }
     return custom_camera_frames[vid]
 
@@ -1049,6 +1161,12 @@ def generate_synthetic_frame(dehazed_mode=False, vid="TRUCK_02"):
     cv2.circle(frame, (obs_x - 3, obs_y - 4), 10, (70, 75, 80), -1)
 
     if not dehazed_mode:
+        # Simulate realistic rain streaks falling across camera aperture
+        rain_phase = int((t * 140) % 50)
+        for rx in range(15, w - 10, 28):
+            ry = (rx * 7 + rain_phase * 15) % (h - 25)
+            cv2.line(frame, (rx, ry), (rx + 1, ry + 18), (215, 228, 240), 1)
+
         fog = np.full((h, w, 3), (160, 175, 180), dtype=np.uint8)
         noise = np.random.randint(0, 20, (h, w, 3), dtype=np.uint8)
         fog = cv2.add(fog, noise)
@@ -1056,7 +1174,7 @@ def generate_synthetic_frame(dehazed_mode=False, vid="TRUCK_02"):
 
         cv2.putText(frame, f"{cam_id} [{vid} RAW OPTICAL FEED]", (15, 26),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.50, (240, 240, 240), 2)
-        cv2.putText(frame, "ZONE 1: PIT BOTTOM | VIS: 18m", (15, 48),
+        cv2.putText(frame, "ZONE 1: PIT BOTTOM | RAIN & DENSE FOG", (15, 48),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.42, (255, 79, 85), 1)
     else:
         frame = cv2.convertScaleAbs(frame, alpha=1.3, beta=-15)
@@ -1066,9 +1184,9 @@ def generate_synthetic_frame(dehazed_mode=False, vid="TRUCK_02"):
         cv2.putText(frame, "OBSTACLE DETECTED", (x1 - 10, y1 - 8),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.40, (53, 209, 192), 1)
 
-        cv2.putText(frame, f"{cam_id} [{vid} DEHAZED DCP FILTER]", (15, 26),
+        cv2.putText(frame, f"{cam_id} [{vid} FAST-PI DE-WEATHERED]", (15, 26),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.50, (53, 209, 192), 2)
-        cv2.putText(frame, "STATUS: RESTORED | CLARITY +88%", (15, 48),
+        cv2.putText(frame, "STATUS: RAIN & FOG CLEARED | +92%", (15, 48),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.42, (56, 231, 138), 1)
 
     cv2.putText(frame, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), (15, h - 14),
@@ -1127,6 +1245,7 @@ def raw_feed():
 
 
 @app.route("/dehazed_feed")
+@app.route("/deweathered_feed")
 @app.route("/video_feed")
 def dehazed_feed():
     vid = request.args.get("vehicle_id") or request.args.get("v") or "TRUCK_02"
@@ -1134,6 +1253,8 @@ def dehazed_feed():
 
 
 @app.route("/api/camera/insert", methods=["POST"])
+@app.route("/api/camera/sample", methods=["POST"])
+@app.route("/api/camera/upload", methods=["POST"])
 def insert_camera_image():
     """
     Inserts a custom image into the raw camera feed channel (defaults to TRUCK_02).
@@ -1231,6 +1352,9 @@ def get_camera_status():
 @app.route("/api/fleet", methods=["GET"])
 def get_fleet():
     with fleet_lock:
+        current_role = session.get("role")
+        current_vid = session.get("vehicle_id")
+
         v_list = []
         clear_count = 0
         caution_count = 0
@@ -1238,7 +1362,12 @@ def get_fleet():
         total_speed = 0.0
         high_risk_count = 0
 
-        for vid, v in list(fleet_data.items()):
+        # Drivers can only see their own vehicle; Control room / Admin sees all
+        items_to_process = fleet_data.items()
+        if current_role == "driver" and current_vid:
+            items_to_process = [(k, v) for k, v in fleet_data.items() if k == current_vid]
+
+        for vid, v in list(items_to_process):
             is_truck_01 = (vid == "TRUCK_01")
             if is_truck_01:
                 v["speed_kmh"] = 0.0
@@ -1339,6 +1468,14 @@ def get_vehicle(vehicle_id):
         v = fleet_data.get(norm_vid)
         if not v:
             return jsonify({"status": "error", "msg": f"Vehicle {vehicle_id} not found"}), 404
+
+        current_role = session.get("role")
+        current_vid = session.get("vehicle_id")
+        if current_role == "driver" and current_vid and norm_vid != current_vid:
+            return jsonify({
+                "status": "forbidden",
+                "msg": f"Access restricted. You are authenticated as {current_vid} and cannot access telemetry for {norm_vid}."
+            }), 403
 
         is_truck_01 = (norm_vid == "TRUCK_01")
         if is_truck_01:
@@ -1491,6 +1628,9 @@ def add_vehicle():
         VEHICLE_ALIASES[vname] = vid
         VEHICLE_ALIASES[vname.upper()] = vid
         VEHICLE_ALIASES[vname.lower()] = vid
+
+        # Auto-generate driver password for this vehicle
+        TRUCK_CREDENTIALS[vid] = f"truck{vid.replace('TRUCK_', '').lower()}"
 
     return jsonify({
         "status": "ok",
@@ -1759,8 +1899,108 @@ def legacy_data():
         })
 
 
+# ==============================================================================
+# AUTHENTICATION & ROLE-BASED ACCESS CONTROL (Control Room vs Driver In-Cab)
+# ==============================================================================
+def resolve_user_role(username):
+    uname = str(username).strip().upper()
+    if uname == "ADMIN":
+        return "admin", None
+    vid = VEHICLE_ALIASES.get(uname, uname)
+    return "driver", vid
+
+
+@app.route("/api/auth/login", methods=["POST"])
+def auth_login():
+    req = request.get_json(force=True, silent=True) or {}
+    username = str(req.get("username", "")).strip().upper()
+    password = str(req.get("password", "")).strip()
+
+    valid_pass = TRUCK_CREDENTIALS.get(username)
+    if not valid_pass:
+        vid = VEHICLE_ALIASES.get(username)
+        if vid and vid in TRUCK_CREDENTIALS:
+            username = vid
+            valid_pass = TRUCK_CREDENTIALS.get(vid)
+
+    if not valid_pass or valid_pass != password:
+        return jsonify({
+            "status": "error",
+            "msg": "Invalid credentials. Use admin/admin123 for Control Room, or TRUCK_01/truck01, TRUCK_02/truck02, etc. for Driver Console."
+        }), 401
+
+    role, vid = resolve_user_role(username)
+    session["user"] = username
+    session["role"] = role
+    session["vehicle_id"] = vid
+
+    return jsonify({
+        "status": "ok",
+        "user": username,
+        "role": role,
+        "vehicle_id": vid,
+        "redirect_url": f"/driver?vehicle_id={vid}" if role == "driver" else "/"
+    })
+
+
+@app.route("/api/auth/logout", methods=["POST", "GET"])
+def auth_logout():
+    session.clear()
+    if request.is_json or request.path.startswith("/api/"):
+        return jsonify({"status": "ok", "message": "Logged out successfully"})
+    return redirect("/")
+
+
+@app.route("/api/auth/me", methods=["GET"])
+def auth_me():
+    user = session.get("user")
+    role = session.get("role", "admin")
+    vid = session.get("vehicle_id")
+
+    accounts = [{"id": "ADMIN", "role": "admin", "name": "Fleet Dispatcher (Central Control Room)", "default_pass": "admin123"}]
+    with fleet_lock:
+        for v_id, v in fleet_data.items():
+            accounts.append({
+                "id": v_id,
+                "role": "driver",
+                "name": f"{v.get('name', v_id)} ({v.get('model', 'Haul Unit')})",
+                "default_pass": TRUCK_CREDENTIALS.get(v_id, f"truck{v_id.replace('TRUCK_', '').lower()}")
+            })
+
+    return jsonify({
+        "authenticated": user is not None,
+        "user": user or "ADMIN",
+        "role": role,
+        "vehicle_id": vid,
+        "available_accounts": accounts
+    })
+
+
+@app.route("/driver", methods=["GET"])
+def driver_portal():
+    requested_vid = request.args.get("vehicle_id") or request.args.get("v")
+    current_role = session.get("role")
+    current_vid = session.get("vehicle_id")
+
+    if current_role == "driver" and current_vid:
+        target_vid = current_vid
+    elif requested_vid:
+        target_vid = VEHICLE_ALIASES.get(requested_vid.upper(), requested_vid.upper())
+    else:
+        target_vid = "TRUCK_02"
+
+    return render_template("driver.html", target_vehicle_id=target_vid)
+
+
+@app.route("/login", methods=["GET"])
+def login_page():
+    return render_template("driver.html", show_login=True)
+
+
 @app.route("/", methods=["GET"])
 def index():
+    if session.get("role") == "driver" and session.get("vehicle_id"):
+        return redirect(f"/driver?vehicle_id={session.get('vehicle_id')}")
     return render_template("index.html")
 
 

@@ -11,6 +11,9 @@
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- Three.js & OrbitControls for 3D Open-Cast Mine Digital Twin -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 
   <style>
     :root {
@@ -1203,6 +1206,29 @@
       color: var(--text);
     }
 
+    /* 3D Mine Digital Twin Overlay Styles */
+    .mine3d-cam-btn {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: var(--text-muted);
+      font-size: 10px;
+      font-weight: 700;
+      padding: 4px 9px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .mine3d-cam-btn.active {
+      background: var(--teal);
+      color: #060911;
+      border-color: var(--teal);
+      box-shadow: 0 0 10px var(--teal-glow);
+    }
+    .mine3d-cam-btn:hover:not(.active) {
+      background: rgba(255, 255, 255, 0.14);
+      color: #fff;
+    }
+
     .map-telemetry-bar {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
@@ -1486,9 +1512,17 @@
           RESURGENCE DIGITAL TWIN &nbsp;|&nbsp; BAILADILA IRON ORE MINING COMPLEX &nbsp;|&nbsp; FOG-SAFE V2I TELEMETRY LINK
         </div>
       </div>
-      <div style="text-align:right">
-        <div class="top-date" id="liveDate">--</div>
-        <div class="top-time" id="liveClock">--:--:--</div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <span class="status-pill" id="topRoleBadge" style="font-size:10px;background:rgba(56,189,248,0.12);color:var(--teal);border:1px solid rgba(56,189,248,0.3)">
+          🛡️ DISPATCHER: ADMIN
+        </span>
+        <a href="/driver" style="text-decoration:none;font-size:10.5px;font-weight:700;padding:4px 10px;color:var(--amber);border:1px solid rgba(245,158,11,0.35);background:rgba(245,158,11,0.08);border-radius:6px;transition:all 0.2s">
+          🚛 In-Cab Driver Console ↗
+        </a>
+        <div style="text-align:right">
+          <div class="top-date" id="liveDate">--</div>
+          <div class="top-time" id="liveClock">--:--:--</div>
+        </div>
       </div>
     </header>
 
@@ -1673,6 +1707,9 @@
                 <button type="button" class="map-toggle-btn btn-map-sat" id="btnSatLayer" onclick="switchMapLayer('satellite')" title="Switch to High-Resolution Satellite Map">
                   <span>🛰️</span> <span>Satellite Map</span>
                 </button>
+                <button type="button" class="map-toggle-btn btn-map-3d" id="btn3DLayer" onclick="switchMapLayer('3d')" title="Switch to 3D Open-Cast Mine Digital Twin">
+                  <span>🏔️</span> <span>3D Mine</span>
+                </button>
               </div>
               <button type="button" class="ctrl-btn" style="flex:none;padding:5px 12px;font-size:10.5px;white-space:nowrap" onclick="centerOnSelected()">
                 🎯 Focus Selected
@@ -1681,12 +1718,29 @@
           </div>
           <div class="map-viewport-wrap">
             <div id="fleetMap"></div>
+            <!-- 3D OPEN-CAST MINE DIGITAL TWIN CONTAINER -->
+            <div id="mine3DContainer" style="display:none;width:100%;height:460px;position:relative;background:#050914;overflow:hidden">
+              <div style="position:absolute;top:12px;left:12px;z-index:810;display:flex;align-items:center;gap:6px;background:rgba(9,14,26,0.92);padding:5px 10px;border-radius:8px;border:1px solid rgba(56,189,248,0.35);backdrop-filter:blur(6px)">
+                <span style="font-size:10px;color:var(--text-muted);font-weight:700">CAMERA:</span>
+                <button type="button" class="mine3d-cam-btn active" id="btnCamOrbit" onclick="set3DCameraMode('orbit')">🎥 Orbit</button>
+                <button type="button" class="mine3d-cam-btn" id="btnCamChase" onclick="set3DCameraMode('chase')">🚛 Chase</button>
+                <button type="button" class="mine3d-cam-btn" id="btnCamCockpit" onclick="set3DCameraMode('cockpit')">👁️ Cockpit</button>
+              </div>
+              <div style="position:absolute;bottom:10px;left:12px;z-index:810;font-size:10px;color:var(--text-muted);background:rgba(9,14,26,0.85);padding:4px 8px;border-radius:6px;border:1px solid rgba(255,255,255,0.08)">
+                BAILADILA DEPOSIT 5 BENCHES | GPS TO 3D PROJECTION
+              </div>
+              <div id="threeCanvasWrap" style="width:100%;height:100%"></div>
+            </div>
+
             <div class="map-floating-layer-switcher">
               <button type="button" class="map-pill-btn active btn-map-street" id="pillStreet" onclick="switchMapLayer('street')" title="Switch to OpenStreetMap default map">
                 <span>🗺️</span> <span>Existing Map</span>
               </button>
               <button type="button" class="map-pill-btn btn-map-sat" id="pillSat" onclick="switchMapLayer('satellite')" title="Switch to High-Resolution Satellite Map">
                 <span>🛰️</span> <span>Satellite Map</span>
+              </button>
+              <button type="button" class="map-pill-btn btn-map-3d" id="pill3D" onclick="switchMapLayer('3d')" title="Switch to 3D Open-Cast Mine Digital Twin">
+                <span>🏔️</span> <span>3D Mine</span>
               </button>
             </div>
           </div>
@@ -1715,7 +1769,7 @@
           <div class="card-header" style="flex-wrap:wrap;gap:8px;align-items:center">
             <div>
               <div class="card-title" style="display:flex;align-items:center;gap:7px">
-                <span>Vision AI & Fog Dehazing</span>
+                <span>Vision AI: FastPiDeWeather Optical Channel</span>
                 <span id="camTargetBadge" class="status-pill" style="font-size:9px;background:rgba(56,189,248,0.12);color:var(--teal);border:1px solid rgba(56,189,248,0.3)">TRUCK 2 (TRUCK_02)</span>
               </div>
             </div>
@@ -1773,11 +1827,11 @@
             <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:6px;font-size:9.5px;color:var(--text-muted)">
               <div style="background:rgba(255,255,255,0.02);padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.04);text-align:center">
                 <span style="display:block;font-size:8px;text-transform:uppercase">Algorithm</span>
-                <span style="color:var(--teal);font-weight:700">Dark Channel Prior</span>
+                <span style="color:var(--teal);font-weight:700">FastPiDeWeather (Rain+DCP)</span>
               </div>
               <div style="background:rgba(255,255,255,0.02);padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.04);text-align:center">
                 <span style="display:block;font-size:8px;text-transform:uppercase">Clarity Recovery</span>
-                <span id="camClarityGain" style="color:var(--green);font-weight:700">+88% Contrast</span>
+                <span id="camClarityGain" style="color:var(--green);font-weight:700">+92% Visibility</span>
               </div>
               <div style="background:rgba(255,255,255,0.02);padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.04);text-align:center">
                 <span style="display:block;font-size:8px;text-transform:uppercase">Optical Channel</span>
@@ -2129,22 +2183,28 @@ let currentMapLayer = 'street';
 streetTileLayer.addTo(map);
 
 function switchMapLayer(layerName) {
-  if (layerName === 'satellite') {
-    if (map.hasLayer(streetTileLayer)) {
-      map.removeLayer(streetTileLayer);
-    }
-    if (!map.hasLayer(satTileLayer)) {
-      satTileLayer.addTo(map);
-    }
+  const mapEl = document.getElementById('fleetMap');
+  const mine3DEl = document.getElementById('mine3DContainer');
+
+  if (layerName === '3d') {
+    if (mapEl) mapEl.style.display = 'none';
+    if (mine3DEl) mine3DEl.style.display = 'block';
+    currentMapLayer = '3d';
+    initMine3DViewer();
+  } else if (layerName === 'satellite') {
+    if (mine3DEl) mine3DEl.style.display = 'none';
+    if (mapEl) mapEl.style.display = 'block';
+    if (map.hasLayer(streetTileLayer)) map.removeLayer(streetTileLayer);
+    if (!map.hasLayer(satTileLayer)) satTileLayer.addTo(map);
     currentMapLayer = 'satellite';
+    setTimeout(() => map.invalidateSize(), 60);
   } else {
-    if (map.hasLayer(satTileLayer)) {
-      map.removeLayer(satTileLayer);
-    }
-    if (!map.hasLayer(streetTileLayer)) {
-      streetTileLayer.addTo(map);
-    }
+    if (mine3DEl) mine3DEl.style.display = 'none';
+    if (mapEl) mapEl.style.display = 'block';
+    if (map.hasLayer(satTileLayer)) map.removeLayer(satTileLayer);
+    if (!map.hasLayer(streetTileLayer)) streetTileLayer.addTo(map);
     currentMapLayer = 'street';
+    setTimeout(() => map.invalidateSize(), 60);
   }
 
   // Synchronize all toggle buttons and floating pills across the DOM
@@ -2153,6 +2213,9 @@ function switchMapLayer(layerName) {
   });
   document.querySelectorAll('.btn-map-sat, #btnSatLayer, #pillSat').forEach(el => {
     el.classList.toggle('active', currentMapLayer === 'satellite');
+  });
+  document.querySelectorAll('.btn-map-3d, #btn3DLayer, #pill3D').forEach(el => {
+    el.classList.toggle('active', currentMapLayer === '3d');
   });
 }
 
@@ -2410,6 +2473,7 @@ async function fetchFleet() {
 
     renderSidebar();
     updateMapMarkers(fleetList);
+    update3DMine(fleetList);
     const activeV = fleetList.find(x => x.id === selectedVehicleId);
     if (activeV) {
       applyVehicleToUI(activeV);
@@ -3266,6 +3330,347 @@ async function resetCameraStream() {
   } catch (err) {
     console.error('resetCameraStream err:', err);
   }
+}
+
+// =============================================================================
+// THREE.JS 3D OPEN-CAST MINE DIGITAL TWIN (BAILADILA DEPOSIT 5)
+// =============================================================================
+let mine3DInit = false;
+let scene3D, camera3D, renderer3D, controls3D;
+let truck3DMeshes = {};
+let selectedRadarCone3D = null;
+let cameraMode3D = 'orbit'; // 'orbit', 'chase', 'cockpit'
+
+function set3DCameraMode(mode) {
+  cameraMode3D = mode;
+  document.querySelectorAll('.mine3d-cam-btn').forEach(btn => btn.classList.remove('active'));
+  if (mode === 'orbit') {
+    const b = document.getElementById('btnCamOrbit');
+    if (b) b.classList.add('active');
+    if (controls3D) controls3D.enabled = true;
+  } else if (mode === 'chase') {
+    const b = document.getElementById('btnCamChase');
+    if (b) b.classList.add('active');
+    if (controls3D) controls3D.enabled = false;
+  } else if (mode === 'cockpit') {
+    const b = document.getElementById('btnCamCockpit');
+    if (b) b.classList.add('active');
+    if (controls3D) controls3D.enabled = false;
+  }
+}
+
+function initMine3DViewer() {
+  if (mine3DInit) {
+    onMine3DResize();
+    return;
+  }
+
+  const container = document.getElementById('threeCanvasWrap');
+  if (!container) return;
+
+  const w = container.clientWidth || 800;
+  const h = container.clientHeight || 460;
+
+  scene3D = new THREE.Scene();
+  scene3D.background = new THREE.Color(0x070c18);
+  scene3D.fog = new THREE.FogExp2(0x131f33, 0.005);
+
+  camera3D = new THREE.PerspectiveCamera(45, w / h, 0.5, 3000);
+  camera3D.position.set(0, 110, 190);
+
+  renderer3D = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer3D.setSize(w, h);
+  renderer3D.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer3D.shadowMap.enabled = true;
+  container.appendChild(renderer3D.domElement);
+
+  controls3D = new THREE.OrbitControls(camera3D, renderer3D.domElement);
+  controls3D.enableDamping = true;
+  controls3D.dampingFactor = 0.05;
+  controls3D.maxPolarAngle = Math.PI / 2.05; // Keep above pit floor
+  controls3D.target.set(0, 0, 0);
+
+  // Lighting
+  const hemiLight = new THREE.HemisphereLight(0x93c5fd, 0x334155, 0.7);
+  scene3D.add(hemiLight);
+
+  const sunLight = new THREE.DirectionalLight(0xfff7ed, 1.2);
+  sunLight.position.set(120, 200, 100);
+  sunLight.castShadow = true;
+  scene3D.add(sunLight);
+
+  // Build Bailadila Terraced Open-Pit Mine Topography
+  buildBailadilaPitTerrain(scene3D);
+
+  // Build 3D Ultrasonic Radar Cone
+  const coneGeo = new THREE.ConeGeometry(5.5, 16, 16, 1, true);
+  coneGeo.rotateX(Math.PI / 2);
+  const coneMat = new THREE.MeshBasicMaterial({
+    color: 0x10b981,
+    wireframe: true,
+    transparent: true,
+    opacity: 0.45
+  });
+  selectedRadarCone3D = new THREE.Mesh(coneGeo, coneMat);
+  scene3D.add(selectedRadarCone3D);
+
+  // Animation Loop
+  function animate3D() {
+    requestAnimationFrame(animate3D);
+
+    if (currentMapLayer === '3d') {
+      if (controls3D && controls3D.enabled) {
+        controls3D.update();
+      }
+
+      // Update chase / cockpit camera if active
+      const activeMesh = truck3DMeshes[selectedVehicleId];
+      if (activeMesh) {
+        const truckPos = activeMesh.position;
+        const headingRad = activeMesh.rotation.y;
+
+        if (cameraMode3D === 'chase') {
+          const offsetX = -Math.sin(headingRad) * 24;
+          const offsetZ = -Math.cos(headingRad) * 24;
+          camera3D.position.lerp(new THREE.Vector3(truckPos.x + offsetX, truckPos.y + 11, truckPos.z + offsetZ), 0.08);
+          camera3D.lookAt(truckPos.x, truckPos.y + 3, truckPos.z);
+        } else if (cameraMode3D === 'cockpit') {
+          const cabX = Math.sin(headingRad) * 2;
+          const cabZ = Math.cos(headingRad) * 2;
+          camera3D.position.set(truckPos.x + cabX, truckPos.y + 4.5, truckPos.z + cabZ);
+          camera3D.lookAt(truckPos.x + Math.sin(headingRad) * 30, truckPos.y + 4.0, truckPos.z + Math.cos(headingRad) * 30);
+        }
+      }
+
+      // Animate radar cone
+      if (selectedRadarCone3D) {
+        const t = Date.now() * 0.004;
+        selectedRadarCone3D.material.opacity = 0.35 + Math.sin(t) * 0.15;
+      }
+
+      renderer3D.render(scene3D, camera3D);
+    }
+  }
+  animate3D();
+
+  window.addEventListener('resize', onMine3DResize);
+  mine3DInit = true;
+  update3DMine(fleetList);
+}
+
+function onMine3DResize() {
+  if (!renderer3D || !camera3D) return;
+  const container = document.getElementById('threeCanvasWrap');
+  if (!container) return;
+  const w = container.clientWidth;
+  const h = container.clientHeight;
+  if (w > 0 && h > 0) {
+    camera3D.aspect = w / h;
+    camera3D.updateProjectionMatrix();
+    renderer3D.setSize(w, h);
+  }
+}
+
+// Generate Realistic Stepped Benches for Bailadila Iron Ore Deposit 5
+function buildBailadilaPitTerrain(scene) {
+  const pitGroup = new THREE.Group();
+
+  // Tiered open pit benches (concentric oval terraces)
+  const benchLayers = [
+    { rOut: 160, rIn: 135, y: 15, col: 0x57534e },  // Crest overburden
+    { rOut: 135, rIn: 110, y: 5,  col: 0x78350f },  // High bench iron formation
+    { rOut: 110, rIn: 88,  y: -6, col: 0x9a3412 },  // Switchback bench
+    { rOut: 88,  rIn: 65,  y: -18, col: 0x7c2d12 }, // Mid bench
+    { rOut: 65,  rIn: 42,  y: -30, col: 0x451a03 }, // Lower bench
+    { rOut: 42,  rIn: 0,   y: -42, col: 0x1c1917 }, // Deposit 5 Pit Bottom Loading Bay
+  ];
+
+  benchLayers.forEach((b, idx) => {
+    // Top flat bench
+    const ringGeo = new THREE.RingGeometry(b.rIn, b.rOut, 48);
+    ringGeo.rotateX(-Math.PI / 2);
+    const ringMat = new THREE.MeshStandardMaterial({
+      color: b.col,
+      roughness: 0.9,
+      metalness: 0.15,
+      side: THREE.DoubleSide
+    });
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.position.y = b.y;
+    ring.receiveShadow = true;
+    pitGroup.add(ring);
+
+    // Steep bench wall down to next level
+    if (idx < benchLayers.length - 1) {
+      const nextB = benchLayers[idx + 1];
+      const wallGeo = new THREE.CylinderGeometry(b.rIn, nextB.rOut, Math.abs(b.y - nextB.y), 48, 1, true);
+      const wallMat = new THREE.MeshStandardMaterial({
+        color: 0x431407,
+        roughness: 0.95,
+        metalness: 0.1
+      });
+      const wall = new THREE.Mesh(wallGeo, wallMat);
+      wall.position.y = (b.y + nextB.y) / 2;
+      wall.receiveShadow = true;
+      pitGroup.add(wall);
+    }
+  });
+
+  // Haul Road ribbons (spiral switchbacks cutting down the pit)
+  const curvePoints = [];
+  for (let i = 0; i <= 60; i++) {
+    const angle = (i / 60) * Math.PI * 4.5;
+    const radius = 135 - (i / 60) * 105;
+    const y = 12 - (i / 60) * 50;
+    curvePoints.push(new THREE.Vector3(Math.cos(angle) * radius, y + 0.3, Math.sin(angle) * radius));
+  }
+  const roadCurve = new THREE.CatmullRomCurve3(curvePoints);
+  const roadGeo = new THREE.TubeGeometry(roadCurve, 80, 2.2, 6, false);
+  const roadMat = new THREE.MeshStandardMaterial({
+    color: 0x292524,
+    roughness: 0.85
+  });
+  const roadMesh = new THREE.Mesh(roadGeo, roadMat);
+  pitGroup.add(roadMesh);
+
+  scene.add(pitGroup);
+}
+
+// Low-poly 3D Mining Haul Truck constructor
+function create3DHaulTruck(v) {
+  const truck = new THREE.Group();
+  const hexColor = parseInt((v.avatar_color || '#38bdf8').replace('#', '0x'), 16);
+
+  // Chassis
+  const chassisGeo = new THREE.BoxGeometry(3.6, 1.0, 7.5);
+  const chassisMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.7 });
+  const chassis = new THREE.Mesh(chassisGeo, chassisMat);
+  chassis.position.y = 1.2;
+  truck.add(chassis);
+
+  // 6 Mining Wheels
+  const wheelGeo = new THREE.CylinderGeometry(1.2, 1.2, 0.9, 16);
+  wheelGeo.rotateZ(Math.PI / 2);
+  const wheelMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.9 });
+  const wheelOffsets = [
+    [-1.9, 1.2, 2.2], [1.9, 1.2, 2.2],   // Front wheels
+    [-1.9, 1.2, -1.2], [1.9, 1.2, -1.2], // Rear inner wheels
+    [-2.0, 1.2, -2.6], [2.0, 1.2, -2.6]  // Rear outer wheels
+  ];
+  wheelOffsets.forEach(pos => {
+    const w = new THREE.Mesh(wheelGeo, wheelMat);
+    w.position.set(...pos);
+    truck.add(w);
+  });
+
+  // Cab Cabin (offset to left)
+  const cabGeo = new THREE.BoxGeometry(1.5, 1.8, 2.0);
+  const cabMat = new THREE.MeshStandardMaterial({ color: hexColor, roughness: 0.5 });
+  const cab = new THREE.Mesh(cabGeo, cabMat);
+  cab.position.set(-0.8, 2.6, 2.2);
+  truck.add(cab);
+
+  // Windshield
+  const winGeo = new THREE.BoxGeometry(1.3, 0.7, 0.1);
+  const winMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
+  const win = new THREE.Mesh(winGeo, winMat);
+  win.position.set(-0.8, 2.7, 3.22);
+  truck.add(win);
+
+  // Huge V-Shaped Ore Dump Bed
+  const bedGeo = new THREE.BoxGeometry(3.4, 2.2, 4.4);
+  const bedMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.6 });
+  const bed = new THREE.Mesh(bedGeo, bedMat);
+  bed.position.set(0, 2.8, -1.0);
+  truck.add(bed);
+
+  // Dual Headlights
+  const headLightL = new THREE.SpotLight(0xfffbeb, 1.8, 45, Math.PI / 6, 0.3);
+  headLightL.position.set(-1.0, 1.6, 3.8);
+  headLightL.target.position.set(-1.0, 0.5, 30);
+  truck.add(headLightL);
+  truck.add(headLightL.target);
+
+  const headLightR = new THREE.SpotLight(0xfffbeb, 1.8, 45, Math.PI / 6, 0.3);
+  headLightR.position.set(1.0, 1.6, 3.8);
+  headLightR.target.position.set(1.0, 0.5, 30);
+  truck.add(headLightR);
+  truck.add(headLightR.target);
+
+  // Floating Glow Tag Sprite
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 48;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#090e1a';
+  ctx.fillRect(0, 0, 128, 48);
+  ctx.strokeStyle = v.avatar_color || '#38bdf8';
+  ctx.lineWidth = 4;
+  ctx.strokeRect(2, 2, 124, 44);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 20px Space Grotesk, monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(v.id.replace('TRUCK_', 'T-'), 64, 32);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true });
+  const sprite = new THREE.Sprite(spriteMat);
+  sprite.position.set(0, 5.2, 0);
+  sprite.scale.set(7, 2.6, 1);
+  truck.add(sprite);
+
+  truck.castShadow = true;
+  return truck;
+}
+
+// Convert Real GPS (lat, lng) to 3D Mine Local Coordinates
+function gpsTo3DMineCoords(lat, lng, elevation_m) {
+  // Base origin centered around Bailadila Deposit 5 (18.7270° N, 81.2415° E)
+  const scale = 14000;
+  const x = (lng - 81.2415) * scale;
+  const z = -(lat - 18.7270) * scale;
+
+  // Elevation normalized from 1040m (pit bottom) to 1200m (ridge crest)
+  const elev = elevation_m || 1040;
+  const y = ((elev - 1040) / 160) * 55 - 40;
+
+  return { x, y: Math.max(-41, Math.min(18, y)), z };
+}
+
+// Update all 3D trucks each telemetry tick
+function update3DMine(fleet) {
+  if (!scene3D || !fleet || !fleet.length) return;
+
+  fleet.forEach(v => {
+    let mesh = truck3DMeshes[v.id];
+    if (!mesh) {
+      mesh = create3DHaulTruck(v);
+      truck3DMeshes[v.id] = mesh;
+      scene3D.add(mesh);
+    }
+
+    const pos = gpsTo3DMineCoords(v.lat, v.lng, v.elevation_m);
+    mesh.position.lerp(new THREE.Vector3(pos.x, pos.y, pos.z), 0.25);
+
+    // Smooth heading rotation
+    const targetRad = (v.heading || 0) * (Math.PI / 180);
+    mesh.rotation.y = THREE.MathUtils.lerp(mesh.rotation.y, targetRad, 0.20);
+
+    // Highlight selected truck radar cone
+    if (v.id === selectedVehicleId && selectedRadarCone3D) {
+      selectedRadarCone3D.position.set(pos.x, pos.y + 0.8, pos.z);
+      selectedRadarCone3D.rotation.y = targetRad;
+
+      // Color and distance of 3D radar cone
+      if (v.action === 'STOP' || v.dist_front < 60) {
+        selectedRadarCone3D.material.color.setHex(0xef4444);
+      } else if (v.action === 'SLOW DOWN' || v.dist_front < 150) {
+        selectedRadarCone3D.material.color.setHex(0xf59e0b);
+      } else {
+        selectedRadarCone3D.material.color.setHex(0x10b981);
+      }
+    }
+  });
 }
 
 // =============================================================================

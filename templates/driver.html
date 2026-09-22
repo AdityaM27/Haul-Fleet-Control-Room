@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Resurgence — In-Cab Driver Console</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;800&family=Space+Grotesk:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Three.js CDN for In-Cab 3D Radar HUD -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+  <style>
+    :root {
+      --bg: #060911;
+      --panel-bg: rgba(11, 17, 30, 0.94);
+      --panel-border: rgba(148, 163, 184, 0.14);
+      --text: #f1f5f9;
+      --text-muted: #94a3b8;
+      --teal: #38bdf8;
+      --green: #10b981;
+      --amber: #f59e0b;
+      --red: #ef4444;
+      --purple: #a855f7;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'JetBrains Mono', monospace;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    /* TOP COCKPIT HEADER */
+    .cockpit-header {
+      background: #090e1a;
+      border-bottom: 1px solid var(--panel-border);
+      padding: 12px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .brand-section { display: flex; align-items: center; gap: 12px; }
+    .brand-badge {
+      background: linear-gradient(135deg, #0284c7, #0369a1);
+      padding: 6px 10px;
+      border-radius: 8px;
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 800;
+      font-size: 13px;
+      letter-spacing: 1px;
+      color: #fff;
+    }
+    .truck-title-group { display: flex; flex-direction: column; }
+    .truck-main-name {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 17px;
+      font-weight: 800;
+      color: var(--teal);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .truck-sub-info { font-size: 11px; color: var(--text-muted); }
+
+    .header-actions { display: flex; align-items: center; gap: 10px; }
+    .hdr-btn {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--panel-border);
+      color: var(--text);
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .hdr-btn:hover { background: rgba(56, 189, 248, 0.15); border-color: var(--teal); color: var(--teal); }
+    .hdr-btn.admin-link { border-color: rgba(56, 189, 248, 0.4); color: var(--teal); }
+
+    /* DASHBOARD GRID */
+    .cockpit-container {
+      padding: 16px 20px;
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 16px;
+      max-width: 1600px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    /* CARD STYLING */
+    .hud-card {
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .card-hdr {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      padding-bottom: 10px;
+    }
+    .card-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* GIANT COLLISION ALERT BANNER */
+    .collision-banner {
+      border-radius: 12px;
+      padding: 18px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      transition: all 0.25s ease;
+    }
+    .collision-banner.clear {
+      background: radial-gradient(circle at 95% 50%, rgba(16, 185, 129, 0.18), transparent 45%), rgba(9, 28, 20, 0.95);
+      border: 1px solid var(--green);
+      box-shadow: 0 0 20px rgba(16, 185, 129, 0.2);
+    }
+    .collision-banner.slow {
+      background: radial-gradient(circle at 95% 50%, rgba(245, 158, 11, 0.20), transparent 45%), rgba(36, 26, 12, 0.95);
+      border: 1px solid var(--amber);
+      box-shadow: 0 0 25px rgba(245, 158, 11, 0.25);
+    }
+    .collision-banner.stop {
+      background: radial-gradient(circle at 95% 50%, rgba(239, 68, 68, 0.30), transparent 45%), rgba(45, 12, 16, 0.98);
+      border: 2px solid var(--red);
+      box-shadow: 0 0 35px rgba(239, 68, 68, 0.45);
+      animation: alertPulse 1.2s infinite;
+    }
+    @keyframes alertPulse {
+      0% { box-shadow: 0 0 15px rgba(239, 68, 68, 0.3); }
+      50% { box-shadow: 0 0 40px rgba(239, 68, 68, 0.7); }
+      100% { box-shadow: 0 0 15px rgba(239, 68, 68, 0.3); }
+    }
+
+    .banner-left { display: flex; align-items: center; gap: 16px; }
+    .banner-icon { font-size: 36px; line-height: 1; }
+    .banner-text-group .banner-label { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-muted); }
+    .banner-text-group .banner-val { font-family: 'Space Grotesk', sans-serif; font-size: 24px; font-weight: 800; }
+
+    /* DISTANCE RADAR METERS */
+    .radar-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+    .sensor-meter-box {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 10px;
+      padding: 14px;
+      text-align: center;
+    }
+    .sensor-meter-box.active-hazard {
+      border-color: var(--red);
+      background: rgba(239, 68, 68, 0.08);
+    }
+    .sensor-label { font-size: 9.5px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
+    .sensor-val {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 28px;
+      font-weight: 800;
+      color: var(--text);
+      margin: 4px 0;
+    }
+    .sensor-status-tag { font-size: 9px; font-weight: 700; text-transform: uppercase; }
+
+    /* DUAL CAMERA VIEWPORTS */
+    .camera-dual-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .cam-box {
+      position: relative;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid var(--panel-border);
+      background: #040711;
+    }
+    .cam-box img { width: 100%; aspect-ratio: 4/3; object-fit: cover; display: block; }
+    .cam-badge {
+      position: absolute;
+      top: 8px; left: 8px; z-index: 5;
+      background: rgba(11, 16, 28, 0.92);
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      padding: 4px 8px; border-radius: 5px;
+      font-size: 9px; font-weight: 700; letter-spacing: 0.5px;
+    }
+    .cam-badge.deweather { color: var(--teal); border-color: rgba(56, 189, 248, 0.4); }
+
+    /* IN-CAB 3D SITUATIONAL RADAR */
+    #cockpit3DCanvas {
+      width: 100%;
+      height: 220px;
+      border-radius: 10px;
+      background: #050811;
+      border: 1px solid var(--panel-border);
+      overflow: hidden;
+    }
+
+    /* TELEMETRY CLUSTER */
+    .telemetry-cluster {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+    }
+    .telem-box {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+      padding: 10px;
+      text-align: center;
+    }
+    .telem-lbl { font-size: 9px; color: var(--text-muted); text-transform: uppercase; }
+    .telem-val { font-family: 'Space Grotesk', sans-serif; font-size: 19px; font-weight: 700; color: var(--teal); margin-top: 2px; }
+
+    /* MODAL STYLES */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(4, 7, 15, 0.85);
+      backdrop-filter: blur(8px);
+      display: none; align-items: center; justify-content: center;
+      z-index: 999;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-box {
+      background: #0b111e;
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      border-radius: 14px;
+      width: 90%; max-width: 480px;
+      padding: 24px;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.9), 0 0 35px rgba(56, 189, 248, 0.15);
+    }
+    .modal-hdr {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 12px;
+    }
+    .modal-title { font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 800; color: var(--teal); }
+    .form-input {
+      width: 100%; padding: 10px 14px;
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid var(--panel-border);
+      border-radius: 8px; color: #fff; font-family: inherit; font-size: 13px;
+      margin-top: 4px; margin-bottom: 12px;
+    }
+    .btn-submit {
+      width: 100%; padding: 12px;
+      background: linear-gradient(135deg, #0284c7, #0369a1);
+      border: none; border-radius: 8px; color: #fff;
+      font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 14px;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .btn-submit:hover { transform: translateY(-1px); box-shadow: 0 0 20px rgba(56, 189, 248, 0.4); }
+
+    @media (max-width: 1024px) {
+      .cockpit-container { grid-template-columns: 1fr; }
+      .camera-dual-container { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- COCKPIT HEADER -->
+  <header class="cockpit-header">
+    <div class="brand-section">
+      <div class="brand-badge">RESURGENCE</div>
+      <div class="truck-title-group">
+        <div class="truck-main-name">
+          <span id="hdrTruckIcon">🚛</span>
+          <span id="hdrTruckName">TRUCK 2 (Bucyrus MT4400)</span>
+          <span id="hdrModePill" style="font-size:9px;padding:3px 8px;border-radius:6px;background:rgba(16,185,129,0.15);color:var(--green);border:1px solid rgba(16,185,129,0.3)">DRIVER CABIN ACTIVE</span>
+        </div>
+        <div class="truck-sub-info">
+          Bailadila Iron Ore Deposit 5 Circuit | Dedicated Optical De-Weathering Channel
+        </div>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <button class="hdr-btn" onclick="openLoginModal()">🔑 Switch Account</button>
+      <a href="/" class="hdr-btn admin-link">🛡️ Central Control Room</a>
+      <button class="hdr-btn" style="color:var(--red)" onclick="logout()">🔒 Logout</button>
+    </div>
+  </header>
+
+  <!-- MAIN COCKPIT DASHBOARD -->
+  <main class="cockpit-container">
+
+    <!-- LEFT COLUMN: COLLISION ALERT, CAMERAS & ULTRASONIC RADAR -->
+    <div style="display:flex;flex-direction:column;gap:16px">
+
+      <!-- 1. GIANT COLLISION ALERT BANNER -->
+      <div class="collision-banner clear" id="collisionBanner">
+        <div class="banner-left">
+          <div class="banner-icon" id="bannerIcon">✅</div>
+          <div class="banner-text-group">
+            <div class="banner-label">Collision Avoidance & Autonomic Braking</div>
+            <div class="banner-val" id="bannerAction">ALL PATHWAYS CLEAR — PROPULSION NORMAL</div>
+            <div id="bannerDetail" style="font-size:11px;color:var(--text-muted);margin-top:2px">
+              Ultrasonic envelope clear (>150 cm). Operating within zone safe speed advisory.
+            </div>
+          </div>
+        </div>
+        <button class="hdr-btn" onclick="injectDriverObstacle()" style="background:rgba(239,68,68,0.12);border-color:rgba(239,68,68,0.35);color:var(--red)">
+          ⚠️ Simulate Hazard (10cm)
+        </button>
+      </div>
+
+      <!-- 2. ULTRASONIC DISTANCE ENVELOPE (FRONT / LEFT / RIGHT) -->
+      <div class="hud-card">
+        <div class="card-hdr">
+          <div class="card-title"><span>📡</span><span>Ultrasonic Proximity Envelope</span></div>
+          <div style="font-size:10px;color:var(--text-muted)">CABIN SENSOR TELEMETRY</div>
+        </div>
+        <div class="radar-grid">
+          <div class="sensor-meter-box" id="meterLeft">
+            <div class="sensor-label">Left Flank Sensor</div>
+            <div class="sensor-val" id="valLeft">180 cm</div>
+            <div class="sensor-status-tag" id="tagLeft" style="color:var(--green)">CLEAR (>120cm)</div>
+          </div>
+          <div class="sensor-meter-box" id="meterFront">
+            <div class="sensor-label">Forward Range Radar</div>
+            <div class="sensor-val" id="valFront" style="color:var(--teal)">245 cm</div>
+            <div class="sensor-status-tag" id="tagFront" style="color:var(--green)">CLEAR (>150cm)</div>
+          </div>
+          <div class="sensor-meter-box" id="meterRight">
+            <div class="sensor-label">Right Flank Sensor</div>
+            <div class="sensor-val" id="valRight">190 cm</div>
+            <div class="sensor-status-tag" id="tagRight" style="color:var(--green)">CLEAR (>120cm)</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. LIVE DE-WEATHERING OPTICAL CAMERA STREAM (FAST-PI ENGINE) -->
+      <div class="hud-card">
+        <div class="card-hdr">
+          <div class="card-title">
+            <span>📷</span>
+            <span>Vision AI: FastPiDeWeather Optical Channel</span>
+          </div>
+          <div style="font-size:10.5px;color:var(--teal);font-weight:700">
+            RAIN STREAK & GUIDED FOG REMOVAL
+          </div>
+        </div>
+
+        <div style="font-size:11px;color:var(--text-muted);line-height:1.4">
+          Dedicated video feed processed on your cab unit. Converts low-visibility heavy rain streaks and pit bench smoke/fog into high-contrast edge-detected imagery in real time.
+        </div>
+
+        <div class="camera-dual-container">
+          <!-- RAW FEED -->
+          <div class="cam-box">
+            <div class="cam-badge">RAW OPTICAL FEED (RAIN & FOG)</div>
+            <img id="driverRawFeedImg" src="/raw_feed?v={{ target_vehicle_id }}" alt="Raw Cab Feed">
+          </div>
+          <!-- DEWEATHERED FEED -->
+          <div class="cam-box">
+            <div class="cam-badge deweather">FAST-PI DE-WEATHERED (+92% VISIBILITY)</div>
+            <img id="driverCleanFeedImg" src="/dehazed_feed?v={{ target_vehicle_id }}" alt="De-Weathered Feed">
+          </div>
+        </div>
+
+        <!-- Algorithm Telemetry Footer -->
+        <div style="display:flex;justify-content:space-between;align-items:center;background:rgba(255,255,255,0.02);padding:8px 12px;border-radius:8px;font-size:10px;color:var(--text-muted)">
+          <div>Algorithm: <span style="color:var(--teal);font-weight:700">FastPiDeWeather (Bilateral + Guided Filter DCP)</span></div>
+          <div>Edge Detection: <span style="color:var(--green);font-weight:700">Obstacle Bounding Active</span></div>
+          <div>Channel: <span id="camVidLabel" style="color:var(--amber);font-weight:700">{{ target_vehicle_id }}</span></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT COLUMN: SITUATIONAL 3D RADAR, ZONE ADVISORY & GAUGES -->
+    <div style="display:flex;flex-direction:column;gap:16px">
+
+      <!-- 1. IN-CAB 3D SITUATIONAL RADAR HUD -->
+      <div class="hud-card">
+        <div class="card-hdr">
+          <div class="card-title"><span>🧭</span><span>In-Cab 3D Spatial Radar HUD</span></div>
+          <div style="font-size:10px;color:var(--teal)">WEBGL ACCELERATED</div>
+        </div>
+        <div id="cockpit3DCanvas"></div>
+        <div style="font-size:10px;color:var(--text-muted);display:flex;justify-content:space-between">
+          <span>Forward Radar Arc: 45°</span>
+          <span id="radarDistanceLabel">Envelope: Clear</span>
+          <span>Heading: <strong id="valHeading" style="color:var(--teal)">240° SW</strong></span>
+        </div>
+      </div>
+
+      <!-- 2. CURRENT MINE ZONE & SPEED GOVERNOR -->
+      <div class="hud-card" style="border-color:rgba(56,189,248,0.3)">
+        <div class="card-hdr">
+          <div class="card-title"><span>🌫️</span><span>Active Mine Sector & Safe Speed Governor</span></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0">
+          <div>
+            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase">Operating Zone</div>
+            <div id="valZoneName" style="font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:700;color:#fff;margin-top:2px">
+              Zone 1: Deposit 5 Pit Bottom Bench
+            </div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase">Max Safe Speed</div>
+            <div id="valSafeSpeed" style="font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:800;color:var(--amber)">
+              10 km/h
+            </div>
+          </div>
+        </div>
+        <div style="padding:8px 12px;background:rgba(255,182,46,0.08);border-left:3px solid var(--amber);border-radius:4px;font-size:11px;color:var(--text-muted)" id="zoneAdvisory">
+          Dense valley cloud inversion rising into pit. Safe speed governor enforced.
+        </div>
+      </div>
+
+      <!-- 3. VEHICLE TELEMETRY CLUSTER -->
+      <div class="hud-card">
+        <div class="card-hdr">
+          <div class="card-title"><span>⚙️</span><span>Cockpit Telemetry & Health</span></div>
+          <div style="font-size:10px;color:var(--text-muted)">REAL-TIME CAN-BUS</div>
+        </div>
+        <div class="telemetry-cluster">
+          <div class="telem-box">
+            <div class="telem-lbl">Speed</div>
+            <div class="telem-val" id="valSpeed">19.5 <span style="font-size:10px">km/h</span></div>
+          </div>
+          <div class="telem-box">
+            <div class="telem-lbl">Gear</div>
+            <div class="telem-val" id="valGear">D2</div>
+          </div>
+          <div class="telem-box">
+            <div class="telem-lbl">Payload</div>
+            <div class="telem-val" id="valPayload">230 <span style="font-size:10px">Tons</span></div>
+          </div>
+          <div class="telem-box">
+            <div class="telem-lbl">Elevation</div>
+            <div class="telem-val" id="valElevation">1040 <span style="font-size:10px">m</span></div>
+          </div>
+        </div>
+
+        <div style="margin-top:8px;padding:10px;background:rgba(255,255,255,0.02);border-radius:8px;font-size:11px;display:flex;justify-content:space-between">
+          <span>GPS Coordinates:</span>
+          <span style="color:var(--teal)" id="valGpsCoords">18.7232° N, 81.2448° E</span>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- LOGIN / SWITCH ACCOUNT MODAL -->
+  <div class="modal-overlay" id="loginModal">
+    <div class="modal-box">
+      <div class="modal-hdr">
+        <div class="modal-title">🔐 Sign in to Resurgence Mining OS</div>
+        <button onclick="closeLoginModal()" style="background:none;border:none;color:var(--text-muted);font-size:18px;cursor:pointer">✕</button>
+      </div>
+
+      <div style="font-size:11.5px;color:var(--text-muted);margin-bottom:14px">
+        Select an account or enter your credentials. Drivers will access their localized in-cab console, while Dispatchers access the full Fleet Control Room.
+      </div>
+
+      <!-- Quick Fill Accounts -->
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px">
+        <button type="button" class="hdr-btn" onclick="fillCreds('ADMIN', 'admin123')">🛡️ Admin</button>
+        <button type="button" class="hdr-btn" onclick="fillCreds('TRUCK_01', 'truck01')">🚛 Truck 1 (ESP32)</button>
+        <button type="button" class="hdr-btn" onclick="fillCreds('TRUCK_02', 'truck02')">🚛 Truck 2</button>
+        <button type="button" class="hdr-btn" onclick="fillCreds('TRUCK_03', 'truck03')">🚛 Truck 3</button>
+        <button type="button" class="hdr-btn" onclick="fillCreds('TRUCK_04', 'truck04')">🚛 Truck 4</button>
+      </div>
+
+      <form id="loginForm" onsubmit="submitLogin(event)">
+        <label style="font-size:11px;color:var(--text-muted)">User ID or Truck ID</label>
+        <input type="text" id="loginUsername" class="form-input" placeholder="e.g. TRUCK_02 or ADMIN" required>
+
+        <label style="font-size:11px;color:var(--text-muted)">Password</label>
+        <input type="password" id="loginPassword" class="form-input" placeholder="••••••••" required>
+
+        <div id="loginError" style="display:none;padding:8px;background:rgba(239,68,68,0.15);color:var(--red);border-radius:6px;font-size:11.5px;margin-bottom:12px"></div>
+
+        <button type="submit" class="btn-submit" id="btnLoginSubmit">Sign In</button>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    const currentVid = "{{ target_vehicle_id }}";
+    let vehicleData = null;
+
+    // =========================================================================
+    // THREE.JS IN-CAB 3D SITUATIONAL RADAR HUD
+    // =========================================================================
+    let scene, camera, renderer, truckMesh, radarCone;
+    function initCockpit3D() {
+      const container = document.getElementById('cockpit3DCanvas');
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x050811);
+      scene.fog = new THREE.FogExp2(0x050811, 0.04);
+
+      camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
+      // Position camera behind and slightly above truck looking forward
+      camera.position.set(0, 4, -8);
+      camera.lookAt(0, 1.2, 8);
+
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(width, height);
+      container.appendChild(renderer.domElement);
+
+      // Ambient & Directional Lights
+      const ambLight = new THREE.AmbientLight(0xffffff, 0.7);
+      scene.add(ambLight);
+      const dirLight = new THREE.DirectionalLight(0x38bdf8, 1.0);
+      dirLight.position.set(5, 10, -5);
+      scene.add(dirLight);
+
+      // Ground plane with grid
+      const grid = new THREE.GridHelper(30, 20, 0x0284c7, 0x1e293b);
+      grid.position.y = 0;
+      scene.add(grid);
+
+      // Low-poly 3D Haul Truck Cab Model
+      const truckGroup = new THREE.Group();
+
+      // Chassis
+      const chassisGeo = new THREE.BoxGeometry(2.2, 0.8, 4.4);
+      const chassisMat = new THREE.MeshLambertMaterial({ color: 0x1e293b });
+      const chassis = new THREE.Mesh(chassisGeo, chassisMat);
+      chassis.position.y = 0.8;
+      truckGroup.add(chassis);
+
+      // Cab
+      const cabGeo = new THREE.BoxGeometry(1.8, 1.2, 1.8);
+      const cabMat = new THREE.MeshLambertMaterial({ color: 0xf59e0b });
+      const cab = new THREE.Mesh(cabGeo, cabMat);
+      cab.position.set(0, 1.8, 0.9);
+      truckGroup.add(cab);
+
+      // Windshield
+      const winGeo = new THREE.BoxGeometry(1.6, 0.6, 0.1);
+      const winMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
+      const win = new THREE.Mesh(winGeo, winMat);
+      win.position.set(0, 1.9, 1.82);
+      truckGroup.add(win);
+
+      // Dump bed
+      const bedGeo = new THREE.BoxGeometry(2.0, 1.2, 2.2);
+      const bedMat = new THREE.MeshLambertMaterial({ color: 0x334155 });
+      const bed = new THREE.Mesh(bedGeo, bedMat);
+      bed.position.set(0, 1.8, -1.0);
+      truckGroup.add(bed);
+
+      truckMesh = truckGroup;
+      scene.add(truckMesh);
+
+      // Dynamic Ultrasonic Safety Radar Cone
+      const coneGeo = new THREE.ConeGeometry(3.5, 9, 16, 1, true);
+      coneGeo.rotateX(Math.PI / 2); // Point forward along +Z
+      const coneMat = new THREE.MeshBasicMaterial({
+        color: 0x10b981,
+        wireframe: true,
+        transparent: true,
+        opacity: 0.4
+      });
+      radarCone = new THREE.Mesh(coneGeo, coneMat);
+      radarCone.position.set(0, 0.6, 5.5);
+      scene.add(radarCone);
+
+      function animate() {
+        requestAnimationFrame(animate);
+        // Gentle radar pulsation
+        const t = Date.now() * 0.003;
+        radarCone.material.opacity = 0.25 + Math.sin(t) * 0.15;
+        renderer.render(scene, camera);
+      }
+      animate();
+
+      window.addEventListener('resize', () => {
+        const w = container.clientWidth;
+        const h = container.clientHeight;
+        camera.aspect = w / h;
+        camera.updateProjectionMatrix();
+        renderer.setSize(w, h);
+      });
+    }
+
+    // Update 3D radar cone color based on obstacle proximity
+    function updateCockpit3DRadar(distFront, action) {
+      if (!radarCone) return;
+      if (action === 'STOP' || distFront < 60) {
+        radarCone.material.color.setHex(0xef4444); // Red
+        document.getElementById('radarDistanceLabel').textContent = `Envelope: CRITICAL (${distFront}cm)`;
+        document.getElementById('radarDistanceLabel').style.color = 'var(--red)';
+      } else if (action === 'SLOW DOWN' || distFront < 150) {
+        radarCone.material.color.setHex(0xf59e0b); // Amber
+        document.getElementById('radarDistanceLabel').textContent = `Envelope: CAUTION (${distFront}cm)`;
+        document.getElementById('radarDistanceLabel').style.color = 'var(--amber)';
+      } else {
+        radarCone.material.color.setHex(0x10b981); // Green
+        document.getElementById('radarDistanceLabel').textContent = `Envelope: CLEAR (${distFront}cm)`;
+        document.getElementById('radarDistanceLabel').style.color = 'var(--green)';
+      }
+    }
+
+    // =========================================================================
+    // TELEMETRY FETCH & IN-CAB HUD UPDATES
+    // =========================================================================
+    async function fetchVehicleData() {
+      try {
+        const res = await fetch(`/api/vehicle/${encodeURIComponent(currentVid)}`, { cache: 'no-store' });
+        if (res.status === 403) {
+          alert("Access restricted: You are not authorized to view this truck's in-cab console. Please log in.");
+          openLoginModal();
+          return;
+        }
+        if (!res.ok) return;
+        const v = await res.json();
+        vehicleData = v;
+        renderInCabUI(v);
+      } catch (err) {
+        console.error("fetchVehicleData error:", err);
+      }
+    }
+
+    function renderInCabUI(v) {
+      // Header
+      document.getElementById('hdrTruckName').textContent = `${v.name || v.id} (${v.model || 'Hauler'})`;
+
+      // Collision Banner & Action
+      const banner = document.getElementById('collisionBanner');
+      const bAction = document.getElementById('bannerAction');
+      const bIcon = document.getElementById('bannerIcon');
+      const bDetail = document.getElementById('bannerDetail');
+
+      banner.className = 'collision-banner';
+      if (v.action === 'STOP') {
+        banner.classList.add('stop');
+        bIcon.textContent = '⛔';
+        bAction.textContent = 'EMERGENCY STOP (BRAKES APPLIED)';
+        bAction.style.color = 'var(--red)';
+        bDetail.textContent = `Immediate obstacle in forward path (${v.dist_front} cm). Propulsion halted by Autonomic Edge Braking.`;
+      } else if (v.action === 'SLOW DOWN') {
+        banner.classList.add('slow');
+        bIcon.textContent = '⚠️';
+        bAction.textContent = 'SLOW DOWN (CAUTION ADVISORY)';
+        bAction.style.color = 'var(--amber)';
+        bDetail.textContent = `Caution zone trigger: Obstacle within ${v.dist_front} cm. Maintain safe headway.`;
+      } else {
+        banner.classList.add('clear');
+        bIcon.textContent = '✅';
+        bAction.textContent = 'ALL PATHWAYS CLEAR — PROPULSION NORMAL';
+        bAction.style.color = 'var(--green)';
+        bDetail.textContent = `Ultrasonic envelope clear (>150 cm). Operating within zone safe speed advisory.`;
+      }
+
+      // Ultrasonic meters
+      document.getElementById('valFront').textContent = `${v.dist_front} cm`;
+      document.getElementById('valLeft').textContent = `${v.dist_left} cm`;
+      document.getElementById('valRight').textContent = `${v.dist_right} cm`;
+
+      const setMeter = (boxId, tagId, dist, safeThresh) => {
+        const box = document.getElementById(boxId);
+        const tag = document.getElementById(tagId);
+        if (dist < 60) {
+          box.classList.add('active-hazard');
+          tag.textContent = 'CRITICAL (<60cm)';
+          tag.style.color = 'var(--red)';
+        } else if (dist < safeThresh) {
+          box.classList.remove('active-hazard');
+          tag.textContent = 'CAUTION';
+          tag.style.color = 'var(--amber)';
+        } else {
+          box.classList.remove('active-hazard');
+          tag.textContent = `CLEAR (>${safeThresh}cm)`;
+          tag.style.color = 'var(--green)';
+        }
+      };
+      setMeter('meterFront', 'tagFront', v.dist_front, 150);
+      setMeter('meterLeft', 'tagLeft', v.dist_left, 120);
+      setMeter('meterRight', 'tagRight', v.dist_right, 120);
+
+      // Update 3D radar cone in cabin
+      updateCockpit3DRadar(v.dist_front, v.action);
+
+      // Zone & Speed Governor
+      if (v.current_zone) {
+        document.getElementById('valZoneName').textContent = v.current_zone.name;
+        document.getElementById('valSafeSpeed').textContent = `${v.current_zone.max_safe_speed} km/h`;
+      }
+
+      // Telemetry Gauges
+      document.getElementById('valSpeed').innerHTML = `${Math.round(v.speed_kmh || 0)} <span style="font-size:10px">km/h</span>`;
+      document.getElementById('valGear').textContent = v.gear || (v.action === 'STOP' ? 'N' : 'D1');
+      document.getElementById('valPayload').innerHTML = `${v.payload_tons || 230} <span style="font-size:10px">Tons</span>`;
+      document.getElementById('valElevation').innerHTML = `${Math.round(v.elevation_m || 1040)} <span style="font-size:10px">m</span>`;
+      document.getElementById('valGpsCoords').textContent = `${v.lat ? v.lat.toFixed(4) : '--'}° N, ${v.lng ? v.lng.toFixed(4) : '--'}° E`;
+      document.getElementById('valHeading').textContent = `${Math.round(v.heading || 0)}°`;
+    }
+
+    // Trigger obstacle injection from cab for testing
+    async function injectDriverObstacle() {
+      try {
+        await fetch('/api/simulate/obstacle', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ vehicle_id: currentVid, distance: 10, duration: 6 })
+        });
+        fetchVehicleData();
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    // =========================================================================
+    // AUTHENTICATION & ROLE SWITCHING
+    // =========================================================================
+    function openLoginModal() {
+      document.getElementById('loginModal').classList.add('open');
+    }
+    function closeLoginModal() {
+      document.getElementById('loginModal').classList.remove('open');
+    }
+    function fillCreds(u, p) {
+      document.getElementById('loginUsername').value = u;
+      document.getElementById('loginPassword').value = p;
+    }
+
+    async function submitLogin(e) {
+      e.preventDefault();
+      const u = document.getElementById('loginUsername').value.trim();
+      const p = document.getElementById('loginPassword').value.trim();
+      const errEl = document.getElementById('loginError');
+      errEl.style.display = 'none';
+
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: u, password: p })
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          window.location.href = data.redirect_url;
+        } else {
+          errEl.textContent = data.msg || 'Login failed';
+          errEl.style.display = 'block';
+        }
+      } catch (err) {
+        errEl.textContent = 'Connection error during authentication';
+        errEl.style.display = 'block';
+      }
+    }
+
+    async function logout() {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      window.location.href = '/login';
+    }
+
+    // Auto open login modal if requested via URL
+    if (new URLSearchParams(window.location.search).get('login') === '1') {
+      openLoginModal();
+    }
+
+    // Initialize
+    initCockpit3D();
+    fetchVehicleData();
+    setInterval(fetchVehicleData, 1000);
+  </script>
+</body>
+</html>
