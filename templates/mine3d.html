@@ -119,17 +119,20 @@
   .hint{ font-size:9.5px; color:var(--bone-dim); margin-top:10px; line-height:1.5; border-top:1px solid var(--line); padding-top:8px;}
   .hint b{ color:var(--ore-gold); font-weight:500; }
 
-  #disclaimer-panel{ position:fixed !important; left:18px; bottom:18px; width:330px; font-size:10px; line-height:1.45; }
+  #disclaimer-panel{ position:fixed !important; left:18px; bottom:18px; width:320px; font-size:10px; line-height:1.45; }
   .disclaimer-title{ font-size:10px; color:var(--ore-gold); letter-spacing:0.05em; margin-bottom:5px; font-weight:700;}
   .disclaimer-note{ margin-top:5px; font-style:italic; color:#94a3b8; border-top:1px solid var(--line); padding-top:4px;}
 
-  #legend-panel{ position:fixed !important; left:365px; bottom:18px; width:220px; }
+  #sync-debug-panel{ position:fixed !important; left:350px; bottom:18px; width:290px; font-size:10px; }
+  .sync-debug-title{ font-size:10px; color:var(--teal); letter-spacing:0.04em; margin-bottom:6px; font-weight:700; border-bottom:1px solid var(--line); padding-bottom:3px; display:flex; justify-content:space-between; }
+
+  #legend-panel{ position:fixed !important; left:650px; bottom:18px; width:200px; }
   .legend-title{ font-size:10px; color:var(--ore-gold); letter-spacing:0.04em; margin-bottom:8px; font-weight:600;}
   .legend-row{ display:flex; align-items:center; gap:8px; font-size:10.5px; color:var(--bone-dim); margin-bottom:5px;}
   .swatch{ width:11px; height:11px; flex:none; border:1px solid rgba(0,0,0,0.3);}
 
-  #info-panel{ position:fixed !important; right:18px; bottom:18px; width:220px; }
-  .stat-row{ display:flex; justify-content:space-between; font-size:11px; margin-bottom:5px; color:var(--bone-dim);}
+  #info-panel{ position:fixed !important; right:18px; bottom:18px; width:200px; }
+  .stat-row{ display:flex; justify-content:space-between; font-size:10.5px; margin-bottom:4px; color:var(--bone-dim);}
   .stat-row span:last-child{ color:var(--bone); font-weight:600; }
 
   #marker-tooltip{
@@ -153,9 +156,12 @@
   }
   @keyframes spin{ to{ transform:rotate(360deg); } }
 
-  @media (max-width:860px){
-    #control-panel{ width:210px; }
+  @media (max-width:1200px){
     #legend-panel{ display:none; }
+  }
+  @media (max-width:960px){
+    #sync-debug-panel{ display:none; }
+    #control-panel{ width:220px; }
     #disclaimer-panel{ max-width:260px; font-size:9px; }
     #info-panel{ width:180px; }
   }
@@ -186,9 +192,25 @@
 
 <!-- Interactive Digital Twin Controls -->
 <div class="hud panel corner" id="control-panel">
-  <div class="mode-row">
-    <div class="btn active" id="btn-orbit">ORBIT</div>
-    <div class="btn" id="btn-drive">DRIVE ROAD</div>
+  <div class="section-lbl" style="margin-top:0;border-top:none;padding-top:0">CAMERA MODE</div>
+  <div class="mode-row" style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:8px">
+    <div class="btn active" id="btn-cam-orbit">ORBIT</div>
+    <div class="btn" id="btn-cam-follow">FOLLOW TRUCK</div>
+    <div class="btn" id="btn-cam-chase">CHASE TRUCK</div>
+    <div class="btn" id="btn-cam-cockpit">COCKPIT</div>
+    <div class="btn" id="btn-cam-cinematic" style="grid-column:span 2">CINEMATIC ROUTE</div>
+  </div>
+
+  <div id="target-truck-controls" style="margin-bottom:8px">
+    <label style="font-size:10px;color:var(--ore-gold);display:block;margin-bottom:4px;letter-spacing:0.04em">TRACKING TARGET TRUCK</label>
+    <select id="sel-target-truck" style="width:100%;background:#0e1524;color:var(--bone);border:1px solid var(--line);padding:6px 8px;border-radius:3px;font-family:'IBM Plex Mono',monospace;font-size:11px">
+      <option value="TRUCK_01">TRUCK_01 (DMP-101 · Caterpillar 797F)</option>
+      <option value="TRUCK_02">TRUCK_02 (DMP-102 · Bucyrus MT4400)</option>
+      <option value="TRUCK_03">TRUCK_03 (DMP-103 · Komatsu 930E-5)</option>
+      <option value="TRUCK_04">TRUCK_04 (DMP-104 · Liebherr T282B)</option>
+      <option value="TRUCK_05">TRUCK_05 (DMP-105 · Hitachi EH5000)</option>
+      <option value="TRUCK_06">TRUCK_06 (DMP-106 · BelAZ 75710)</option>
+    </select>
   </div>
 
   <div id="orbit-controls">
@@ -197,7 +219,11 @@
     </button>
   </div>
 
-  <div id="drive-controls" style="display:none;">
+  <div id="cinematic-controls" style="display:none;background:rgba(201,162,39,0.06);border:1px solid rgba(201,162,39,0.25);border-radius:4px;padding:8px;margin-bottom:10px">
+    <div style="font-size:10px;font-weight:700;color:var(--ore-gold);margin-bottom:4px;letter-spacing:0.05em">🎥 CINEMATIC ROUTE CAMERA</div>
+    <div style="font-size:9.5px;color:var(--bone-dim);margin-bottom:8px;line-height:1.4">
+      Autonomous road path flythrough for roadway and gradient inspection. <i>Independent flythrough — not tied to any live fleet vehicle position.</i>
+    </div>
     <div class="field">
       <label>POSITION ON ROAD</label>
       <input type="range" id="road-progress" min="0" max="1000" value="0">
@@ -210,7 +236,7 @@
       <div class="btn active" id="btn-play">❚❚ PAUSE</div>
       <div class="btn" id="btn-reset">⟲ TOP</div>
     </div>
-    <div class="hint"><b>← →</b> or drag slider to move · <b>mouse</b> to look around.</div>
+    <div class="hint" style="margin-top:6px;border-top:none;padding-top:0"><b>← →</b> or drag slider to scrub · <b>mouse</b> to look around.</div>
   </div>
 
   <div class="section-lbl">TERRAIN & DIGITAL TWIN LAYERS</div>
@@ -274,10 +300,29 @@
 <div class="hud panel corner" id="disclaimer-panel">
   <div class="disclaimer-title">DATA SOURCE & SPECIFICATION</div>
   <div>• <b>Terrain:</b> Copernicus GLO-30 DEM (30m resolution)</div>
-  <div>• <b>Haul Route:</b> Conceptual 16-waypoint Deposit-14 simulation haul loop</div>
+  <div>• <b>Haul Route:</b> Conceptual Deposit-14 simulation route</div>
   <div>• <b>Mine Geometry:</b> Conceptual coordinate-based approximation</div>
   <div>• <b>Vehicles:</b> Authoritative digital-twin simulation (DMP-101..106)</div>
-  <div class="disclaimer-note">Conceptual 16-waypoint Deposit-14 simulation haul loop created for Digital Twin & Fog-Guard prototype testing. Not official NMDC mine plan.</div>
+  <div class="disclaimer-note">Conceptual Deposit-14 simulation route created for Digital Twin & Fog-Guard prototype testing. Not official NMDC mine plan.</div>
+</div>
+
+<!-- Debug Synchronization Display Panel -->
+<div class="hud panel corner" id="sync-debug-panel">
+  <div class="sync-debug-title">
+    <span>DEBUG SYNCHRONIZATION DISPLAY</span>
+    <span id="sync-vid" style="color:var(--ore-gold)">TRUCK_01</span>
+  </div>
+  <div class="stat-row"><span>Vehicle ID:</span><span id="sync-vid-val" style="color:var(--teal);font-weight:700">TRUCK_01</span></div>
+  <div class="stat-row"><span>Backend Lat/Lng:</span><span id="sync-backend-ll" style="font-family:monospace">--</span></div>
+  <div class="stat-row"><span>3D Lat/Lng:</span><span id="sync-three-ll" style="font-family:monospace">--</span></div>
+  <div class="stat-row"><span>Backend Elevation:</span><span id="sync-backend-elev" style="font-family:monospace">--</span></div>
+  <div class="stat-row"><span>3D Surface Elevation:</span><span id="sync-three-elev" style="font-family:monospace">--</span></div>
+  <div class="stat-row" style="border-top:1px solid var(--line);padding-top:4px;margin-top:4px">
+    <span>Position Sync:</span><span id="sync-pos-status" style="color:#10b981;font-weight:700">✓ SYNCHRONIZED</span>
+  </div>
+  <div class="stat-row">
+    <span>Elevation Sync:</span><span id="sync-elev-status" style="color:#10b981;font-weight:700">✓ SYNCHRONIZED</span>
+  </div>
 </div>
 
 <!-- Color Legend -->
@@ -375,10 +420,16 @@
   document.getElementById('loading').style.display = 'none';
 
   // UI Elements
-  const btnOrbit = document.getElementById('btn-orbit');
-  const btnDrive = document.getElementById('btn-drive');
+  const btnCamOrbit = document.getElementById('btn-cam-orbit');
+  const btnCamFollow = document.getElementById('btn-cam-follow');
+  const btnCamChase = document.getElementById('btn-cam-chase');
+  const btnCamCockpit = document.getElementById('btn-cam-cockpit');
+  const btnCamCinematic = document.getElementById('btn-cam-cinematic');
+  const selTargetTruck = document.getElementById('sel-target-truck');
+  const targetTruckControls = document.getElementById('target-truck-controls');
   const orbitUI = document.getElementById('orbit-controls');
-  const driveUI = document.getElementById('drive-controls');
+  const cinematicUI = document.getElementById('cinematic-controls');
+
   const statMode = document.getElementById('stat-mode');
   const statElev = document.getElementById('stat-elev');
   const statVScale = document.getElementById('stat-vscale');
@@ -400,7 +451,8 @@
   const btnPlay = document.getElementById('btn-play');
   const btnReset = document.getElementById('btn-reset');
 
-  let currentMode = 'orbit';
+  let currentMode = 'orbit'; // 'orbit', 'follow', 'chase', 'cockpit', 'cinematic'
+  let selectedVehicleId = 'TRUCK_01';
   let driveT = 0;
   let playing = true;
   let yawOffset = 0, pitchOffset = 0;
@@ -408,17 +460,51 @@
 
   function setMode(mode) {
     currentMode = mode;
-    btnOrbit.classList.toggle('active', mode === 'orbit');
-    btnDrive.classList.toggle('active', mode === 'drive');
+    btnCamOrbit.classList.toggle('active', mode === 'orbit');
+    btnCamFollow.classList.toggle('active', mode === 'follow');
+    btnCamChase.classList.toggle('active', mode === 'chase');
+    btnCamCockpit.classList.toggle('active', mode === 'cockpit');
+    btnCamCinematic.classList.toggle('active', mode === 'cinematic');
+
     orbitUI.style.display = (mode === 'orbit') ? 'block' : 'none';
-    driveUI.style.display = (mode === 'drive') ? 'block' : 'none';
-    statMode.textContent = mode.toUpperCase();
+    cinematicUI.style.display = (mode === 'cinematic') ? 'block' : 'none';
+    targetTruckControls.style.display = (mode === 'cinematic') ? 'none' : 'block';
+
+    const modeLabels = {
+      orbit: 'ORBIT',
+      follow: 'FOLLOW TRUCK',
+      chase: 'CHASE TRUCK',
+      cockpit: 'COCKPIT',
+      cinematic: 'CINEMATIC ROUTE'
+    };
+    statMode.textContent = modeLabels[mode] || mode.toUpperCase();
     controls.enabled = (mode === 'orbit');
   }
 
-  btnOrbit.addEventListener('click', () => setMode('orbit'));
-  btnDrive.addEventListener('click', () => setMode('drive'));
+  btnCamOrbit.addEventListener('click', () => setMode('orbit'));
+  btnCamFollow.addEventListener('click', () => setMode('follow'));
+  btnCamChase.addEventListener('click', () => setMode('chase'));
+  btnCamCockpit.addEventListener('click', () => setMode('cockpit'));
+  btnCamCinematic.addEventListener('click', () => setMode('cinematic'));
   btnResetCam.addEventListener('click', applyOverviewCamera);
+
+  if (selTargetTruck) {
+    selTargetTruck.addEventListener('change', (e) => {
+      selectedVehicleId = e.target.value;
+      if (currentMode === 'orbit') {
+        engine.focusVehicle(selectedVehicleId, controls);
+      }
+    });
+  }
+
+  // Raycast interaction: Clicking truck in 3D selects target
+  engine.setupInteraction(camera, renderer.domElement, (clickedVid) => {
+    selectedVehicleId = clickedVid;
+    if (selTargetTruck) selTargetTruck.value = clickedVid;
+    if (currentMode === 'orbit') {
+      engine.focusVehicle(clickedVid, controls);
+    }
+  });
 
   // Layer Toggles
   chkTerrain.addEventListener('change', (e) => engine.setTerrainVisible(e.target.checked));
@@ -444,7 +530,7 @@
     engine.setVerticalScale(scene, v);
   });
 
-  // Drive Mode Controls
+  // Cinematic Route Flythrough Controls (Independent path inspection camera)
   progressSlider.addEventListener('input', () => {
     driveT = progressSlider.value / 1000;
   });
@@ -459,7 +545,7 @@
   });
 
   window.addEventListener('keydown', (e) => {
-    if (currentMode !== 'drive') return;
+    if (currentMode !== 'cinematic') return;
     const step = 0.008;
     if (e.key === 'ArrowUp' || e.key === 'ArrowRight') {
       driveT = Math.min(1, driveT + step);
@@ -472,14 +558,14 @@
   });
 
   renderer.domElement.addEventListener('mousedown', (e) => {
-    if (currentMode !== 'drive') return;
+    if (currentMode !== 'cinematic') return;
     dragging = true;
     lastMX = e.clientX;
     lastMY = e.clientY;
   });
   window.addEventListener('mouseup', () => { dragging = false; });
   renderer.domElement.addEventListener('mousemove', (e) => {
-    if (currentMode !== 'drive' || !dragging) return;
+    if (currentMode !== 'cinematic' || !dragging) return;
     yawOffset -= (e.clientX - lastMX) * 0.003;
     pitchOffset = THREE.MathUtils.clamp(pitchOffset - (e.clientY - lastMY) * 0.002, -0.5, 0.5);
     lastMX = e.clientX;
@@ -504,6 +590,52 @@
     }
   });
 
+  // Debug Synchronization Display Updater
+  function updateDebugSyncDisplay() {
+    const elVid = document.getElementById('sync-vid');
+    const elVidVal = document.getElementById('sync-vid-val');
+    const elBackendLL = document.getElementById('sync-backend-ll');
+    const elThreeLL = document.getElementById('sync-three-ll');
+    const elBackendElev = document.getElementById('sync-backend-elev');
+    const elThreeElev = document.getElementById('sync-three-elev');
+    const elPosSync = document.getElementById('sync-pos-status');
+    const elElevSync = document.getElementById('sync-elev-status');
+
+    if (!latestFleet || !engine) return;
+    const vData = latestFleet.find(x => x.id === selectedVehicleId) || latestFleet[0];
+    if (!vData) return;
+
+    const threeState = engine.getVehicleGeographicState(vData.id);
+    if (!threeState) return;
+
+    if (elVid) elVid.textContent = vData.id;
+    if (elVidVal) elVidVal.textContent = `${vData.id} (${vData.model || 'Haul Truck'})`;
+    if (elBackendLL) elBackendLL.textContent = `${vData.lat.toFixed(5)}°N, ${vData.lng.toFixed(5)}°E`;
+    if (elThreeLL) elThreeLL.textContent = `${threeState.lat.toFixed(5)}°N, ${threeState.lng.toFixed(5)}°E`;
+    if (elBackendElev) elBackendElev.textContent = `${vData.elevation_m.toFixed(1)} m ASL`;
+    if (elThreeElev) elThreeElev.textContent = `${threeState.elevation_m.toFixed(1)} m ASL`;
+
+    const dLat = (threeState.lat - vData.lat) * 111320;
+    const dLng = (threeState.lng - vData.lng) * (111320 * Math.cos(vData.lat * Math.PI / 180));
+    const dPos = Math.hypot(dLat, dLng);
+    const dElev = Math.abs(threeState.elevation_m - vData.elevation_m);
+
+    if (elPosSync) {
+      if (dPos < 1.0) {
+        elPosSync.innerHTML = `<span style="color:#10b981;font-weight:700">✓ SYNCHRONIZED (Δ ${dPos.toFixed(2)}m)</span>`;
+      } else {
+        elPosSync.innerHTML = `<span style="color:#f59e0b;font-weight:700">⟳ CONVERGING (Δ ${dPos.toFixed(2)}m)</span>`;
+      }
+    }
+    if (elElevSync) {
+      if (dElev < 1.0) {
+        elElevSync.innerHTML = `<span style="color:#10b981;font-weight:700">✓ SYNCHRONIZED (Δ ${dElev.toFixed(1)}m)</span>`;
+      } else {
+        elElevSync.innerHTML = `<span style="color:#f59e0b;font-weight:700">⟳ CONVERGING (Δ ${dElev.toFixed(1)}m)</span>`;
+      }
+    }
+  }
+
   // Telemetry Polling (Authoritative Digital Twin Fleet)
   let latestFleet = null;
   async function fetchFleet() {
@@ -513,6 +645,7 @@
         const data = await res.json();
         latestFleet = data.vehicles || [];
         engine.updateFleetTelemetry(latestFleet);
+        updateDebugSyncDisplay();
       }
     } catch (err) {
       // Telemetry fallback
@@ -532,8 +665,34 @@
 
     if (currentMode === 'orbit') {
       controls.update();
-    } else {
-      // Drive along haul road
+    } else if (currentMode === 'follow' || currentMode === 'chase' || currentMode === 'cockpit') {
+      if (engine.truckObjects) {
+        const item = engine.truckObjects[selectedVehicleId];
+        if (item && item.mesh) {
+          const truckPos = item.mesh.position;
+          const headingRad = item.mesh.rotation.y;
+
+          if (currentMode === 'follow') {
+            const targetPos = new THREE.Vector3(truckPos.x + 140, truckPos.y + 80, truckPos.z + 140);
+            camera.position.lerp(targetPos, 0.08);
+            camera.lookAt(truckPos.x, truckPos.y + 12, truckPos.z);
+          } else if (currentMode === 'chase') {
+            const offsetX = -Math.sin(headingRad) * 110;
+            const offsetZ = -Math.cos(headingRad) * 110;
+            camera.position.lerp(new THREE.Vector3(truckPos.x + offsetX, truckPos.y + 45, truckPos.z + offsetZ), 0.08);
+            camera.lookAt(truckPos.x, truckPos.y + 12, truckPos.z);
+          } else if (currentMode === 'cockpit') {
+            const cabX = Math.sin(headingRad) * 8;
+            const cabZ = Math.cos(headingRad) * 8;
+            camera.position.set(truckPos.x + cabX, truckPos.y + 20, truckPos.z + cabZ);
+            camera.lookAt(truckPos.x + Math.sin(headingRad) * 250, truckPos.y + 16, truckPos.z + Math.cos(headingRad) * 250);
+          }
+          const elev = Math.round(truckPos.y / currentVScale + engine.yMin);
+          statElev.textContent = elev + ' m ASL';
+        }
+      }
+    } else if (currentMode === 'cinematic') {
+      // Cinematic Route Camera: Independent road inspection flythrough along haul ribbon
       if (playing) {
         const spd = parseFloat(speedSlider.value) / 1000 * dt;
         driveT = (driveT + spd) % 1.0;
@@ -555,6 +714,7 @@
       statElev.textContent = h + ' m ASL';
     }
 
+    updateDebugSyncDisplay();
     renderer.render(scene, camera);
   }
   animate();

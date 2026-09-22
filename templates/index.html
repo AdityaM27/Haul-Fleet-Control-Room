@@ -1844,30 +1844,42 @@
           <!-- 3D WebGL Canvas Viewport -->
           <div style="position:relative;width:100%;height:460px;background:#0a0d12;overflow:hidden;border-bottom:1px solid var(--panel-border)">
             <div style="position:absolute;top:10px;left:12px;z-index:10;font-size:10px;color:var(--text-muted);background:rgba(10,13,18,0.85);padding:5px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);backdrop-filter:blur(6px);pointer-events:none">
-              Copernicus GLO-30 DEM · Kirandul → Deposit 14 Pit Circuit · Drag to orbit · Scroll to zoom
+              Copernicus GLO-30 DEM · Conceptual Deposit-14 simulation route · Kirandul → Deposit 14 Pit Circuit · Drag to orbit · Scroll to zoom
             </div>
 
-            <!-- Real-time Synchronization HUD Overlay -->
-            <div id="syncValidatorOverlay" style="position:absolute;bottom:10px;left:12px;z-index:10;font-size:9px;color:var(--text-muted);background:rgba(10,13,18,0.92);padding:7px 12px;border-radius:6px;border:1px solid rgba(56,189,248,0.25);backdrop-filter:blur(8px);pointer-events:none;display:flex;flex-direction:column;gap:3px;max-width:440px">
+            <!-- Debug Synchronization Display HUD Overlay -->
+            <div id="syncValidatorOverlay" style="position:absolute;bottom:10px;left:12px;z-index:10;font-size:9.5px;color:var(--text-muted);background:rgba(10,13,18,0.94);padding:8px 12px;border-radius:6px;border:1px solid rgba(56,189,248,0.3);backdrop-filter:blur(8px);pointer-events:none;display:flex;flex-direction:column;gap:3px;min-width:320px;max-width:440px">
               <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,255,255,0.08);padding-bottom:3px">
-                <span style="font-weight:700;color:var(--teal);letter-spacing:0.5px">AUTHORITATIVE SYNCHRONIZATION ENGINE</span>
-                <span id="syncValStatus"><span style="color:#10b981;font-weight:700">SYNC: ✓ SYNCHRONIZED</span></span>
+                <span style="font-weight:700;color:var(--teal);letter-spacing:0.5px">DEBUG SYNCHRONIZATION DISPLAY</span>
+                <span style="font-size:8px;color:var(--text-dim)">LIVE TWIN HUD</span>
               </div>
-              <div style="display:flex;gap:6px">
-                <span style="color:var(--text-dim);width:55px">Backend:</span>
-                <span id="syncValBackend" style="color:#f8fafc;font-family:monospace">--</span>
+              <div style="display:flex;justify-content:space-between;gap:8px">
+                <span style="color:var(--text-dim)">Vehicle ID:</span>
+                <span id="syncValVehicleId" style="font-weight:700;color:#fde047">TRUCK_01</span>
               </div>
-              <div style="display:flex;gap:6px">
-                <span style="color:var(--text-dim);width:55px">Leaflet:</span>
-                <span id="syncValLeaflet" style="color:#f8fafc;font-family:monospace">--</span>
+              <div style="display:flex;justify-content:space-between;gap:8px">
+                <span style="color:var(--text-dim)">Backend Lat/Lng:</span>
+                <span id="syncValBackendLatLng" style="color:#f8fafc;font-family:monospace">--</span>
               </div>
-              <div style="display:flex;gap:6px">
-                <span style="color:var(--text-dim);width:55px">Three.js:</span>
-                <span id="syncValThree" style="color:#f8fafc;font-family:monospace">--</span>
+              <div style="display:flex;justify-content:space-between;gap:8px">
+                <span style="color:var(--text-dim)">3D Lat/Lng:</span>
+                <span id="syncValThreeLatLng" style="color:#f8fafc;font-family:monospace">--</span>
               </div>
-              <div style="display:flex;justify-content:space-between;color:var(--teal);border-top:1px solid rgba(255,255,255,0.06);padding-top:2px">
-                <span id="syncValDelta">Δpos: 0.00m · Δelev: 0.0m</span>
-                <span style="color:var(--text-dim)">One Authoritative State</span>
+              <div style="display:flex;justify-content:space-between;gap:8px">
+                <span style="color:var(--text-dim)">Backend Elevation:</span>
+                <span id="syncValBackendElev" style="color:#f8fafc;font-family:monospace">--</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;gap:8px">
+                <span style="color:var(--text-dim)">3D Surface Elevation:</span>
+                <span id="syncValThreeElev" style="color:#f8fafc;font-family:monospace">--</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;border-top:1px solid rgba(255,255,255,0.06);padding-top:2px">
+                <span style="color:var(--text-dim)">Position Sync:</span>
+                <span id="syncValPosSync" style="color:#10b981;font-weight:700">✓ SYNCHRONIZED</span>
+              </div>
+              <div style="display:flex;justify-content:space-between">
+                <span style="color:var(--text-dim)">Elevation Sync:</span>
+                <span id="syncValElevSync" style="color:#10b981;font-weight:700">✓ SYNCHRONIZED</span>
               </div>
             </div>
 
@@ -1896,7 +1908,7 @@
 
           <!-- Conceptual Mine Disclaimer Subnote -->
           <div style="font-size:9.5px;color:var(--text-muted);padding:6px 14px;background:rgba(15,23,42,0.65);border-top:1px solid rgba(255,255,255,0.04);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
-            <span style="color:#f59e0b;font-weight:600">⚠️ Conceptual 16-waypoint Deposit-14 simulation haul loop — Created for Digital Twin & Fog-Guard prototype testing. Not official NMDC mine plan.</span>
+            <span style="color:#f59e0b;font-weight:600">⚠️ Conceptual Deposit-14 simulation route — Created for Digital Twin & Fog-Guard prototype testing. Not official NMDC mine plan.</span>
             <span style="font-style:italic">Copernicus GLO-30 DEM (30m) · Real Authoritative Surface Elevation</span>
           </div>
         </div>
@@ -3628,30 +3640,32 @@ function updateSyncValidatorHUD() {
   const deltaDistM = Math.hypot(dLat, dLng);
   const deltaElevM = Math.abs(threeState.elevation_m - vData.elevation_m);
 
-  const elBackend = document.getElementById('syncValBackend');
-  const elLeaflet = document.getElementById('syncValLeaflet');
-  const elThree = document.getElementById('syncValThree');
-  const elDelta = document.getElementById('syncValDelta');
-  const elStatus = document.getElementById('syncValStatus');
+  const elVid = document.getElementById('syncValVehicleId');
+  const elBackendLL = document.getElementById('syncValBackendLatLng');
+  const elThreeLL = document.getElementById('syncValThreeLatLng');
+  const elBackendElev = document.getElementById('syncValBackendElev');
+  const elThreeElev = document.getElementById('syncValThreeElev');
+  const elPosSync = document.getElementById('syncValPosSync');
+  const elElevSync = document.getElementById('syncValElevSync');
 
-  if (elBackend) {
-    elBackend.textContent = `${vData.lat.toFixed(5)}°N, ${vData.lng.toFixed(5)}°E, ${Math.round(vData.elevation_m)}m, ${Math.round(vData.heading)}°`;
-  }
-  if (elLeaflet) {
-    elLeaflet.textContent = `${leafLatLng.lat.toFixed(5)}°N, ${leafLatLng.lng.toFixed(5)}°E`;
-  }
-  if (elThree) {
-    elThree.textContent = `${threeState.lat.toFixed(5)}°N, ${threeState.lng.toFixed(5)}°E, ${Math.round(threeState.elevation_m)}m, ${Math.round(threeState.heading)}°`;
-  }
-  if (elDelta) {
-    elDelta.textContent = `Δpos: ${deltaDistM.toFixed(2)}m · Δelev: ${deltaElevM.toFixed(1)}m`;
-  }
-  if (elStatus) {
-    const isSync = (deltaDistM < 15.0 && deltaElevM < 5.0);
-    if (isSync) {
-      elStatus.innerHTML = '<span style="color:#10b981;font-weight:700">SYNC: ✓ SYNCHRONIZED</span>';
+  if (elVid) elVid.textContent = selectedVehicleId;
+  if (elBackendLL) elBackendLL.textContent = `${vData.lat.toFixed(5)}°N, ${vData.lng.toFixed(5)}°E`;
+  if (elThreeLL) elThreeLL.textContent = `${threeState.lat.toFixed(5)}°N, ${threeState.lng.toFixed(5)}°E`;
+  if (elBackendElev) elBackendElev.textContent = `${vData.elevation_m.toFixed(1)} m ASL`;
+  if (elThreeElev) elThreeElev.textContent = `${threeState.elevation_m.toFixed(1)} m ASL`;
+
+  if (elPosSync) {
+    if (deltaDistM < 1.0) {
+      elPosSync.innerHTML = `<span style="color:#10b981;font-weight:700">✓ SYNCHRONIZED (Δ ${deltaDistM.toFixed(2)}m)</span>`;
     } else {
-      elStatus.innerHTML = '<span style="color:#f59e0b;font-weight:700">SYNC: ⟳ CONVERGING</span>';
+      elPosSync.innerHTML = `<span style="color:#f59e0b;font-weight:700">⟳ CONVERGING (Δ ${deltaDistM.toFixed(2)}m)</span>`;
+    }
+  }
+  if (elElevSync) {
+    if (deltaElevM < 1.0) {
+      elElevSync.innerHTML = `<span style="color:#10b981;font-weight:700">✓ SYNCHRONIZED (Δ ${deltaElevM.toFixed(1)}m)</span>`;
+    } else {
+      elElevSync.innerHTML = `<span style="color:#f59e0b;font-weight:700">⟳ CONVERGING (Δ ${deltaElevM.toFixed(1)}m)</span>`;
     }
   }
 }
