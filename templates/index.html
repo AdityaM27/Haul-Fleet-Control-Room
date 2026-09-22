@@ -1707,9 +1707,6 @@
                 <button type="button" class="map-toggle-btn btn-map-sat" id="btnSatLayer" onclick="switchMapLayer('satellite')" title="Switch to High-Resolution Satellite Map">
                   <span>🛰️</span> <span>Satellite Map</span>
                 </button>
-                <button type="button" class="map-toggle-btn btn-map-3d" id="btn3DLayer" onclick="switchMapLayer('3d')" title="Switch to 3D Open-Cast Mine Digital Twin">
-                  <span>🏔️</span> <span>3D Mine</span>
-                </button>
               </div>
               <button type="button" class="ctrl-btn" style="flex:none;padding:5px 12px;font-size:10.5px;white-space:nowrap" onclick="centerOnSelected()">
                 🎯 Focus Selected
@@ -1718,20 +1715,6 @@
           </div>
           <div class="map-viewport-wrap">
             <div id="fleetMap"></div>
-            <!-- 3D OPEN-CAST MINE DIGITAL TWIN CONTAINER -->
-            <div id="mine3DContainer" style="display:none;width:100%;height:460px;position:relative;background:#050914;overflow:hidden">
-              <div style="position:absolute;top:12px;left:12px;z-index:810;display:flex;align-items:center;gap:6px;background:rgba(9,14,26,0.92);padding:5px 10px;border-radius:8px;border:1px solid rgba(56,189,248,0.35);backdrop-filter:blur(6px)">
-                <span style="font-size:10px;color:var(--text-muted);font-weight:700">CAMERA:</span>
-                <button type="button" class="mine3d-cam-btn active" id="btnCamOrbit" onclick="set3DCameraMode('orbit')">🎥 Orbit</button>
-                <button type="button" class="mine3d-cam-btn" id="btnCamChase" onclick="set3DCameraMode('chase')">🚛 Chase</button>
-                <button type="button" class="mine3d-cam-btn" id="btnCamCockpit" onclick="set3DCameraMode('cockpit')">👁️ Cockpit</button>
-                <a href="/mine3d" target="_blank" class="mine3d-cam-btn" style="text-decoration:none;display:inline-flex;align-items:center;gap:4px;color:#38bdf8" title="Open Fullscreen 3D Digital Twin">⛶ Fullscreen Twin ↗</a>
-              </div>
-              <div style="position:absolute;bottom:10px;left:12px;z-index:810;font-size:10px;color:var(--text-muted);background:rgba(9,14,26,0.85);padding:4px 8px;border-radius:6px;border:1px solid rgba(255,255,255,0.08)">
-                BAILADILA DEPOSIT 5 BENCHES | GPS TO 3D PROJECTION
-              </div>
-              <div id="threeCanvasWrap" style="width:100%;height:100%"></div>
-            </div>
 
             <div class="map-floating-layer-switcher">
               <button type="button" class="map-pill-btn active btn-map-street" id="pillStreet" onclick="switchMapLayer('street')" title="Switch to OpenStreetMap default map">
@@ -1739,9 +1722,6 @@
               </button>
               <button type="button" class="map-pill-btn btn-map-sat" id="pillSat" onclick="switchMapLayer('satellite')" title="Switch to High-Resolution Satellite Map">
                 <span>🛰️</span> <span>Satellite Map</span>
-              </button>
-              <button type="button" class="map-pill-btn btn-map-3d" id="pill3D" onclick="switchMapLayer('3d')" title="Switch to 3D Open-Cast Mine Digital Twin">
-                <span>🏔️</span> <span>3D Mine</span>
               </button>
             </div>
           </div>
@@ -1761,6 +1741,63 @@
             <div class="mstat-box">
               <div class="mstat-lbl">Elevation</div>
               <div class="mstat-val" id="mstatElev">-- m</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- PANEL 2B: 3D OPEN-CAST MINE DIGITAL TWIN (DIRECTLY UNDER MAP) -->
+        <div class="card" id="mine3DCard" style="margin-top:0">
+          <div class="card-header map-card-header" style="flex-wrap:wrap;gap:8px">
+            <div class="card-title" style="display:flex;align-items:center;gap:8px">
+              <span>🏔️</span>
+              <span>Bailadila Open-Pit 3D Digital Twin</span>
+              <span class="status-pill clear" style="font-size:8px">14-BENCH TERRACE MODEL</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;margin-left:auto;flex-wrap:wrap">
+              <div class="map-layer-toggle-group">
+                <button type="button" class="mine3d-cam-btn active" id="btnCamOrbit" onclick="set3DCameraMode('orbit')">🌐 Orbit</button>
+                <button type="button" class="mine3d-cam-btn" id="btnCamChase" onclick="set3DCameraMode('chase')">🎥 Chase</button>
+                <button type="button" class="mine3d-cam-btn" id="btnCamCockpit" onclick="set3DCameraMode('cockpit')">🪟 Cockpit</button>
+              </div>
+              <button type="button" class="ctrl-btn" style="flex:none;padding:5px 12px;font-size:10.5px;white-space:nowrap" onclick="reset3DCameraTarget()">
+                🔄 Reset View
+              </button>
+              <a href="/mine3d" target="_blank" class="cam-action-btn" style="text-decoration:none;display:inline-flex;align-items:center;gap:4px;color:#38bdf8" title="Open Fullscreen 3D Digital Twin">
+                ⛶ Fullscreen Twin ↗
+              </a>
+            </div>
+          </div>
+
+          <!-- 3D WebGL Canvas Viewport -->
+          <div style="position:relative;width:100%;height:460px;background:#050914;overflow:hidden;border-bottom:1px solid var(--panel-border)">
+            <div style="position:absolute;top:10px;left:12px;z-index:10;font-size:10px;color:var(--text-muted);background:rgba(9,14,26,0.85);padding:5px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);backdrop-filter:blur(6px);pointer-events:none">
+              Drag to rotate 360° · Scroll to zoom · Click truck to track
+            </div>
+            <div style="position:absolute;top:10px;right:12px;z-index:10;display:flex;align-items:center;gap:8px;background:rgba(9,14,26,0.88);padding:5px 12px;border-radius:6px;border:1px solid rgba(56,189,248,0.25);backdrop-filter:blur(6px)">
+              <span style="font-size:10px;color:var(--text-muted);font-weight:700">FOG:</span>
+              <input type="range" id="dashboardFogSlider" min="0" max="100" value="20" style="width:85px;accent-color:#38bdf8;cursor:pointer" oninput="onDashboardFogSliderChange(this.value)">
+              <span id="dashboardFogLabel" style="font-size:10px;color:#38bdf8;font-weight:600">Light</span>
+            </div>
+            <div id="threeCanvasWrap" style="width:100%;height:100%"></div>
+          </div>
+
+          <!-- 3D Telemetry Bar -->
+          <div class="map-telemetry-bar">
+            <div class="mstat-box">
+              <div class="mstat-lbl">Mine Topography</div>
+              <div class="mstat-val" style="color:var(--teal)">Deposit 5 Terraces</div>
+            </div>
+            <div class="mstat-box">
+              <div class="mstat-lbl">Pit Benches</div>
+              <div class="mstat-val">14 Step Levels</div>
+            </div>
+            <div class="mstat-box">
+              <div class="mstat-lbl">Tracking Target</div>
+              <div class="mstat-val" id="threeDTargetLabel" style="color:var(--teal)">TRUCK_01</div>
+            </div>
+            <div class="mstat-box">
+              <div class="mstat-lbl">Radar Envelope</div>
+              <div class="mstat-val" id="threeDRadarLabel" style="color:var(--green)">CLEAR</div>
             </div>
           </div>
         </div>
@@ -2184,29 +2221,16 @@ let currentMapLayer = 'street';
 streetTileLayer.addTo(map);
 
 function switchMapLayer(layerName) {
-  const mapEl = document.getElementById('fleetMap');
-  const mine3DEl = document.getElementById('mine3DContainer');
-
-  if (layerName === '3d') {
-    if (mapEl) mapEl.style.display = 'none';
-    if (mine3DEl) mine3DEl.style.display = 'block';
-    currentMapLayer = '3d';
-    initMine3DViewer();
-  } else if (layerName === 'satellite') {
-    if (mine3DEl) mine3DEl.style.display = 'none';
-    if (mapEl) mapEl.style.display = 'block';
+  if (layerName === 'satellite') {
     if (map.hasLayer(streetTileLayer)) map.removeLayer(streetTileLayer);
     if (!map.hasLayer(satTileLayer)) satTileLayer.addTo(map);
     currentMapLayer = 'satellite';
-    setTimeout(() => map.invalidateSize(), 60);
   } else {
-    if (mine3DEl) mine3DEl.style.display = 'none';
-    if (mapEl) mapEl.style.display = 'block';
     if (map.hasLayer(satTileLayer)) map.removeLayer(satTileLayer);
     if (!map.hasLayer(streetTileLayer)) streetTileLayer.addTo(map);
     currentMapLayer = 'street';
-    setTimeout(() => map.invalidateSize(), 60);
   }
+  setTimeout(() => map.invalidateSize(), 60);
 
   // Synchronize all toggle buttons and floating pills across the DOM
   document.querySelectorAll('.btn-map-street, #btnStreetLayer, #pillStreet').forEach(el => {
@@ -2214,9 +2238,6 @@ function switchMapLayer(layerName) {
   });
   document.querySelectorAll('.btn-map-sat, #btnSatLayer, #pillSat').forEach(el => {
     el.classList.toggle('active', currentMapLayer === 'satellite');
-  });
-  document.querySelectorAll('.btn-map-3d, #btn3DLayer, #pill3D').forEach(el => {
-    el.classList.toggle('active', currentMapLayer === '3d');
   });
 }
 
@@ -3419,7 +3440,7 @@ function initMine3DViewer() {
   function animate3D() {
     requestAnimationFrame(animate3D);
 
-    if (currentMapLayer === '3d') {
+    if (scene3D && camera3D && renderer3D) {
       if (controls3D && controls3D.enabled) {
         controls3D.update();
       }
@@ -3431,9 +3452,9 @@ function initMine3DViewer() {
         const headingRad = activeMesh.rotation.y;
 
         if (cameraMode3D === 'chase') {
-          const offsetX = -Math.sin(headingRad) * 24;
-          const offsetZ = -Math.cos(headingRad) * 24;
-          camera3D.position.lerp(new THREE.Vector3(truckPos.x + offsetX, truckPos.y + 11, truckPos.z + offsetZ), 0.08);
+          const offsetX = -Math.sin(headingRad) * 26;
+          const offsetZ = -Math.cos(headingRad) * 26;
+          camera3D.position.lerp(new THREE.Vector3(truckPos.x + offsetX, truckPos.y + 12, truckPos.z + offsetZ), 0.08);
           camera3D.lookAt(truckPos.x, truckPos.y + 3, truckPos.z);
         } else if (cameraMode3D === 'cockpit') {
           const cabX = Math.sin(headingRad) * 2;
@@ -3457,6 +3478,27 @@ function initMine3DViewer() {
   window.addEventListener('resize', onMine3DResize);
   mine3DInit = true;
   update3DMine(fleetList);
+}
+
+function reset3DCameraTarget() {
+  if (camera3D && controls3D) {
+    camera3D.position.set(0, 110, 190);
+    controls3D.target.set(0, 0, 0);
+    set3DCameraMode('orbit');
+  }
+}
+
+function onDashboardFogSliderChange(val) {
+  const v = parseFloat(val);
+  if (scene3D && scene3D.fog) {
+    scene3D.fog.density = 0.0015 + (v / 100) * 0.02;
+  }
+  const labelEl = document.getElementById('dashboardFogLabel');
+  if (labelEl) {
+    if (v > 70) labelEl.textContent = 'Dense';
+    else if (v > 35) labelEl.textContent = 'Moderate';
+    else labelEl.textContent = 'Light';
+  }
 }
 
 function onMine3DResize() {
@@ -3716,6 +3758,25 @@ function update3DMine(fleet) {
       }
     }
   });
+
+  const targetLbl = document.getElementById('threeDTargetLabel');
+  if (targetLbl) targetLbl.textContent = selectedVehicleId;
+  const radarLbl = document.getElementById('threeDRadarLabel');
+  if (radarLbl && fleet) {
+    const selV = fleet.find(v => v.id === selectedVehicleId);
+    if (selV) {
+      if (selV.action === 'STOP' || selV.dist_front < 60) {
+        radarLbl.textContent = `STOP (${selV.dist_front}cm)`;
+        radarLbl.style.color = 'var(--red)';
+      } else if (selV.action === 'SLOW DOWN' || selV.dist_front < 150) {
+        radarLbl.textContent = `SLOW (${selV.dist_front}cm)`;
+        radarLbl.style.color = 'var(--amber)';
+      } else {
+        radarLbl.textContent = `CLEAR (${selV.dist_front}cm)`;
+        radarLbl.style.color = 'var(--green)';
+      }
+    }
+  }
 }
 
 // =============================================================================
@@ -3732,6 +3793,7 @@ fetchFogZones();
 fetchFleet();
 fetchVehicleDetails();
 checkCameraStatus();
+setTimeout(initMine3DViewer, 250);
 </script>
 </body>
 </html>
