@@ -306,22 +306,44 @@
   <div class="disclaimer-note">Conceptual Deposit-14 simulation route created for Digital Twin & Fog-Guard prototype testing. Not official NMDC mine plan.</div>
 </div>
 
-<!-- Debug Synchronization Display Panel -->
-<div class="hud panel corner" id="sync-debug-panel">
+<!-- Digital-Twin Sync Validator Panel -->
+<div class="hud panel corner" id="sync-debug-panel" style="width:315px">
   <div class="sync-debug-title">
-    <span>DEBUG SYNCHRONIZATION DISPLAY</span>
-    <span id="sync-vid" style="color:var(--ore-gold)">TRUCK_01</span>
+    <span>DIGITAL-TWIN SYNC VALIDATOR</span>
+    <span id="syncOverallStatus3D" style="color:#10b981;font-weight:700">DIGITAL TWIN SYNCED</span>
   </div>
-  <div class="stat-row"><span>Vehicle ID:</span><span id="sync-vid-val" style="color:var(--teal);font-weight:700">TRUCK_01</span></div>
-  <div class="stat-row"><span>Backend Lat/Lng:</span><span id="sync-backend-ll" style="font-family:monospace">--</span></div>
-  <div class="stat-row"><span>3D Lat/Lng:</span><span id="sync-three-ll" style="font-family:monospace">--</span></div>
-  <div class="stat-row"><span>Backend Elevation:</span><span id="sync-backend-elev" style="font-family:monospace">--</span></div>
-  <div class="stat-row"><span>3D Surface Elevation:</span><span id="sync-three-elev" style="font-family:monospace">--</span></div>
-  <div class="stat-row" style="border-top:1px solid var(--line);padding-top:4px;margin-top:4px">
-    <span>Position Sync:</span><span id="sync-pos-status" style="color:#10b981;font-weight:700">✓ SYNCHRONIZED</span>
+  <div class="stat-row"><span>Vehicle ID:</span><span id="sync-vid-val" style="color:var(--ore-gold);font-weight:700">TRUCK_01</span></div>
+
+  <div style="border-top:1px solid var(--line);padding-top:3px;margin-top:2px">
+    <div style="color:var(--teal);font-weight:600;font-size:9.5px">Backend:</div>
+    <div class="stat-row"><span>Lat:</span><span id="sync-backend-lat" style="font-family:monospace">--</span></div>
+    <div class="stat-row"><span>Lng:</span><span id="sync-backend-lng" style="font-family:monospace">--</span></div>
+    <div class="stat-row"><span>Elevation:</span><span id="sync-backend-elev" style="font-family:monospace">--</span></div>
+    <div class="stat-row"><span>Heading:</span><span id="sync-backend-heading" style="font-family:monospace">--</span></div>
   </div>
-  <div class="stat-row">
-    <span>Elevation Sync:</span><span id="sync-elev-status" style="color:#10b981;font-weight:700">✓ SYNCHRONIZED</span>
+
+  <div style="border-top:1px solid var(--line);padding-top:3px;margin-top:2px">
+    <div style="color:var(--teal);font-weight:600;font-size:9.5px">Three.js:</div>
+    <div class="stat-row"><span>Lat:</span><span id="sync-three-lat" style="font-family:monospace">--</span></div>
+    <div class="stat-row"><span>Lng:</span><span id="sync-three-lng" style="font-family:monospace">--</span></div>
+    <div class="stat-row"><span>Surface Elevation:</span><span id="sync-three-elev" style="font-family:monospace">--</span></div>
+    <div class="stat-row"><span>Heading:</span><span id="sync-three-heading" style="font-family:monospace">--</span></div>
+  </div>
+
+  <div style="border-top:1px solid var(--line);padding-top:3px;margin-top:2px">
+    <div style="color:var(--teal);font-weight:600;font-size:9.5px">Differences:</div>
+    <div class="stat-row"><span>Position difference:</span><span id="sync-pos-diff" style="font-family:monospace">0.00 m</span></div>
+    <div class="stat-row"><span>Elevation difference:</span><span id="sync-elev-diff" style="font-family:monospace">0.0 m</span></div>
+    <div class="stat-row"><span>Heading difference:</span><span id="sync-heading-diff" style="font-family:monospace">0.0°</span></div>
+  </div>
+
+  <div style="border-top:1px solid var(--line);padding-top:3px;margin-top:2px">
+    <div style="color:var(--teal);font-weight:600;font-size:9.5px">Status:</div>
+    <div style="display:flex;justify-content:space-between;font-size:9px;font-weight:700">
+      <span id="sync-pos-status" style="color:#10b981">POSITION: SYNCED</span>
+      <span id="sync-elev-status" style="color:#10b981">ELEVATION: SYNCED</span>
+      <span id="sync-heading-status" style="color:#10b981">HEADING: SYNCED</span>
+    </div>
   </div>
 </div>
 
@@ -590,16 +612,28 @@
     }
   });
 
-  // Debug Synchronization Display Updater
+  // Digital-Twin Sync Validator Updater
   function updateDebugSyncDisplay() {
-    const elVid = document.getElementById('sync-vid');
     const elVidVal = document.getElementById('sync-vid-val');
-    const elBackendLL = document.getElementById('sync-backend-ll');
-    const elThreeLL = document.getElementById('sync-three-ll');
+    const elOverall = document.getElementById('syncOverallStatus3D');
+
+    const elBackendLat = document.getElementById('sync-backend-lat');
+    const elBackendLng = document.getElementById('sync-backend-lng');
     const elBackendElev = document.getElementById('sync-backend-elev');
+    const elBackendHdg = document.getElementById('sync-backend-heading');
+
+    const elThreeLat = document.getElementById('sync-three-lat');
+    const elThreeLng = document.getElementById('sync-three-lng');
     const elThreeElev = document.getElementById('sync-three-elev');
-    const elPosSync = document.getElementById('sync-pos-status');
-    const elElevSync = document.getElementById('sync-elev-status');
+    const elThreeHdg = document.getElementById('sync-three-heading');
+
+    const elPosDiff = document.getElementById('sync-pos-diff');
+    const elElevDiff = document.getElementById('sync-elev-diff');
+    const elHdgDiff = document.getElementById('sync-heading-diff');
+
+    const elPosStatus = document.getElementById('sync-pos-status');
+    const elElevStatus = document.getElementById('sync-elev-status');
+    const elHdgStatus = document.getElementById('sync-heading-status');
 
     if (!latestFleet || !engine) return;
     const vData = latestFleet.find(x => x.id === selectedVehicleId) || latestFleet[0];
@@ -608,31 +642,48 @@
     const threeState = engine.getVehicleGeographicState(vData.id);
     if (!threeState) return;
 
-    if (elVid) elVid.textContent = vData.id;
     if (elVidVal) elVidVal.textContent = `${vData.id} (${vData.model || 'Haul Truck'})`;
-    if (elBackendLL) elBackendLL.textContent = `${vData.lat.toFixed(5)}°N, ${vData.lng.toFixed(5)}°E`;
-    if (elThreeLL) elThreeLL.textContent = `${threeState.lat.toFixed(5)}°N, ${threeState.lng.toFixed(5)}°E`;
-    if (elBackendElev) elBackendElev.textContent = `${vData.elevation_m.toFixed(1)} m ASL`;
-    if (elThreeElev) elThreeElev.textContent = `${threeState.elevation_m.toFixed(1)} m ASL`;
+    if (elBackendLat) elBackendLat.textContent = `${vData.lat.toFixed(5)}°N`;
+    if (elBackendLng) elBackendLng.textContent = `${vData.lng.toFixed(5)}°E`;
+    if (elBackendElev) elBackendElev.textContent = `${vData.elevation_m.toFixed(1)} m`;
+    if (elBackendHdg) elBackendHdg.textContent = `${Math.round(vData.heading)}°`;
+
+    if (elThreeLat) elThreeLat.textContent = `${threeState.lat.toFixed(5)}°N`;
+    if (elThreeLng) elThreeLng.textContent = `${threeState.lng.toFixed(5)}°E`;
+    if (elThreeElev) elThreeElev.textContent = `${(threeState.surface_elevation_m || threeState.elevation_m).toFixed(1)} m`;
+    if (elThreeHdg) elThreeHdg.textContent = `${Math.round(threeState.heading)}°`;
 
     const dLat = (threeState.lat - vData.lat) * 111320;
     const dLng = (threeState.lng - vData.lng) * (111320 * Math.cos(vData.lat * Math.PI / 180));
     const dPos = Math.hypot(dLat, dLng);
     const dElev = Math.abs(threeState.elevation_m - vData.elevation_m);
+    const dHdg = Math.abs(((vData.heading - threeState.heading) + 540) % 360 - 180);
 
-    if (elPosSync) {
-      if (dPos < 1.0) {
-        elPosSync.innerHTML = `<span style="color:#10b981;font-weight:700">✓ SYNCHRONIZED (Δ ${dPos.toFixed(2)}m)</span>`;
-      } else {
-        elPosSync.innerHTML = `<span style="color:#f59e0b;font-weight:700">⟳ CONVERGING (Δ ${dPos.toFixed(2)}m)</span>`;
-      }
+    if (elPosDiff) elPosDiff.textContent = `${dPos.toFixed(2)} m`;
+    if (elElevDiff) elElevDiff.textContent = `${dElev.toFixed(1)} m`;
+    if (elHdgDiff) elHdgDiff.textContent = `${dHdg.toFixed(1)}°`;
+
+    const posOk = (dPos <= 5.0);
+    const elevOk = (dElev <= 1.5);
+    const hdgOk = (dHdg <= 10.0);
+
+    if (elPosStatus) {
+      elPosStatus.textContent = posOk ? 'POSITION: SYNCED' : 'POSITION: MISMATCH';
+      elPosStatus.style.color = posOk ? '#10b981' : '#ef4444';
     }
-    if (elElevSync) {
-      if (dElev < 1.0) {
-        elElevSync.innerHTML = `<span style="color:#10b981;font-weight:700">✓ SYNCHRONIZED (Δ ${dElev.toFixed(1)}m)</span>`;
-      } else {
-        elElevSync.innerHTML = `<span style="color:#f59e0b;font-weight:700">⟳ CONVERGING (Δ ${dElev.toFixed(1)}m)</span>`;
-      }
+    if (elElevStatus) {
+      elElevStatus.textContent = elevOk ? 'ELEVATION: SYNCED' : 'ELEVATION: MISMATCH';
+      elElevStatus.style.color = elevOk ? '#10b981' : '#ef4444';
+    }
+    if (elHdgStatus) {
+      elHdgStatus.textContent = hdgOk ? 'HEADING: SYNCED' : 'HEADING: MISMATCH';
+      elHdgStatus.style.color = hdgOk ? '#10b981' : '#ef4444';
+    }
+
+    if (elOverall) {
+      const allSynced = posOk && elevOk && hdgOk;
+      elOverall.textContent = allSynced ? 'DIGITAL TWIN SYNCED' : 'DIGITAL TWIN MISMATCH';
+      elOverall.style.color = allSynced ? '#10b981' : '#ef4444';
     }
   }
 

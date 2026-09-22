@@ -890,10 +890,19 @@
      * Real-time geographic state retrieval for Map <-> 3D Synchronization Validation
      */
     getVehicleGeographicState(vId) {
-      const item = this.truckObjects[vId];
+      let item = this.truckObjects[vId];
+      if (!item) {
+        for (const k in this.truckObjects) {
+          if (this.truckObjects[k].idText === vId || (this.truckObjects[k].mesh && this.truckObjects[k].mesh.name === vId)) {
+            item = this.truckObjects[k];
+            break;
+          }
+        }
+      }
       if (!item || !item.mesh) return null;
       const geo = this.worldToLonLat(item.mesh.position.x, item.mesh.position.z);
       const elev = ((item.mesh.position.y - 0.5) / this.vscale) + this.yMin;
+      const surfaceElev = this.sampleCarvedElevation(geo.lon, geo.lat);
       let headingDeg = (Math.PI - item.mesh.rotation.y) * 180.0 / Math.PI;
       headingDeg = (headingDeg % 360 + 360) % 360;
       return {
@@ -901,6 +910,7 @@
         lat: geo.lat,
         lng: geo.lon,
         elevation_m: elev,
+        surface_elevation_m: surfaceElev,
         heading: headingDeg,
         backend: item.backendData || null
       };

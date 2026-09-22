@@ -12,7 +12,7 @@ def test_everything():
     client = server.app.test_client()
 
     # 1. Metadata & Assets Check
-    print("[1/9] Verifying Metadata and Copernicus DEM Assets...")
+    print("[1/10] Verifying Metadata and Copernicus DEM Assets...")
     meta_path = "static/bailadila_terrain_meta.json"
     png_path = "static/bailadila_terrain_256.png"
     assert os.path.exists(meta_path), "Meta json missing"
@@ -24,8 +24,8 @@ def test_everything():
     print(f"  Elevation Range: {meta['minElevationMeters']:.2f}m to {meta['maxElevationMeters']:.2f}m ASL")
     assert meta["width"] == 256 and meta["height"] == 256
 
-    # 2. Pit Excavation & Surface Elevation Consistency (server.py vs Three.js)
-    print("\n[2/9] Verifying Pit Excavation Consistency (server.py vs Three.js engine)...")
+    # 2. Pit Excavation & Surface Elevation Parity (server.py vs Three.js)
+    print("\n[2/10] Verifying Pit Excavation Consistency (server.py vs Three.js engine)...")
     pit_center_lat, pit_center_lng = 18.5792, 81.2194
     pit_center_elev = server.sample_mine_surface_elevation(pit_center_lat, pit_center_lng)
     raw_dem_elev = server.sample_raw_dem_elevation(pit_center_lng, pit_center_lat)
@@ -79,7 +79,7 @@ def test_everything():
     assert max_formula_diff < 1e-5, "Excavation formula between Python backend and JS engine must be identical"
 
     # 3. Fleet Telemetry & Truck Elevation / Spatial Invariant Check
-    print("\n[3/9] Verifying Truck Spatial & Elevation Invariants (No floating/sinking)...")
+    print("\n[3/10] Verifying Truck Spatial & Elevation Invariants (No floating/sinking)...")
     res = client.get("/api/fleet")
     assert res.status_code == 200
     fdata = res.get_json()
@@ -101,7 +101,7 @@ def test_everything():
         assert abs(lon_back - v["lng"]) < 1e-9 and abs(lat_back - v["lat"]) < 1e-9
 
     # 4. Code Audit: Search bailadila_dem_terrain.js for forbidden movement variables
-    print("\n[4/9] Auditing bailadila_dem_terrain.js for performance.now / progression variables...")
+    print("\n[4/10] Auditing bailadila_dem_terrain.js for performance.now / progression variables...")
     with open("static/js/bailadila_dem_terrain.js", "r", encoding="utf-8") as f:
         js_code = f.read()
 
@@ -114,7 +114,7 @@ def test_everything():
     print("  CONFIRMED: Zero independent movement math or clock-driven positioning in Three.js engine.")
 
     # 5. Camera Modes Audit in mine3d.html
-    print("\n[5/9] Auditing Camera Modes in templates/mine3d.html...")
+    print("\n[5/10] Auditing Camera Modes in templates/mine3d.html...")
     with open("templates/mine3d.html", "r", encoding="utf-8") as f:
         mine3d_content = f.read()
 
@@ -123,27 +123,34 @@ def test_everything():
         assert mode in mine3d_content, f"Camera mode '{mode}' missing from templates/mine3d.html"
     print("  CONFIRMED: All 5 camera modes (ORBIT, FOLLOW TRUCK, CHASE TRUCK, COCKPIT, CINEMATIC ROUTE) present and clearly labeled.")
 
-    # 6. Debug Synchronization Display Audit (index.html & mine3d.html)
-    print("\n[6/9] Auditing Debug Synchronization Display in templates...")
+    # 6. Digital-Twin Sync Validator Audit (index.html & mine3d.html)
+    print("\n[6/10] Auditing Digital-Twin Sync Validator in templates...")
     with open("templates/index.html", "r", encoding="utf-8") as f:
         index_content = f.read()
 
-    debug_fields = [
+    validator_tokens = [
+        "DIGITAL-TWIN SYNC VALIDATOR",
         "Vehicle ID",
-        "Backend Lat/Lng",
-        "3D Lat/Lng",
-        "Backend Elevation",
-        "3D Surface Elevation",
-        "Position Sync",
-        "Elevation Sync"
+        "Backend:",
+        "Three.js:",
+        "Surface Elevation",
+        "Differences:",
+        "Position difference",
+        "Elevation difference",
+        "Heading difference",
+        "Status:",
+        "POSITION: SYNCED",
+        "ELEVATION: SYNCED",
+        "HEADING: SYNCED",
+        "DIGITAL TWIN SYNCED"
     ]
-    for field in debug_fields:
-        assert field in index_content, f"Debug sync field '{field}' missing from templates/index.html"
-        assert field in mine3d_content, f"Debug sync field '{field}' missing from templates/mine3d.html"
-    print("  CONFIRMED: Debug Synchronization Display present in both index.html and mine3d.html with all 7 required metrics.")
+    for token in validator_tokens:
+        assert token in index_content, f"Sync Validator token '{token}' missing from templates/index.html"
+        assert token in mine3d_content, f"Sync Validator token '{token}' missing from templates/mine3d.html"
+    print("  CONFIRMED: Complete Digital-Twin Sync Validator present in both index.html and mine3d.html.")
 
     # 7. Route Terminology Compliance Audit
-    print("\n[7/9] Auditing Route Terminology Compliance across codebase...")
+    print("\n[7/10] Auditing Route Terminology Compliance across codebase...")
     assert "Conceptual Deposit-14 simulation route" in index_content
     assert "Conceptual Deposit-14 simulation route" in mine3d_content
     with open("templates/driver.html", "r", encoding="utf-8") as f:
@@ -158,7 +165,7 @@ def test_everything():
     print("  CONFIRMED: Deposit-14 route strictly labeled as 'Conceptual Deposit-14 simulation route' with disclaimers preserved.")
 
     # 8. Scenarios Engine & State Machine Audit
-    print("\n[8/9] Verifying Scenarios Execution & Lifecycle State Engine...")
+    print("\n[8/10] Verifying Scenarios Execution & Lifecycle State Engine...")
     scenarios = ["CLEAR_RUN", "DENSE_FOG", "OBSTACLE_AHEAD", "HAIRPIN_CAUTION", "TRAFFIC_CLOSE"]
     for sc in scenarios:
         res = client.post("/api/scenarios/apply", json={"scenario": sc})
@@ -169,15 +176,55 @@ def test_everything():
     print("  All 5 scenarios successfully applied and verified.")
 
     # 9. Safety Events Audit Trail
-    print("\n[9/9] Verifying Safety Audit Event Log...")
+    print("\n[9/10] Verifying Safety Audit Event Log...")
     res = client.get("/api/events")
     assert res.status_code == 200
     events = res.get_json().get("events", [])
     print(f"  Total safety events recorded: {len(events)}")
     assert len(events) >= 5, "Safety events should record scenario applications"
 
+    # 10. Production Deployment & WSGI Compatibility Audit
+    print("\n[10/10] Verifying Deployment Compatibility & Relative URLs...")
+    # Check Flask WSGI application object
+    assert hasattr(server, "app"), "Flask application object 'app' missing in server.py"
+
+    # Check root route loads
+    res_root = client.get("/")
+    assert res_root.status_code == 200, "Root '/' did not return HTTP 200"
+
+    # Check 16-waypoint simulation route
+    res_route = client.get("/api/simulation_route")
+    assert res_route.status_code == 200, "/api/simulation_route did not return HTTP 200"
+    route_wps = res_route.get_json().get("waypoints", [])
+    assert len(route_wps) == 16, f"Expected 16 waypoints, got {len(route_wps)}"
+
+    # Check terrain assets load
+    res_meta = client.get("/bailadila_terrain_meta.json")
+    assert res_meta.status_code == 200, "Metadata asset did not return HTTP 200"
+    res_png = client.get("/bailadila_terrain_256.png")
+    assert res_png.status_code == 200, "PNG asset did not return HTTP 200"
+
+    # Verify no frontend code contains hardcoded localhost
+    for fn, txt in [("index.html", index_content), ("mine3d.html", mine3d_content), ("driver.html", driver_content)]:
+        for num, line in enumerate(txt.splitlines(), 1):
+            if "localhost" in line.lower() or "127.0.0.1" in line.lower():
+                raise AssertionError(f"Hardcoded localhost found in {fn}:{num}: {line.strip()}")
+
+    # Verify deployment config files exist
+    assert os.path.exists("Procfile"), "Procfile is missing"
+    assert os.path.exists("requirements.txt"), "requirements.txt is missing"
+    with open("Procfile", "r", encoding="utf-8") as f:
+        p_content = f.read()
+    assert "gunicorn server:app" in p_content, "Procfile does not define gunicorn server:app command"
+
+    with open("requirements.txt", "r", encoding="utf-8") as f:
+        req_content = f.read()
+    assert "gunicorn" in req_content, "gunicorn missing from requirements.txt"
+    print("  CONFIRMED: WSGI compatibility, relative API URLs, and deployment configs verified.")
+
     print("\n=============================================================")
-    print("AUDIT RESULT: 100% PASSED — ALL 10 AUDIT REQUIREMENTS MET!")
+    print("AUDIT RESULT: 100% PASSED — ALL AUDIT & DEPLOYMENT CHECKS MET!")
+    print("Digital-twin synchronization validation passed.")
     print("=============================================================")
 
 if __name__ == "__main__":

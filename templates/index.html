@@ -1847,39 +1847,55 @@
               Copernicus GLO-30 DEM · Conceptual Deposit-14 simulation route · Kirandul → Deposit 14 Pit Circuit · Drag to orbit · Scroll to zoom
             </div>
 
-            <!-- Debug Synchronization Display HUD Overlay -->
-            <div id="syncValidatorOverlay" style="position:absolute;bottom:10px;left:12px;z-index:10;font-size:9.5px;color:var(--text-muted);background:rgba(10,13,18,0.94);padding:8px 12px;border-radius:6px;border:1px solid rgba(56,189,248,0.3);backdrop-filter:blur(8px);pointer-events:none;display:flex;flex-direction:column;gap:3px;min-width:320px;max-width:440px">
+            <!-- Digital-Twin Sync Validator HUD Overlay -->
+            <div id="syncValidatorOverlay" style="position:absolute;bottom:10px;left:12px;z-index:10;font-size:9px;color:var(--text-muted);background:rgba(10,13,18,0.95);padding:9px 12px;border-radius:6px;border:1px solid rgba(56,189,248,0.3);backdrop-filter:blur(8px);pointer-events:none;display:flex;flex-direction:column;gap:3px;min-width:340px;max-width:460px;line-height:1.35">
               <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,255,255,0.08);padding-bottom:3px">
-                <span style="font-weight:700;color:var(--teal);letter-spacing:0.5px">DEBUG SYNCHRONIZATION DISPLAY</span>
-                <span style="font-size:8px;color:var(--text-dim)">LIVE TWIN HUD</span>
+                <span style="font-weight:700;color:var(--teal);letter-spacing:0.5px">DIGITAL-TWIN SYNC VALIDATOR</span>
+                <span id="syncOverallStatus" style="color:#10b981;font-weight:700">DIGITAL TWIN SYNCED</span>
               </div>
-              <div style="display:flex;justify-content:space-between;gap:8px">
+              <div style="display:flex;justify-content:space-between;padding:1px 0">
                 <span style="color:var(--text-dim)">Vehicle ID:</span>
                 <span id="syncValVehicleId" style="font-weight:700;color:#fde047">TRUCK_01</span>
               </div>
-              <div style="display:flex;justify-content:space-between;gap:8px">
-                <span style="color:var(--text-dim)">Backend Lat/Lng:</span>
-                <span id="syncValBackendLatLng" style="color:#f8fafc;font-family:monospace">--</span>
+              <div style="border-top:1px solid rgba(255,255,255,0.06);padding-top:2px">
+                <div style="color:var(--teal);font-weight:600">Backend:</div>
+                <div style="display:flex;justify-content:space-between;font-family:monospace;color:#f8fafc">
+                  <span>Lat: <b id="syncValBackendLat">--</b></span>
+                  <span>Lng: <b id="syncValBackendLng">--</b></span>
+                </div>
+                <div style="display:flex;justify-content:space-between;font-family:monospace;color:#f8fafc">
+                  <span>Elevation: <b id="syncValBackendElev">--</b></span>
+                  <span>Heading: <b id="syncValBackendHeading">--</b></span>
+                </div>
               </div>
-              <div style="display:flex;justify-content:space-between;gap:8px">
-                <span style="color:var(--text-dim)">3D Lat/Lng:</span>
-                <span id="syncValThreeLatLng" style="color:#f8fafc;font-family:monospace">--</span>
+              <div style="border-top:1px solid rgba(255,255,255,0.06);padding-top:2px">
+                <div style="color:var(--teal);font-weight:600">Three.js:</div>
+                <div style="display:flex;justify-content:space-between;font-family:monospace;color:#f8fafc">
+                  <span>Lat: <b id="syncValThreeLat">--</b></span>
+                  <span>Lng: <b id="syncValThreeLng">--</b></span>
+                </div>
+                <div style="display:flex;justify-content:space-between;font-family:monospace;color:#f8fafc">
+                  <span>Surface Elevation: <b id="syncValThreeElev">--</b></span>
+                  <span>Heading: <b id="syncValThreeHeading">--</b></span>
+                </div>
               </div>
-              <div style="display:flex;justify-content:space-between;gap:8px">
-                <span style="color:var(--text-dim)">Backend Elevation:</span>
-                <span id="syncValBackendElev" style="color:#f8fafc;font-family:monospace">--</span>
+              <div style="border-top:1px solid rgba(255,255,255,0.06);padding-top:2px">
+                <div style="color:var(--teal);font-weight:600">Differences:</div>
+                <div style="display:flex;justify-content:space-between;font-family:monospace;color:#f8fafc">
+                  <span>Position difference: <b id="syncValPosDiff">0.00 m</b></span>
+                  <span>Elevation difference: <b id="syncValElevDiff">0.0 m</b></span>
+                </div>
+                <div style="font-family:monospace;color:#f8fafc">
+                  <span>Heading difference: <b id="syncValHeadingDiff">0.0°</b></span>
+                </div>
               </div>
-              <div style="display:flex;justify-content:space-between;gap:8px">
-                <span style="color:var(--text-dim)">3D Surface Elevation:</span>
-                <span id="syncValThreeElev" style="color:#f8fafc;font-family:monospace">--</span>
-              </div>
-              <div style="display:flex;justify-content:space-between;border-top:1px solid rgba(255,255,255,0.06);padding-top:2px">
-                <span style="color:var(--text-dim)">Position Sync:</span>
-                <span id="syncValPosSync" style="color:#10b981;font-weight:700">✓ SYNCHRONIZED</span>
-              </div>
-              <div style="display:flex;justify-content:space-between">
-                <span style="color:var(--text-dim)">Elevation Sync:</span>
-                <span id="syncValElevSync" style="color:#10b981;font-weight:700">✓ SYNCHRONIZED</span>
+              <div style="border-top:1px solid rgba(255,255,255,0.06);padding-top:2px">
+                <div style="color:var(--teal);font-weight:600">Status:</div>
+                <div style="display:flex;justify-content:space-between;font-weight:600;font-size:8.5px">
+                  <span id="syncValPosStatus" style="color:#10b981">POSITION: SYNCED</span>
+                  <span id="syncValElevStatus" style="color:#10b981">ELEVATION: SYNCED</span>
+                  <span id="syncValHeadingStatus" style="color:#10b981">HEADING: SYNCED</span>
+                </div>
               </div>
             </div>
 
@@ -3641,32 +3657,65 @@ function updateSyncValidatorHUD() {
   const deltaElevM = Math.abs(threeState.elevation_m - vData.elevation_m);
 
   const elVid = document.getElementById('syncValVehicleId');
-  const elBackendLL = document.getElementById('syncValBackendLatLng');
-  const elThreeLL = document.getElementById('syncValThreeLatLng');
+  const elOverall = document.getElementById('syncOverallStatus');
+
+  const elBackendLat = document.getElementById('syncValBackendLat');
+  const elBackendLng = document.getElementById('syncValBackendLng');
   const elBackendElev = document.getElementById('syncValBackendElev');
+  const elBackendHdg = document.getElementById('syncValBackendHeading');
+
+  const elThreeLat = document.getElementById('syncValThreeLat');
+  const elThreeLng = document.getElementById('syncValThreeLng');
   const elThreeElev = document.getElementById('syncValThreeElev');
-  const elPosSync = document.getElementById('syncValPosSync');
-  const elElevSync = document.getElementById('syncValElevSync');
+  const elThreeHdg = document.getElementById('syncValThreeHeading');
+
+  const elPosDiff = document.getElementById('syncValPosDiff');
+  const elElevDiff = document.getElementById('syncValElevDiff');
+  const elHdgDiff = document.getElementById('syncValHeadingDiff');
+
+  const elPosStatus = document.getElementById('syncValPosStatus');
+  const elElevStatus = document.getElementById('syncValElevStatus');
+  const elHdgStatus = document.getElementById('syncValHeadingStatus');
+
+  // Differences calculation
+  const dHdg = Math.abs(((vData.heading - threeState.heading) + 540) % 360 - 180);
 
   if (elVid) elVid.textContent = selectedVehicleId;
-  if (elBackendLL) elBackendLL.textContent = `${vData.lat.toFixed(5)}°N, ${vData.lng.toFixed(5)}°E`;
-  if (elThreeLL) elThreeLL.textContent = `${threeState.lat.toFixed(5)}°N, ${threeState.lng.toFixed(5)}°E`;
-  if (elBackendElev) elBackendElev.textContent = `${vData.elevation_m.toFixed(1)} m ASL`;
-  if (elThreeElev) elThreeElev.textContent = `${threeState.elevation_m.toFixed(1)} m ASL`;
+  if (elBackendLat) elBackendLat.textContent = `${vData.lat.toFixed(5)}°N`;
+  if (elBackendLng) elBackendLng.textContent = `${vData.lng.toFixed(5)}°E`;
+  if (elBackendElev) elBackendElev.textContent = `${vData.elevation_m.toFixed(1)} m`;
+  if (elBackendHdg) elBackendHdg.textContent = `${Math.round(vData.heading)}°`;
 
-  if (elPosSync) {
-    if (deltaDistM < 1.0) {
-      elPosSync.innerHTML = `<span style="color:#10b981;font-weight:700">✓ SYNCHRONIZED (Δ ${deltaDistM.toFixed(2)}m)</span>`;
-    } else {
-      elPosSync.innerHTML = `<span style="color:#f59e0b;font-weight:700">⟳ CONVERGING (Δ ${deltaDistM.toFixed(2)}m)</span>`;
-    }
+  if (elThreeLat) elThreeLat.textContent = `${threeState.lat.toFixed(5)}°N`;
+  if (elThreeLng) elThreeLng.textContent = `${threeState.lng.toFixed(5)}°E`;
+  if (elThreeElev) elThreeElev.textContent = `${(threeState.surface_elevation_m || threeState.elevation_m).toFixed(1)} m`;
+  if (elThreeHdg) elThreeHdg.textContent = `${Math.round(threeState.heading)}°`;
+
+  if (elPosDiff) elPosDiff.textContent = `${deltaDistM.toFixed(2)} m`;
+  if (elElevDiff) elElevDiff.textContent = `${deltaElevM.toFixed(1)} m`;
+  if (elHdgDiff) elHdgDiff.textContent = `${dHdg.toFixed(1)}°`;
+
+  const posOk = (deltaDistM <= 5.0);
+  const elevOk = (deltaElevM <= 1.5);
+  const hdgOk = (dHdg <= 10.0);
+
+  if (elPosStatus) {
+    elPosStatus.textContent = posOk ? 'POSITION: SYNCED' : 'POSITION: MISMATCH';
+    elPosStatus.style.color = posOk ? '#10b981' : '#ef4444';
   }
-  if (elElevSync) {
-    if (deltaElevM < 1.0) {
-      elElevSync.innerHTML = `<span style="color:#10b981;font-weight:700">✓ SYNCHRONIZED (Δ ${deltaElevM.toFixed(1)}m)</span>`;
-    } else {
-      elElevSync.innerHTML = `<span style="color:#f59e0b;font-weight:700">⟳ CONVERGING (Δ ${deltaElevM.toFixed(1)}m)</span>`;
-    }
+  if (elElevStatus) {
+    elElevStatus.textContent = elevOk ? 'ELEVATION: SYNCED' : 'ELEVATION: MISMATCH';
+    elElevStatus.style.color = elevOk ? '#10b981' : '#ef4444';
+  }
+  if (elHdgStatus) {
+    elHdgStatus.textContent = hdgOk ? 'HEADING: SYNCED' : 'HEADING: MISMATCH';
+    elHdgStatus.style.color = hdgOk ? '#10b981' : '#ef4444';
+  }
+
+  if (elOverall) {
+    const allSynced = posOk && elevOk && hdgOk;
+    elOverall.textContent = allSynced ? 'DIGITAL TWIN SYNCED' : 'DIGITAL TWIN MISMATCH';
+    elOverall.style.color = allSynced ? '#10b981' : '#ef4444';
   }
 }
 
