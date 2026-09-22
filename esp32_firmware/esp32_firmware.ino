@@ -40,7 +40,8 @@ const char* WIFI_SSID     = "VNRVJIET_E";
 const char* WIFI_PASSWORD = "vnrvjiet@123";
 
 // Your laptop's local IP address (port 5000)
-const char* SERVER_URL    = "http://172.16.26.199:5000/update";
+// Current Wi-Fi IP: 172.16.24.93 | Windows Hotspot IP: 192.168.137.1
+const char* SERVER_URL    = "http://172.16.24.93:5000/update";
 
 const char* VEHICLE_ID    = "TRUCK_01"; // Binds to Truck 1 in Resurgence
 
