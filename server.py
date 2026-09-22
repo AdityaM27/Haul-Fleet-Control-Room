@@ -1997,6 +1997,12 @@ def login_page():
     return render_template("driver.html", show_login=True)
 
 
+@app.route("/mine3d", methods=["GET"])
+@app.route("/digital_twin", methods=["GET"])
+def mine_3d_portal():
+    return render_template("mine3d.html")
+
+
 @app.route("/", methods=["GET"])
 def index():
     if session.get("role") == "driver" and session.get("vehicle_id"):

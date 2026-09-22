@@ -1725,6 +1725,7 @@
                 <button type="button" class="mine3d-cam-btn active" id="btnCamOrbit" onclick="set3DCameraMode('orbit')">🎥 Orbit</button>
                 <button type="button" class="mine3d-cam-btn" id="btnCamChase" onclick="set3DCameraMode('chase')">🚛 Chase</button>
                 <button type="button" class="mine3d-cam-btn" id="btnCamCockpit" onclick="set3DCameraMode('cockpit')">👁️ Cockpit</button>
+                <a href="/mine3d" target="_blank" class="mine3d-cam-btn" style="text-decoration:none;display:inline-flex;align-items:center;gap:4px;color:#38bdf8" title="Open Fullscreen 3D Digital Twin">⛶ Fullscreen Twin ↗</a>
               </div>
               <div style="position:absolute;bottom:10px;left:12px;z-index:810;font-size:10px;color:var(--text-muted);background:rgba(9,14,26,0.85);padding:4px 8px;border-radius:6px;border:1px solid rgba(255,255,255,0.08)">
                 BAILADILA DEPOSIT 5 BENCHES | GPS TO 3D PROJECTION
@@ -3471,69 +3472,103 @@ function onMine3DResize() {
   }
 }
 
+// =============================================================================
+// IRREGULAR OVAL TERRACED OPEN-PIT MINE TOPOGRAPHY (BAILADILA DEPOSIT 5)
+// =============================================================================
+function pitRadiusFactor(angle) {
+  return 1 + 0.14 * Math.sin(angle * 2.3 + 0.6) + 0.08 * Math.sin(angle * 3.9 - 1.2) + 0.05 * Math.sin(angle * 5.7 + 2.4);
+}
+const MINE_RIM_RADIUS = 195;
+const MINE_MAX_DEPTH = 150;
+const MINE_BENCH_COUNT = 14;
+const MINE_STEP_SIZE = MINE_MAX_DEPTH / MINE_BENCH_COUNT;
+
+function getMineHeightAt(x, z) {
+  const angle = Math.atan2(z, x);
+  const dist = Math.sqrt(x * x + z * z);
+  const rNorm = dist / (MINE_RIM_RADIUS * pitRadiusFactor(angle));
+  const rClamped = Math.min(rNorm, 1.3);
+  const depthSmooth = -MINE_MAX_DEPTH * Math.pow(Math.max(0, 1 - rClamped), 1.4);
+  const terraced = Math.floor(depthSmooth / MINE_STEP_SIZE) * MINE_STEP_SIZE;
+  const noise = 1.5 * Math.sin(x * 0.15 + z * 0.11) + 1.0 * Math.sin(x * 0.27 - z * 0.19);
+  return terraced + noise;
+}
+
+let mineRoadCurve3D = null;
+
 // Generate Realistic Stepped Benches for Bailadila Iron Ore Deposit 5
 function buildBailadilaPitTerrain(scene) {
-  const pitGroup = new THREE.Group();
+  const GRID_N = 120;
+  const EXTENT = 230;
+  const positions = [];
+  const colors = [];
+  const snowCol = new THREE.Color(0.75, 0.82, 0.88);
+  const rockCol = new THREE.Color(0.55, 0.42, 0.22);
+  const darkRockCol = new THREE.Color(0.28, 0.22, 0.16);
 
-  // Tiered open pit benches (concentric oval terraces)
-  const benchLayers = [
-    { rOut: 160, rIn: 135, y: 15, col: 0x57534e },  // Crest overburden
-    { rOut: 135, rIn: 110, y: 5,  col: 0x78350f },  // High bench iron formation
-    { rOut: 110, rIn: 88,  y: -6, col: 0x9a3412 },  // Switchback bench
-    { rOut: 88,  rIn: 65,  y: -18, col: 0x7c2d12 }, // Mid bench
-    { rOut: 65,  rIn: 42,  y: -30, col: 0x451a03 }, // Lower bench
-    { rOut: 42,  rIn: 0,   y: -42, col: 0x1c1917 }, // Deposit 5 Pit Bottom Loading Bay
-  ];
-
-  benchLayers.forEach((b, idx) => {
-    // Top flat bench
-    const ringGeo = new THREE.RingGeometry(b.rIn, b.rOut, 48);
-    ringGeo.rotateX(-Math.PI / 2);
-    const ringMat = new THREE.MeshStandardMaterial({
-      color: b.col,
-      roughness: 0.9,
-      metalness: 0.15,
-      side: THREE.DoubleSide
-    });
-    const ring = new THREE.Mesh(ringGeo, ringMat);
-    ring.position.y = b.y;
-    ring.receiveShadow = true;
-    pitGroup.add(ring);
-
-    // Steep bench wall down to next level
-    if (idx < benchLayers.length - 1) {
-      const nextB = benchLayers[idx + 1];
-      const wallGeo = new THREE.CylinderGeometry(b.rIn, nextB.rOut, Math.abs(b.y - nextB.y), 48, 1, true);
-      const wallMat = new THREE.MeshStandardMaterial({
-        color: 0x431407,
-        roughness: 0.95,
-        metalness: 0.1
-      });
-      const wall = new THREE.Mesh(wallGeo, wallMat);
-      wall.position.y = (b.y + nextB.y) / 2;
-      wall.receiveShadow = true;
-      pitGroup.add(wall);
+  for (let j = 0; j <= GRID_N; j++) {
+    const z = -EXTENT + (2 * EXTENT) * (j / GRID_N);
+    for (let i = 0; i <= GRID_N; i++) {
+      const x = -EXTENT + (2 * EXTENT) * (i / GRID_N);
+      const y = getMineHeightAt(x, z);
+      positions.push(x, y, z);
+      const depthT = Math.max(0, Math.min(1, -y / MINE_MAX_DEPTH));
+      let c;
+      if (depthT < 0.15) c = snowCol.clone().lerp(rockCol, depthT / 0.15);
+      else c = rockCol.clone().lerp(darkRockCol, (depthT - 0.15) / 0.85);
+      colors.push(c.r, c.g, c.b);
     }
-  });
-
-  // Haul Road ribbons (spiral switchbacks cutting down the pit)
-  const curvePoints = [];
-  for (let i = 0; i <= 60; i++) {
-    const angle = (i / 60) * Math.PI * 4.5;
-    const radius = 135 - (i / 60) * 105;
-    const y = 12 - (i / 60) * 50;
-    curvePoints.push(new THREE.Vector3(Math.cos(angle) * radius, y + 0.3, Math.sin(angle) * radius));
   }
-  const roadCurve = new THREE.CatmullRomCurve3(curvePoints);
-  const roadGeo = new THREE.TubeGeometry(roadCurve, 80, 2.2, 6, false);
-  const roadMat = new THREE.MeshStandardMaterial({
-    color: 0x292524,
-    roughness: 0.85
-  });
-  const roadMesh = new THREE.Mesh(roadGeo, roadMat);
-  pitGroup.add(roadMesh);
 
-  scene.add(pitGroup);
+  const indices = [];
+  const rowLen = GRID_N + 1;
+  for (let j = 0; j < GRID_N; j++) {
+    for (let i = 0; i < GRID_N; i++) {
+      const a = j * rowLen + i;
+      const b = a + 1;
+      const c = a + rowLen;
+      const d = c + 1;
+      indices.push(a, c, b, b, c, d);
+    }
+  }
+
+  const terrainGeo = new THREE.BufferGeometry();
+  terrainGeo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  terrainGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  terrainGeo.setIndex(indices);
+  terrainGeo.computeVertexNormals();
+  const terrainMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0.05 });
+  const terrainMesh = new THREE.Mesh(terrainGeo, terrainMat);
+  terrainMesh.receiveShadow = true;
+  scene.add(terrainMesh);
+
+  // Pit lake at the floor
+  const lakeGeo = new THREE.CircleGeometry(22, 40);
+  const lakeMat = new THREE.MeshStandardMaterial({ color: 0x1a4a4a, roughness: 0.15, metalness: 0.3 });
+  const lake = new THREE.Mesh(lakeGeo, lakeMat);
+  lake.rotation.x = -Math.PI / 2;
+  lake.position.y = -MINE_MAX_DEPTH + 1.5;
+  scene.add(lake);
+
+  // Continuous spiral haul road descending the terraces
+  const roadPoints = [];
+  const turns = 3.4;
+  const steps = 300;
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const angle = t * turns * Math.PI * 2;
+    const rFrac = 1 - t * 0.87;
+    const r = MINE_RIM_RADIUS * rFrac * pitRadiusFactor(angle);
+    const x = r * Math.cos(angle);
+    const z = r * Math.sin(angle);
+    roadPoints.push(new THREE.Vector3(x, getMineHeightAt(x, z) + 2.2, z));
+  }
+  mineRoadCurve3D = new THREE.CatmullRomCurve3(roadPoints);
+  const roadGeo = new THREE.TubeGeometry(mineRoadCurve3D, 400, 2.8, 8, false);
+  const roadMat = new THREE.MeshStandardMaterial({ color: 0x3a3228, roughness: 1 });
+  const roadMesh = new THREE.Mesh(roadGeo, roadMat);
+  roadMesh.receiveShadow = true;
+  scene.add(roadMesh);
 }
 
 // Low-poly 3D Mining Haul Truck constructor
@@ -3597,6 +3632,15 @@ function create3DHaulTruck(v) {
   truck.add(headLightR);
   truck.add(headLightR.target);
 
+  // Radar Safety Detection Ring
+  const ringGeo = new THREE.RingGeometry(12, 13.5, 32);
+  ringGeo.rotateX(-Math.PI / 2);
+  const ringMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.45, side: THREE.DoubleSide });
+  const ring = new THREE.Mesh(ringGeo, ringMat);
+  ring.position.y = 0.3;
+  truck.add(ring);
+  truck.radarRing = ring;
+
   // Floating Glow Tag Sprite
   const canvas = document.createElement('canvas');
   canvas.width = 128;
@@ -3630,11 +3674,12 @@ function gpsTo3DMineCoords(lat, lng, elevation_m) {
   const x = (lng - 81.2415) * scale;
   const z = -(lat - 18.7270) * scale;
 
-  // Elevation normalized from 1040m (pit bottom) to 1200m (ridge crest)
-  const elev = elevation_m || 1040;
-  const y = ((elev - 1040) / 160) * 55 - 40;
+  // Clamp within the open pit boundary
+  const clampedX = Math.max(-190, Math.min(190, x));
+  const clampedZ = Math.max(-190, Math.min(190, z));
+  const groundY = getMineHeightAt(clampedX, clampedZ);
 
-  return { x, y: Math.max(-41, Math.min(18, y)), z };
+  return { x: clampedX, y: groundY + 2.2, z: clampedZ };
 }
 
 // Update all 3D trucks each telemetry tick
