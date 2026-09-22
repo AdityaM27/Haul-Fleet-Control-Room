@@ -220,11 +220,12 @@
     /* IN-CAB 3D SITUATIONAL RADAR */
     #cockpit3DCanvas {
       width: 100%;
-      height: 220px;
+      height: 250px;
       border-radius: 10px;
       background: #050811;
       border: 1px solid var(--panel-border);
       overflow: hidden;
+      position: relative;
     }
 
     /* TELEMETRY CLUSTER */
@@ -432,7 +433,18 @@
             <a href="/mine3d" target="_blank" style="text-decoration:none;font-size:10px;font-weight:600;color:#38bdf8;background:rgba(56,189,248,0.12);padding:2px 8px;border-radius:4px;border:1px solid rgba(56,189,248,0.35);transition:all 0.2s" title="Open Fullscreen 3D Mine Digital Twin">⛶ 3D Mine Twin ↗</a>
           </div>
         </div>
-        <div id="cockpit3DCanvas"></div>
+        <div id="cockpit3DCanvas">
+          <div style="position:absolute;top:8px;left:10px;z-index:5;pointer-events:none;display:flex;gap:6px;align-items:center">
+            <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#10b981;box-shadow:0 0 8px #10b981" id="hudStatusDot"></span>
+            <span style="font-size:9px;font-weight:700;letter-spacing:0.5px;color:#94a3b8;background:rgba(15,23,42,0.85);padding:2px 7px;border-radius:4px;border:1px solid rgba(255,255,255,0.08);backdrop-filter:blur(4px)" id="hudStatusPill">LIDAR: ACTIVE SCAN</span>
+          </div>
+          <div style="position:absolute;top:8px;right:10px;z-index:5;pointer-events:none;font-size:9.5px;font-weight:700;color:var(--teal);background:rgba(15,23,42,0.85);padding:2px 7px;border-radius:4px;border:1px solid rgba(56,189,248,0.3);backdrop-filter:blur(4px)" id="hudTargetDistBadge">
+            TARGET: CLEAR
+          </div>
+          <div style="position:absolute;bottom:8px;left:10px;z-index:5;pointer-events:none;font-size:8.5px;color:rgba(148,163,184,0.6);letter-spacing:0.5px">
+            CABIN WINDSHIELD HUD · CAT 797F
+          </div>
+        </div>
         <div style="font-size:10px;color:var(--text-muted);display:flex;justify-content:space-between">
           <span>Forward Radar Arc: 45°</span>
           <span id="radarDistanceLabel">Envelope: Clear</span>
@@ -506,91 +518,295 @@
     let vehicleData = null;
 
     // =========================================================================
-    // THREE.JS IN-CAB 3D SITUATIONAL RADAR HUD
+    // THREE.JS REALISTIC IN-CAB WINDSHIELD COCKPIT & LIDAR HUD
     // =========================================================================
-    let scene, camera, renderer, truckMesh, radarCone;
+    let scene, camera, renderer;
+    let hoodMesh, obstacleMesh, obstacleReticle, obstacleSprite;
+    let stopArcMesh, cautionArcMesh, clearArcMesh, sweepBeamMesh;
+    let roadDashes = [];
+    let currentSpeedKmh = 19.5;
+    let targetObstacleZ = 7.0;
+    let obstacleCurrentDist = 149;
+    let obstacleCurrentAction = 'SLOW DOWN';
+
+    function createReticleSprite(text, colorStr) {
+      const cnv = document.createElement('canvas');
+      cnv.width = 256; cnv.height = 64;
+      const ctx = cnv.getContext('2d');
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
+      ctx.fillRect(0, 0, 256, 64);
+      ctx.strokeStyle = colorStr;
+      ctx.lineWidth = 3;
+      ctx.strokeRect(2, 2, 252, 60);
+      ctx.fillStyle = colorStr;
+      ctx.font = 'bold 22px "Space Grotesk", monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, 128, 32);
+      const tex = new THREE.CanvasTexture(cnv);
+      const mat = new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true });
+      const sp = new THREE.Sprite(mat);
+      sp.scale.set(1.8, 0.45, 1);
+      return sp;
+    }
+
     function initCockpit3D() {
       const container = document.getElementById('cockpit3DCanvas');
-      const width = container.clientWidth;
-      const height = container.clientHeight;
+      const width = container.clientWidth || 400;
+      const height = container.clientHeight || 250;
 
       scene = new THREE.Scene();
-      scene.background = new THREE.Color(0x050811);
-      scene.fog = new THREE.FogExp2(0x050811, 0.04);
+      scene.background = new THREE.Color(0x070b14);
+      scene.fog = new THREE.FogExp2(0x0b1322, 0.026);
 
-      camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
-      // Position camera behind and slightly above truck looking forward
-      camera.position.set(0, 4, -8);
-      camera.lookAt(0, 1.2, 8);
+      // Camera positioned at driver eye level inside haul truck cab looking over hood
+      camera = new THREE.PerspectiveCamera(52, width / height, 0.1, 150);
+      camera.position.set(0, 1.95, 0.35);
+      camera.lookAt(0, 1.35, 20);
 
-      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
       renderer.setSize(width, height);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       container.appendChild(renderer.domElement);
 
-      // Ambient & Directional Lights
-      const ambLight = new THREE.AmbientLight(0xffffff, 0.7);
+      // --- LIGHTING ---
+      const ambLight = new THREE.HemisphereLight(0x8da4c4, 0x1f1610, 0.85);
       scene.add(ambLight);
-      const dirLight = new THREE.DirectionalLight(0x38bdf8, 1.0);
-      dirLight.position.set(5, 10, -5);
-      scene.add(dirLight);
 
-      // Ground plane with grid
-      const grid = new THREE.GridHelper(30, 20, 0x0284c7, 0x1e293b);
-      grid.position.y = 0;
-      scene.add(grid);
+      const moonLight = new THREE.DirectionalLight(0x93c5fd, 0.55);
+      moonLight.position.set(10, 25, 6);
+      scene.add(moonLight);
 
-      // Low-poly 3D Haul Truck Cab Model
-      const truckGroup = new THREE.Group();
+      // Twin powerful truck headlights casting forward beams onto the haul road
+      const headL = new THREE.SpotLight(0xfffaed, 3.2, 55, Math.PI / 5.2, 0.42, 1.1);
+      headL.position.set(-1.05, 0.95, 3.1);
+      headL.target.position.set(-0.5, 0.15, 24);
+      scene.add(headL);
+      scene.add(headL.target);
 
-      // Chassis
-      const chassisGeo = new THREE.BoxGeometry(2.2, 0.8, 4.4);
-      const chassisMat = new THREE.MeshLambertMaterial({ color: 0x1e293b });
-      const chassis = new THREE.Mesh(chassisGeo, chassisMat);
-      chassis.position.y = 0.8;
-      truckGroup.add(chassis);
+      const headR = new THREE.SpotLight(0xfffaed, 3.2, 55, Math.PI / 5.2, 0.42, 1.1);
+      headR.position.set(1.05, 0.95, 3.1);
+      headR.target.position.set(0.5, 0.15, 24);
+      scene.add(headR);
+      scene.add(headR.target);
 
-      // Cab
-      const cabGeo = new THREE.BoxGeometry(1.8, 1.2, 1.8);
-      const cabMat = new THREE.MeshLambertMaterial({ color: 0xf59e0b });
-      const cab = new THREE.Mesh(cabGeo, cabMat);
-      cab.position.set(0, 1.8, 0.9);
-      truckGroup.add(cab);
+      // --- TRUCK COCKPIT FOREBODY & HOOD (CATERPILLAR YELLOW) ---
+      const truckForebody = new THREE.Group();
 
-      // Windshield
-      const winGeo = new THREE.BoxGeometry(1.6, 0.6, 0.1);
-      const winMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
-      const win = new THREE.Mesh(winGeo, winMat);
-      win.position.set(0, 1.9, 1.82);
-      truckGroup.add(win);
+      // Sloping Cat-Yellow Hood / Bonnet
+      const hoodGeo = new THREE.BoxGeometry(2.3, 0.65, 2.7);
+      const hoodMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.38, metalness: 0.22 });
+      const hood = new THREE.Mesh(hoodGeo, hoodMat);
+      hood.position.set(0, 0.95, 1.65);
+      hood.rotation.x = 0.04;
+      truckForebody.add(hood);
 
-      // Dump bed
-      const bedGeo = new THREE.BoxGeometry(2.0, 1.2, 2.2);
-      const bedMat = new THREE.MeshLambertMaterial({ color: 0x334155 });
-      const bed = new THREE.Mesh(bedGeo, bedMat);
-      bed.position.set(0, 1.8, -1.0);
-      truckGroup.add(bed);
+      // Center engine intake cowl
+      const cowlGeo = new THREE.BoxGeometry(1.05, 0.14, 1.7);
+      const cowlMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.8 });
+      const cowl = new THREE.Mesh(cowlGeo, cowlMat);
+      cowl.position.set(0, 1.33, 1.7);
+      truckForebody.add(cowl);
 
-      truckMesh = truckGroup;
-      scene.add(truckMesh);
+      // Heavy black steel bullbar & radiator bumper
+      const bumperGeo = new THREE.BoxGeometry(2.55, 0.52, 0.42);
+      const bumperMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.85, metalness: 0.4 });
+      const bumper = new THREE.Mesh(bumperGeo, bumperMat);
+      bumper.position.set(0, 0.65, 3.1);
+      truckForebody.add(bumper);
 
-      // Dynamic Ultrasonic Safety Radar Cone
-      const coneGeo = new THREE.ConeGeometry(3.5, 9, 16, 1, true);
-      coneGeo.rotateX(Math.PI / 2); // Point forward along +Z
-      const coneMat = new THREE.MeshBasicMaterial({
-        color: 0x10b981,
-        wireframe: true,
-        transparent: true,
-        opacity: 0.4
-      });
-      radarCone = new THREE.Mesh(coneGeo, coneMat);
-      radarCone.position.set(0, 0.6, 5.5);
-      scene.add(radarCone);
+      // Headlight fixtures (emissive lenses)
+      const lensGeo = new THREE.BoxGeometry(0.24, 0.18, 0.05);
+      const lensMat = new THREE.MeshBasicMaterial({ color: 0xfffbeb });
+      const lensL = new THREE.Mesh(lensGeo, lensMat);
+      lensL.position.set(-1.02, 0.92, 3.32);
+      truckForebody.add(lensL);
+      const lensR = new THREE.Mesh(lensGeo, lensMat);
+      lensR.position.set(1.02, 0.92, 3.32);
+      truckForebody.add(lensR);
 
+      // Windshield A-pillar side framing
+      const pillarGeo = new THREE.BoxGeometry(0.12, 1.8, 0.15);
+      const pillarMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.9 });
+      const pillarL = new THREE.Mesh(pillarGeo, pillarMat);
+      pillarL.position.set(-1.42, 2.15, 0.85);
+      pillarL.rotation.z = -0.18;
+      truckForebody.add(pillarL);
+
+      const pillarR = new THREE.Mesh(pillarGeo, pillarMat);
+      pillarR.position.set(1.42, 2.15, 0.85);
+      pillarR.rotation.z = 0.18;
+      truckForebody.add(pillarR);
+
+      // Dashboard bezel top edge
+      const dashGeo = new THREE.BoxGeometry(2.9, 0.18, 0.35);
+      const dashMat = new THREE.MeshStandardMaterial({ color: 0x090d16, roughness: 0.95 });
+      const dash = new THREE.Mesh(dashGeo, dashMat);
+      dash.position.set(0, 1.58, 0.52);
+      truckForebody.add(dash);
+
+      hoodMesh = truckForebody;
+      scene.add(hoodMesh);
+
+      // --- MOUNTAIN HAUL ROAD BED ---
+      const roadGeo = new THREE.PlaneGeometry(6.6, 80, 1, 20);
+      roadGeo.rotateX(-Math.PI / 2);
+      const roadMat = new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.96, metalness: 0.04 });
+      const roadMesh = new THREE.Mesh(roadGeo, roadMat);
+      roadMesh.position.set(0, 0.05, 38);
+      scene.add(roadMesh);
+
+      // Animated scrolling dashed road centerline
+      const dashGeo = new THREE.PlaneGeometry(0.22, 2.2);
+      dashGeo.rotateX(-Math.PI / 2);
+      const dashMat = new THREE.MeshBasicMaterial({ color: 0xfef08a });
+      for (let i = 0; i < 14; i++) {
+        const d = new THREE.Mesh(dashGeo, dashMat);
+        d.position.set(0, 0.06, 3.5 + i * 5.2);
+        scene.add(d);
+        roadDashes.push(d);
+      }
+
+      // Safety bunds / berm stones along road shoulders
+      const bermGeo = new THREE.BoxGeometry(0.42, 0.38, 80);
+      const bermMat = new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 1.0 });
+      const bermL = new THREE.Mesh(bermGeo, bermMat);
+      bermL.position.set(-3.5, 0.19, 38);
+      scene.add(bermL);
+      const bermR = new THREE.Mesh(bermGeo, bermMat);
+      bermR.position.set(3.5, 0.19, 38);
+      scene.add(bermR);
+
+      // --- RUGGED BAILADILA ROCK CUTTINGS (CLIFF EMBANKMENTS) ---
+      const cliffGeoL = new THREE.BoxGeometry(3.5, 6.0, 80);
+      const cliffMatL = new THREE.MeshStandardMaterial({ color: 0x7A2E1D, roughness: 0.95 }); // Hematite red
+      const cliffL = new THREE.Mesh(cliffGeoL, cliffMatL);
+      cliffL.position.set(-5.5, 2.8, 38);
+      scene.add(cliffL);
+
+      const cliffGeoR = new THREE.BoxGeometry(3.5, 6.0, 80);
+      const cliffMatR = new THREE.MeshStandardMaterial({ color: 0xC2673B, roughness: 0.95 }); // Ironbloom
+      const cliffR = new THREE.Mesh(cliffGeoR, cliffMatR);
+      cliffR.position.set(5.5, 2.8, 38);
+      scene.add(cliffR);
+
+      // Roadside rock boulders
+      const rockGeo = new THREE.DodecahedronGeometry(0.55, 1);
+      const rockMat = new THREE.MeshStandardMaterial({ color: 0x5C6B5E, roughness: 0.9 });
+      for (let k = 0; k < 6; k++) {
+        const r1 = new THREE.Mesh(rockGeo, rockMat);
+        r1.position.set(-3.2, 0.35, 10 + k * 12);
+        r1.rotation.set(k, k * 2, 0);
+        scene.add(r1);
+        const r2 = new THREE.Mesh(rockGeo, rockMat);
+        r2.position.set(3.2, 0.35, 16 + k * 12);
+        r2.rotation.set(k * 1.5, k, 0);
+        scene.add(r2);
+      }
+
+      // --- CURVED LIDAR RANGE ARCS PROJECTED ON HAUL ROAD ---
+      // 1. Critical Stop Arc (Radius ~ 4.0m / corresponds to < 60cm proximity)
+      const stopArcGeo = new THREE.RingGeometry(3.8, 4.15, 32, 1, -Math.PI / 2 - 0.48, 0.96);
+      stopArcGeo.rotateX(-Math.PI / 2);
+      const stopArcMat = new THREE.MeshBasicMaterial({ color: 0xef4444, side: THREE.DoubleSide, transparent: true, opacity: 0.55 });
+      stopArcMesh = new THREE.Mesh(stopArcGeo, stopArcMat);
+      stopArcMesh.position.set(0, 0.08, 0);
+      scene.add(stopArcMesh);
+
+      // 2. Caution Arc (Radius ~ 7.0m / corresponds to < 150cm proximity)
+      const cautionArcGeo = new THREE.RingGeometry(6.8, 7.15, 32, 1, -Math.PI / 2 - 0.44, 0.88);
+      cautionArcGeo.rotateX(-Math.PI / 2);
+      const cautionArcMat = new THREE.MeshBasicMaterial({ color: 0xf59e0b, side: THREE.DoubleSide, transparent: true, opacity: 0.45 });
+      cautionArcMesh = new THREE.Mesh(cautionArcGeo, cautionArcMat);
+      cautionArcMesh.position.set(0, 0.08, 0);
+      scene.add(cautionArcMesh);
+
+      // 3. Clear Arc (Radius ~ 11.5m / corresponds to > 150cm proximity)
+      const clearArcGeo = new THREE.RingGeometry(11.3, 11.65, 32, 1, -Math.PI / 2 - 0.40, 0.80);
+      clearArcGeo.rotateX(-Math.PI / 2);
+      const clearArcMat = new THREE.MeshBasicMaterial({ color: 0x10b981, side: THREE.DoubleSide, transparent: true, opacity: 0.35 });
+      clearArcMesh = new THREE.Mesh(clearArcGeo, clearArcMat);
+      clearArcMesh.position.set(0, 0.08, 0);
+      scene.add(clearArcMesh);
+
+      // Scanning LiDAR sweep line
+      const sweepGeo = new THREE.RingGeometry(0.5, 12.0, 16, 1, -0.06, 0.12);
+      sweepGeo.rotateX(-Math.PI / 2);
+      const sweepMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, side: THREE.DoubleSide, transparent: true, opacity: 0.35 });
+      sweepBeamMesh = new THREE.Mesh(sweepGeo, sweepMat);
+      sweepBeamMesh.position.set(0, 0.09, 0);
+      scene.add(sweepBeamMesh);
+
+      // --- DYNAMIC 3D ROAD OBSTACLE & HOLOGRAPHIC TARGET RETICLE ---
+      const obsGeo = new THREE.DodecahedronGeometry(0.52, 1);
+      const obsMat = new THREE.MeshStandardMaterial({ color: 0x9a3412, roughness: 0.85, metalness: 0.15 });
+      obstacleMesh = new THREE.Mesh(obsGeo, obsMat);
+      obstacleMesh.position.set(0, 0.52, 7.0);
+      scene.add(obstacleMesh);
+
+      // Wireframe target bracket box
+      const reticleGeo = new THREE.BoxGeometry(1.3, 1.3, 1.3);
+      const reticleMat = new THREE.MeshBasicMaterial({ color: 0xf59e0b, wireframe: true, transparent: true, opacity: 0.85 });
+      obstacleReticle = new THREE.Mesh(reticleGeo, reticleMat);
+      obstacleReticle.position.set(0, 0.65, 7.0);
+      scene.add(obstacleReticle);
+
+      // 3D floating distance readout tag
+      obstacleSprite = createReticleSprite('[ HAZARD: 149 cm ]', '#f59e0b');
+      obstacleSprite.position.set(0, 1.6, 7.0);
+      scene.add(obstacleSprite);
+
+      // --- ANIMATION & RENDER LOOP ---
+      const clock = new THREE.Clock();
       function animate() {
         requestAnimationFrame(animate);
-        // Gentle radar pulsation
-        const t = Date.now() * 0.003;
-        radarCone.material.opacity = 0.25 + Math.sin(t) * 0.15;
+        const dt = Math.min(clock.getDelta(), 0.05);
+        const time = Date.now() * 0.003;
+
+        // 1. Scroll road markings when vehicle has speed
+        const speedFactor = (currentSpeedKmh || 15) * 0.55;
+        roadDashes.forEach(d => {
+          d.position.z -= dt * speedFactor;
+          if (d.position.z < 1.8) {
+            d.position.z += 70;
+          }
+        });
+
+        // 2. Smoothly lerp obstacle position to target Z
+        if (obstacleMesh) {
+          obstacleMesh.position.z = THREE.MathUtils.lerp(obstacleMesh.position.z, targetObstacleZ, 0.12);
+          obstacleMesh.rotation.y += 0.005;
+          if (obstacleReticle) {
+            obstacleReticle.position.z = obstacleMesh.position.z;
+            obstacleReticle.rotation.y = time * 0.5;
+          }
+          if (obstacleSprite) {
+            obstacleSprite.position.z = obstacleMesh.position.z;
+          }
+        }
+
+        // 3. LiDAR Sweep animation (sweeping left and right across road)
+        if (sweepBeamMesh) {
+          sweepBeamMesh.rotation.y = Math.sin(time * 1.5) * 0.42;
+        }
+
+        // 4. Subtle cabin vibration / engine rumble when moving
+        if (currentSpeedKmh > 1) {
+          const rumble = Math.sin(time * 15) * 0.004;
+          camera.position.y = 1.95 + rumble;
+          camera.position.x = Math.cos(time * 12) * 0.003;
+        } else {
+          camera.position.y = 1.95;
+          camera.position.x = 0;
+        }
+
+        // 5. Pulsate warning arcs if critical or caution
+        if (stopArcMesh && obstacleCurrentDist < 60) {
+          stopArcMesh.material.opacity = 0.4 + Math.sin(time * 6) * 0.35;
+        } else if (cautionArcMesh && obstacleCurrentDist < 150) {
+          cautionArcMesh.material.opacity = 0.35 + Math.sin(time * 3) * 0.2;
+        }
+
         renderer.render(scene, camera);
       }
       animate();
@@ -598,27 +814,90 @@
       window.addEventListener('resize', () => {
         const w = container.clientWidth;
         const h = container.clientHeight;
-        camera.aspect = w / h;
-        camera.updateProjectionMatrix();
-        renderer.setSize(w, h);
+        if (w > 0 && h > 0) {
+          camera.aspect = w / h;
+          camera.updateProjectionMatrix();
+          renderer.setSize(w, h);
+        }
       });
     }
 
-    // Update 3D radar cone color based on obstacle proximity
+    // Update in-cab 3D situational windshield HUD with live distance and safety status
     function updateCockpit3DRadar(distFront, action) {
-      if (!radarCone) return;
-      if (action === 'STOP' || distFront < 60) {
-        radarCone.material.color.setHex(0xef4444); // Red
-        document.getElementById('radarDistanceLabel').textContent = `Envelope: CRITICAL (${distFront}cm)`;
-        document.getElementById('radarDistanceLabel').style.color = 'var(--red)';
-      } else if (action === 'SLOW DOWN' || distFront < 150) {
-        radarCone.material.color.setHex(0xf59e0b); // Amber
-        document.getElementById('radarDistanceLabel').textContent = `Envelope: CAUTION (${distFront}cm)`;
-        document.getElementById('radarDistanceLabel').style.color = 'var(--amber)';
+      obstacleCurrentDist = distFront;
+      obstacleCurrentAction = action;
+
+      // Map ultrasonic distance to 3D world space ahead of truck bumper (bumper is at z = 3.1)
+      if (distFront < 50 || action === 'STOP') {
+        targetObstacleZ = 4.1; // Directly in front of bullbar!
+      } else if (distFront < 100) {
+        targetObstacleZ = 5.2;
+      } else if (distFront < 150) {
+        targetObstacleZ = 7.0; // In forward caution zone
+      } else if (distFront < 220) {
+        targetObstacleZ = 10.5;
       } else {
-        radarCone.material.color.setHex(0x10b981); // Green
-        document.getElementById('radarDistanceLabel').textContent = `Envelope: CLEAR (${distFront}cm)`;
-        document.getElementById('radarDistanceLabel').style.color = 'var(--green)';
+        targetObstacleZ = 16.0; // Distant in fog
+      }
+
+      const dotEl = document.getElementById('hudStatusDot');
+      const pillEl = document.getElementById('hudStatusPill');
+      const distBadgeEl = document.getElementById('hudTargetDistBadge');
+      const labelEl = document.getElementById('radarDistanceLabel');
+
+      if (action === 'STOP' || distFront < 60) {
+        // CRITICAL STOP ALERT
+        if (obstacleReticle) obstacleReticle.material.color.setHex(0xef4444);
+        if (stopArcMesh) stopArcMesh.material.color.setHex(0xef4444);
+        if (cautionArcMesh) cautionArcMesh.material.color.setHex(0xef4444);
+
+        if (obstacleSprite) {
+          scene.remove(obstacleSprite);
+          obstacleSprite = createReticleSprite(`[ STOP: ${distFront} cm ]`, '#ef4444');
+          obstacleSprite.position.set(0, 1.6, targetObstacleZ);
+          scene.add(obstacleSprite);
+        }
+
+        if (dotEl) { dotEl.style.background = '#ef4444'; dotEl.style.boxShadow = '0 0 10px #ef4444'; }
+        if (pillEl) { pillEl.textContent = 'CRITICAL: EMERGENCY STOP'; pillEl.style.color = '#ef4444'; }
+        if (distBadgeEl) { distBadgeEl.textContent = `COLLISION: ${distFront} cm`; distBadgeEl.style.color = '#ef4444'; distBadgeEl.style.borderColor = 'rgba(239,68,68,0.5)'; }
+        if (labelEl) { labelEl.textContent = `Envelope: CRITICAL (${distFront}cm)`; labelEl.style.color = 'var(--red)'; }
+
+      } else if (action === 'SLOW DOWN' || distFront < 150) {
+        // CAUTION ADVISORY
+        if (obstacleReticle) obstacleReticle.material.color.setHex(0xf59e0b);
+        if (stopArcMesh) stopArcMesh.material.color.setHex(0xef4444);
+        if (cautionArcMesh) cautionArcMesh.material.color.setHex(0xf59e0b);
+
+        if (obstacleSprite) {
+          scene.remove(obstacleSprite);
+          obstacleSprite = createReticleSprite(`[ HAZARD: ${distFront} cm ]`, '#f59e0b');
+          obstacleSprite.position.set(0, 1.6, targetObstacleZ);
+          scene.add(obstacleSprite);
+        }
+
+        if (dotEl) { dotEl.style.background = '#f59e0b'; dotEl.style.boxShadow = '0 0 8px #f59e0b'; }
+        if (pillEl) { pillEl.textContent = 'CAUTION: PROXIMITY ENVELOPE'; pillEl.style.color = '#f59e0b'; }
+        if (distBadgeEl) { distBadgeEl.textContent = `HAZARD: ${distFront} cm`; distBadgeEl.style.color = '#f59e0b'; distBadgeEl.style.borderColor = 'rgba(245,158,11,0.5)'; }
+        if (labelEl) { labelEl.textContent = `Envelope: CAUTION (${distFront}cm)`; labelEl.style.color = 'var(--amber)'; }
+
+      } else {
+        // CLEAR PROPULSION NORMAL
+        if (obstacleReticle) obstacleReticle.material.color.setHex(0x10b981);
+        if (stopArcMesh) stopArcMesh.material.color.setHex(0xef4444);
+        if (cautionArcMesh) cautionArcMesh.material.color.setHex(0xf59e0b);
+
+        if (obstacleSprite) {
+          scene.remove(obstacleSprite);
+          obstacleSprite = createReticleSprite(`[ CLEAR: ${distFront} cm ]`, '#10b981');
+          obstacleSprite.position.set(0, 1.6, targetObstacleZ);
+          scene.add(obstacleSprite);
+        }
+
+        if (dotEl) { dotEl.style.background = '#10b981'; dotEl.style.boxShadow = '0 0 8px #10b981'; }
+        if (pillEl) { pillEl.textContent = 'LIDAR: PATH CLEAR'; pillEl.style.color = '#10b981'; }
+        if (distBadgeEl) { distBadgeEl.textContent = `RADAR: ${distFront} cm`; distBadgeEl.style.color = 'var(--teal)'; distBadgeEl.style.borderColor = 'rgba(56,189,248,0.3)'; }
+        if (labelEl) { labelEl.textContent = `Envelope: CLEAR (${distFront}cm)`; labelEl.style.color = 'var(--green)'; }
       }
     }
 
@@ -702,7 +981,8 @@
       setMeter('meterLeft', 'tagLeft', v.dist_left, 120);
       setMeter('meterRight', 'tagRight', v.dist_right, 120);
 
-      // Update 3D radar cone in cabin
+      // Update 3D radar and forward speed in cabin
+      currentSpeedKmh = v.speed_kmh || 0;
       updateCockpit3DRadar(v.dist_front, v.action);
 
       // Zone & Speed Governor

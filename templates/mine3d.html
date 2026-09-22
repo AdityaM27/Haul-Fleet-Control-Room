@@ -1,765 +1,681 @@
 <!DOCTYPE html>
+<!--
+  BAILADILA RANGE — 3D TERRAIN & HAUL FLEET NAVIGATOR
+  Modeled from geological and survey data (Kirandul to Deposit 14/13/11/10).
+  Connected with live fleet telemetry from Resurgence Fleet Control Server.
+-->
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Bailadila Mine — Digital Twin Control Panel</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Bailadila Range — 3D Terrain Navigator</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏔️</text></svg>">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-  :root {
-    --bg: #0b0e14;
-    --panel-bg: #12161f;
-    --panel-border: #232a3a;
-    --text: #e7ecf5;
-    --text-dim: #8a93a8;
-    --accent: #3aa0ff;
-    --accent-2: #ffb238;
-    --ok: #35d07f;
-    --warn: #ff4d4d;
-    --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
-    box-sizing: border-box;
-    padding-top: env(safe-area-inset-top, 0px);
-    padding-bottom: env(safe-area-inset-bottom, 0px);
+  :root{
+    --obsidian:#14110D;
+    --obsidian-2:#1B1712;
+    --hematite:#7A2E1D;
+    --ironbloom:#C2673B;
+    --slate-scrub:#5C6B5E;
+    --ore-gold:#C9A227;
+    --bone:#EDE6D6;
+    --bone-dim:#B7AF9E;
+    --line:rgba(201,162,39,0.28);
   }
-  @media (prefers-color-scheme: light) {
-    :root:not([data-theme="dark"]) {
-      --bg: #eef1f6;
-      --panel-bg: #ffffff;
-      --panel-border: #d6dbe4;
-      --text: #14171f;
-      --text-dim: #626a7a;
-    }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; width:100%; height:100%;
+    background:var(--obsidian);
+    font-family:'IBM Plex Mono', monospace;
+    color:var(--bone);
+    overflow:hidden;
   }
-  :root[data-theme="dark"] {
-    --bg: #0b0e14;
-    --panel-bg: #12161f;
-    --panel-border: #232a3a;
-    --text: #e7ecf5;
-    --text-dim: #8a93a8;
+  #scene{position:fixed; inset:0;}
+  #scene canvas{display:block; width:100%; height:100%;}
+
+  /* ---------- HUD ---------- */
+  .hud{
+    position:fixed; z-index:10; pointer-events:none;
   }
-  html, body {
-    height: 100%;
-    margin: 0;
-    background: var(--bg);
-    color: var(--text);
-    font-family: var(--font);
-    overflow: hidden;
-  }
-  #app {
-    position: relative;
-    width: 100%;
-    height: 100%;
-  }
-  #scene-canvas {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    display: block;
-    touch-action: none;
-  }
-  #topbar {
-    position: absolute;
-    top: calc(env(safe-area-inset-top, 0px) + 12px);
-    left: 16px;
-    right: 16px;
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    pointer-events: none;
-    z-index: 10;
-  }
-  #title-block {
-    background: rgba(18,22,31,0.85);
+  .panel{
+    pointer-events:auto;
+    background:linear-gradient(180deg, rgba(20,17,13,0.92), rgba(20,17,13,0.84));
+    border:1px solid var(--line);
     backdrop-filter: blur(8px);
-    border: 1px solid var(--panel-border);
-    border-radius: 10px;
-    padding: 10px 16px;
-    pointer-events: auto;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    padding:14px 16px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.6);
   }
-  #title-block h1 {
-    margin: 0;
-    font-size: 15px;
-    font-weight: 700;
-    letter-spacing: 0.3px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
+  .corner{position:relative;}
+  .corner::before,.corner::after{
+    content:''; position:absolute; width:10px; height:10px;
+    border-color:var(--ore-gold); border-style:solid; opacity:0.9;
   }
-  #title-block .sub {
-    margin-top: 3px;
-    font-size: 11px;
-    color: var(--text-dim);
+  .corner::before{ top:-1px; left:-1px; border-width:1px 0 0 1px; }
+  .corner::after{ bottom:-1px; right:-1px; border-width:0 1px 1px 0; }
+
+  #title-panel{ top:18px; left:18px; max-width:340px; }
+  #title-panel h1{
+    font-family:'Space Grotesk', sans-serif;
+    font-size:17px; font-weight:600; letter-spacing:0.01em;
+    margin:0 0 4px 0; color:var(--bone);
   }
-  .nav-actions {
-    display: flex;
-    gap: 8px;
-    margin-top: 8px;
+  #title-panel p{
+    margin:0; font-size:11px; line-height:1.5; color:var(--bone-dim);
   }
-  .nav-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    background: rgba(255,255,255,0.08);
-    border: 1px solid var(--panel-border);
-    color: var(--text);
-    text-decoration: none;
-    font-size: 11px;
-    padding: 4px 10px;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: all 0.2s;
+  #title-panel .coords{
+    margin-top:8px; font-size:10.5px; color:var(--ironbloom);
+    border-top:1px solid var(--line); padding-top:8px;
   }
-  .nav-btn:hover {
-    background: rgba(58,160,255,0.2);
-    border-color: var(--accent);
-    color: #fff;
+  .nav-btn{
+    display:inline-block; margin-top:10px;
+    background:rgba(201,162,39,0.12); border:1px solid var(--line);
+    color:var(--ore-gold); font-size:11px; padding:5px 12px;
+    text-decoration:none; cursor:pointer; transition:all .2s;
   }
-  #cam-controls {
-    display: flex;
-    gap: 6px;
-    background: rgba(18,22,31,0.85);
-    backdrop-filter: blur(8px);
-    border: 1px solid var(--panel-border);
-    border-radius: 8px;
-    padding: 4px;
-    pointer-events: auto;
+  .nav-btn:hover{ background:var(--hematite); color:var(--bone); border-color:var(--ironbloom); }
+
+  #mode-panel{ top:18px; right:18px; width:240px; }
+  .mode-row{ display:flex; gap:6px; margin-bottom:10px; }
+  .btn{
+    flex:1; text-align:center; cursor:pointer; user-select:none;
+    background:transparent; border:1px solid var(--line);
+    color:var(--bone-dim); font-family:'IBM Plex Mono', monospace;
+    font-size:11px; letter-spacing:0.04em; padding:8px 6px;
+    transition:all .15s ease;
   }
-  .cam-btn {
-    background: transparent;
-    border: 1px solid transparent;
-    color: var(--text-dim);
-    font-size: 11px;
-    padding: 5px 10px;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: all 0.2s;
+  .btn:hover{ border-color:var(--ore-gold); color:var(--bone); }
+  .btn.active{ background:var(--hematite); border-color:var(--ironbloom); color:var(--bone); font-weight:600; }
+
+  .field{ margin-top:8px; }
+  .field label{ display:block; font-size:10px; color:var(--bone-dim); margin-bottom:4px; letter-spacing:0.03em;}
+  input[type=range]{
+    width:100%; accent-color:var(--ore-gold); height:16px; cursor:pointer;
   }
-  .cam-btn.active {
-    background: var(--accent);
-    color: #fff;
-    font-weight: 600;
+  .hint{ font-size:10px; color:var(--bone-dim); margin-top:10px; line-height:1.5; border-top:1px solid var(--line); padding-top:8px;}
+  .hint b{ color:var(--ore-gold); font-weight:500; }
+
+  #legend-panel{ left:18px; bottom:18px; width:220px; }
+  .legend-title{ font-size:10px; color:var(--ore-gold); letter-spacing:0.04em; margin-bottom:8px; font-weight:600;}
+  .legend-row{ display:flex; align-items:center; gap:8px; font-size:10.5px; color:var(--bone-dim); margin-bottom:6px;}
+  .swatch{ width:11px; height:11px; flex:none; border:1px solid rgba(0,0,0,0.3);}
+
+  #info-panel{ right:18px; bottom:18px; width:220px; }
+  .stat-row{ display:flex; justify-content:space-between; font-size:11px; margin-bottom:5px; color:var(--bone-dim);}
+  .stat-row span:last-child{ color:var(--bone); }
+
+  #marker-tooltip{
+    position:fixed; z-index:20; pointer-events:none;
+    background:var(--obsidian-2); border:1px solid var(--ore-gold);
+    padding:6px 10px; font-size:11px; color:var(--bone);
+    transform:translate(-50%,-130%); display:none; white-space:nowrap;
   }
-  .cam-btn:hover:not(.active) {
-    background: rgba(255,255,255,0.06);
-    color: var(--text);
+
+  #loading{
+    position:fixed; inset:0; z-index:50; background:var(--obsidian);
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Space Grotesk', sans-serif; font-size:13px; color:var(--ore-gold);
+    letter-spacing:0.08em;
   }
-  #hint {
-    background: rgba(18,22,31,0.7);
-    border: 1px solid var(--panel-border);
-    border-radius: 8px;
-    padding: 6px 12px;
-    font-size: 10.5px;
-    color: var(--text-dim);
-    pointer-events: auto;
+
+  @media (max-width:640px){
+    #mode-panel{ width:200px; top:auto; bottom:18px; right:18px; left:auto;}
+    #legend-panel{ display:none; }
+    #info-panel{ top:18px; left:18px; right:auto; bottom:auto; width:200px; }
+    #title-panel{ display:none; }
   }
-  #sidebar {
-    position: absolute;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    width: 320px;
-    max-width: 86vw;
-    background: var(--panel-bg);
-    border-left: 1px solid var(--panel-border);
-    z-index: 15;
-    display: flex;
-    flex-direction: column;
-    padding-top: env(safe-area-inset-top, 0px);
-    padding-bottom: env(safe-area-inset-bottom, 0px);
-    transform: translateX(0);
-    transition: transform 0.2s ease;
-    box-shadow: -6px 0 25px rgba(0,0,0,0.6);
-  }
-  #sidebar.collapsed { transform: translateX(100%); }
-  #sidebar-toggle {
-    position: absolute;
-    top: calc(env(safe-area-inset-top, 0px) + 14px);
-    right: 320px;
-    z-index: 16;
-    background: var(--panel-bg);
-    border: 1px solid var(--panel-border);
-    color: var(--text);
-    border-radius: 8px 0 0 8px;
-    padding: 9px 8px;
-    cursor: pointer;
-    font-size: 12px;
-    transition: right 0.2s ease;
-  }
-  #sidebar.collapsed ~ #sidebar-toggle,
-  #sidebar-toggle.collapsed { right: 0; }
-  .panel-section {
-    padding: 14px 16px;
-    border-bottom: 1px solid var(--panel-border);
-  }
-  .panel-section h2 {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.6px;
-    color: var(--text-dim);
-    margin: 0 0 10px 0;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-  .live-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 9px;
-    color: var(--ok);
-    background: rgba(53,208,127,0.12);
-    padding: 2px 6px;
-    border-radius: 4px;
-  }
-  .live-pulse {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--ok);
-    box-shadow: 0 0 6px var(--ok);
-    animation: pulse 1.2s infinite;
-  }
-  #truck-list { flex: 0 0 auto; max-height: 38vh; overflow-y: auto; }
-  .truck-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 8px 10px;
-    border-radius: 8px;
-    margin-bottom: 6px;
-    background: rgba(255,255,255,0.03);
-    cursor: pointer;
-    border: 1px solid transparent;
-    transition: all 0.15s ease;
-  }
-  .truck-row:hover { border-color: var(--accent); background: rgba(58,160,255,0.06); }
-  .truck-row.selected { border-color: var(--accent); background: rgba(58,160,255,0.12); }
-  .truck-id { font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 5px; }
-  .truck-meta { font-size: 10px; color: var(--text-dim); margin-top: 2px; }
-  .status-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; margin-right: 8px; }
-  .status-ok { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
-  .status-warn { background: var(--warn); box-shadow: 0 0 8px var(--warn); animation: pulse 1s infinite; }
-  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
-  .row-left { display: flex; align-items: center; }
-  .badge {
-    font-size: 9px;
-    padding: 2px 7px;
-    border-radius: 999px;
-    font-weight: 700;
-    letter-spacing: 0.3px;
-  }
-  .badge-ok { background: rgba(53,208,127,0.15); color: var(--ok); }
-  .badge-warn { background: rgba(255,77,77,0.18); color: var(--warn); }
-  #fog-section input[type="range"] { width: 100%; accent-color: var(--accent-2); cursor: pointer; }
-  #fog-value { font-size: 11px; color: var(--accent-2); margin-top: 4px; font-weight: 500; }
-  #alert-log {
-    flex: 1 1 auto;
-    overflow-y: auto;
-    min-height: 90px;
-    max-height: 22vh;
-  }
-  .alert-item {
-    font-size: 11px;
-    padding: 6px 8px;
-    border-left: 2px solid var(--warn);
-    background: rgba(255,77,77,0.06);
-    border-radius: 4px;
-    margin-bottom: 6px;
-    color: var(--text);
-  }
-  .alert-time { color: var(--text-dim); font-size: 9px; display: block; margin-bottom: 2px; }
-  .legend { display: flex; flex-direction: column; gap: 6px; font-size: 10px; color: var(--text-dim); }
-  .legend-item { display: flex; align-items: center; gap: 7px; }
-  .legend-swatch { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
-  ::-webkit-scrollbar { width: 5px; }
-  ::-webkit-scrollbar-thumb { background: var(--panel-border); border-radius: 3px; }
 </style>
 </head>
 <body>
-<div id="app">
-  <canvas id="scene-canvas"></canvas>
 
-  <div id="topbar">
-    <div id="title-block">
-      <h1>🏔️ BAILADILA MINE — Digital Twin</h1>
-      <div class="sub">Terraced Bench Open-Pit · Live Telemetry & Radar Defense</div>
-      <div class="nav-actions">
-        <a href="/" class="nav-btn">🎛️ Control Panel</a>
-        <button id="btnResetView" class="nav-btn">🔄 Reset View</button>
-      </div>
-    </div>
+<div id="loading">CALCULATING BAILADILA RANGE MESH…</div>
+<div id="scene"></div>
 
-    <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px; pointer-events:auto;">
-      <div id="cam-controls">
-        <button type="button" class="cam-btn active" id="btnOrbit" onclick="switchCameraMode('orbit')">🌐 Orbit</button>
-        <button type="button" class="cam-btn" id="btnChase" onclick="switchCameraMode('chase')">🎥 Chase</button>
-        <button type="button" class="cam-btn" id="btnCockpit" onclick="switchCameraMode('cockpit')">🪟 Cockpit</button>
-      </div>
-      <div id="hint">Drag to rotate · Scroll to zoom · Click truck to track</div>
-    </div>
-  </div>
-
-  <button id="sidebar-toggle">▶</button>
-  <div id="sidebar">
-    <div class="panel-section" id="truck-list">
-      <h2>
-        <span>Live Haul Fleet</span>
-        <span class="live-badge"><span class="live-pulse"></span>ONLINE</span>
-      </h2>
-      <div id="truck-list-items"></div>
-    </div>
-
-    <div class="panel-section" id="fog-section">
-      <h2>Monsoon Fog Simulation</h2>
-      <input type="range" id="fog-slider" min="0" max="100" value="20">
-      <div id="fog-value">Visibility: ~180m (light fog)</div>
-    </div>
-
-    <div class="panel-section" style="flex:1; display:flex; flex-direction:column; min-height:0;">
-      <h2>Hazard Alert Log</h2>
-      <div id="alert-log"></div>
-    </div>
-
-    <div class="panel-section">
-      <h2>Legend</h2>
-      <div class="legend">
-        <div class="legend-item"><div class="legend-swatch" style="background:#35d07f;"></div>Normal Safe Operation</div>
-        <div class="legend-item"><div class="legend-swatch" style="background:#ff4d4d;"></div>Collision Risk / Emergency Stop</div>
-        <div class="legend-item"><div class="legend-swatch" style="background:#3aa0ff; opacity:0.6;"></div>Ultrasonic Radar Safety Cone</div>
-        <div class="legend-item"><div class="legend-swatch" style="background:#3a3228;"></div>Continuous Spiral Haul Road</div>
-        <div class="legend-item"><div class="legend-swatch" style="background:#1a4a4a;"></div>Pit Lake (Deposit 5 Sump)</div>
-      </div>
-    </div>
+<div class="hud panel corner" id="title-panel">
+  <h1>🏔️ Bailadila Range — Terrain Navigator</h1>
+  <p>Geological 3D model of the ridge system & haulway circuit, Dantewada District, Chhattisgarh.</p>
+  <div class="coords">18.6°–18.8°N&nbsp; 81.2°–81.3°E &nbsp;·&nbsp; base 540m → peak ~1,250m</div>
+  <div>
+    <a href="/" class="nav-btn">🎛️ Return to Control Panel</a>
   </div>
 </div>
 
+<div class="hud panel corner" id="mode-panel">
+  <div class="mode-row">
+    <div class="btn active" id="btn-orbit">ORBIT</div>
+    <div class="btn" id="btn-drive">DRIVE ROAD</div>
+  </div>
+
+  <div id="orbit-controls">
+    <div class="field">
+      <label>MONSOON FOG DENSITY</label>
+      <input type="range" id="fog-slider" min="0" max="100" value="18">
+    </div>
+    <div class="hint"><b>Drag</b> to rotate · <b>scroll</b> to zoom · <b>right-drag</b> to pan.</div>
+  </div>
+
+  <div id="drive-controls" style="display:none;">
+    <div class="field">
+      <label>POSITION ON ROAD</label>
+      <input type="range" id="road-progress" min="0" max="1000" value="0">
+    </div>
+    <div class="field">
+      <label>AUTO-DRIVE SPEED</label>
+      <input type="range" id="road-speed" min="0" max="60" value="18">
+    </div>
+    <div class="mode-row" style="margin-top:10px;">
+      <div class="btn active" id="btn-play">❚❚ PAUSE</div>
+      <div class="btn" id="btn-reset">⟲ RESET</div>
+    </div>
+    <div class="hint"><b>← →</b> or drag slider to move · <b>mouse</b> to look around.</div>
+  </div>
+</div>
+
+<div class="hud panel corner" id="legend-panel">
+  <div class="legend-title">LEGEND</div>
+  <div class="legend-row"><div class="swatch" style="background:#7A2E1D"></div>Exposed ore / ridge crest</div>
+  <div class="legend-row"><div class="swatch" style="background:#5C6B5E"></div>Vegetated slope</div>
+  <div class="legend-row"><div class="swatch" style="background:#3B342B"></div>Base plain</div>
+  <div class="legend-row"><div class="swatch" style="background:#C9A227"></div>Access / haul road</div>
+  <div class="legend-row"><div class="swatch" style="background:#C2673B; border-radius:50%;"></div>Deposit / settlement marker</div>
+  <div class="legend-row"><div class="swatch" style="background:#10b981; border-radius:50%;"></div>Live haul trucks (telemetry)</div>
+</div>
+
+<div class="hud panel corner" id="info-panel">
+  <div class="stat-row"><span>MODE</span><span id="stat-mode">ORBIT</span></div>
+  <div class="stat-row"><span>CAM. ELEV.</span><span id="stat-elev">–</span></div>
+  <div class="stat-row"><span>ROAD LENGTH</span><span id="stat-road">–</span></div>
+  <div class="stat-row"><span>FLEET TRUCKS</span><span id="stat-trucks" style="color:var(--ore-gold)">6 LIVE</span></div>
+  <div class="stat-row"><span>V. EXAGGER.</span><span>×7</span></div>
+</div>
+
+<div id="marker-tooltip"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script>
-(function () {
-  const canvas = document.getElementById('scene-canvas');
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+(function(){
+
+  /* =========================================================
+     1. NOISE (self-contained value noise, no external lib)
+     ========================================================= */
+  function hash(x, y){
+    var s = Math.sin(x*127.1 + y*311.7) * 43758.5453;
+    return s - Math.floor(s);
+  }
+  function smooth(t){ return t*t*(3-2*t); }
+  function valueNoise(x, y){
+    var xi = Math.floor(x), yi = Math.floor(y);
+    var xf = x - xi, yf = y - yi;
+    var a = hash(xi, yi), b = hash(xi+1, yi), c = hash(xi, yi+1), d = hash(xi+1, yi+1);
+    var u = smooth(xf), v = smooth(yf);
+    return (a*(1-u) + b*u) * (1-v) + (c*(1-u) + d*u) * v;
+  }
+  function fbm(x, y, octaves){
+    var total = 0, amp = 1, freq = 1, maxAmp = 0;
+    for(var i=0;i<octaves;i++){
+      total += valueNoise(x*freq, y*freq) * amp;
+      maxAmp += amp;
+      amp *= 0.5; freq *= 2.15;
+    }
+    return (total/maxAmp) * 2 - 1; // -1..1
+  }
+
+  /* =========================================================
+     2. RIDGE GEOMETRY MODEL
+     ========================================================= */
+  var HALF_W = 6.2, HALF_L = 22;          // km, horizontal extents
+  var BASE_ELEV = 0.54, PEAK_ELEV = 1.25;  // km
+  var VERT_EXAG = 7;
+
+  function ridgeCenterX(z){
+    return 0.8*Math.sin(z*0.10) + 1.5*Math.sin(z*0.035 + 1.1);
+  }
+  function ridgeHalfWidth(z){
+    var n = (z + HALF_L) / (2*HALF_L); // 0 north .. 1 south
+    return 2.0 + 1.6*Math.exp(-Math.pow((n-0.18)/0.32, 2)) + 0.7*Math.sin(n*Math.PI);
+  }
+  var PEAKS = [
+    {z:-14, amp:0.78, sig:4.2}, {z:-6, amp:0.92, sig:3.6}, {z:2, amp:1.0, sig:4.4},
+    {z:9,  amp:0.88, sig:3.4}, {z:15, amp:0.62, sig:3.8}
+  ];
+  function elevationEnvelope(z){
+    var m = 0;
+    for(var i=0;i<PEAKS.length;i++){
+      var p = PEAKS[i];
+      var v = p.amp * Math.exp(-Math.pow(z-p.z,2)/(2*p.sig*p.sig));
+      if(v > m) m = v;
+    }
+    return m;
+  }
+  function crestFactor(x, z){
+    var dx = x - ridgeCenterX(z);
+    var hw = ridgeHalfWidth(z);
+    return Math.exp(-(dx*dx)/(2*hw*hw));
+  }
+  // Southern band where documented deposits sit -> visually "scarred" ore zone
+  function mineMask(x, z){
+    var band = Math.exp(-Math.pow((z-8)/9, 2));
+    return band * crestFactor(x,z);
+  }
+  function elevationKm(x, z){
+    var cf = crestFactor(x,z);
+    var env = elevationEnvelope(z);
+    var noise = fbm(x*0.32+50, z*0.32) * 0.055 * (0.35 + 0.65*cf);
+    return BASE_ELEV + (PEAK_ELEV - BASE_ELEV) * env * cf + noise;
+  }
+  function displayY(x, z){ return (elevationKm(x,z) - BASE_ELEV) * VERT_EXAG; }
+
+  /* =========================================================
+     3. SCENE SETUP
+     ========================================================= */
+  var container = document.getElementById('scene');
+  var scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x14110D);
+  scene.fog = new THREE.FogExp2(0x14110D, 0.011);
+
+  var camera = new THREE.PerspectiveCamera(52, window.innerWidth/window.innerHeight, 0.05, 400);
+  camera.position.set(14, 9, 24);
+
+  var renderer = new THREE.WebGLRenderer({antialias:true});
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  container.appendChild(renderer.domElement);
 
-  const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x0b0e14);
-
-  let fogDensity = 0.005;
-  scene.fog = new THREE.FogExp2(0x0b0e14, fogDensity);
-
-  const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 2000);
-  let camTheta = Math.PI * 0.22;
-  let camPhi = 0.62;
-  let camRadius = 380;
-  const camTarget = new THREE.Vector3(0, -55, 0);
-
-  let cameraMode = 'orbit'; // 'orbit', 'chase', 'cockpit'
-  let selectedTruckId = 'TRUCK_01';
-
-  function updateCamera() {
-    if (cameraMode === 'orbit') {
-      camera.position.x = camTarget.x + camRadius * Math.sin(camPhi) * Math.sin(camTheta);
-      camera.position.y = camTarget.y + camRadius * Math.cos(camPhi);
-      camera.position.z = camTarget.z + camRadius * Math.sin(camPhi) * Math.cos(camTheta);
-      camera.lookAt(camTarget);
-    }
-  }
-  updateCamera();
-
-  const ambient = new THREE.AmbientLight(0x8899bb, 0.65);
+  var ambient = new THREE.HemisphereLight(0x9aa5a0, 0x1a1410, 0.85);
   scene.add(ambient);
-  const sun = new THREE.DirectionalLight(0xffe9c8, 1.1);
-  sun.position.set(120, 200, 80);
+  var sun = new THREE.DirectionalLight(0xffd9ad, 1.15);
+  sun.position.set(-18, 22, 10);
   scene.add(sun);
+  var fill = new THREE.DirectionalLight(0x5b6fa0, 0.28);
+  fill.position.set(15, 10, -14);
+  scene.add(fill);
 
-  // ===========================================================================
-  // IRREGULAR OVAL TERRACED OPEN-PIT MINE TOPOGRAPHY (BAILADILA DEPOSIT 5)
-  // ===========================================================================
-  function pitRadiusFactor(angle) {
-    return 1 + 0.14 * Math.sin(angle * 2.3 + 0.6) + 0.08 * Math.sin(angle * 3.9 - 1.2) + 0.05 * Math.sin(angle * 5.7 + 2.4);
+  var controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.target.set(0, 2, 0);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+  controls.minDistance = 3;
+  controls.maxDistance = 75;
+  controls.maxPolarAngle = Math.PI*0.495;
+  controls.update();
+
+  /* =========================================================
+     4. TERRAIN MESH
+     ========================================================= */
+  var WSEG = 130, LSEG = 260;
+  var geo = new THREE.PlaneGeometry(HALF_W*2, HALF_L*2, WSEG, LSEG);
+  geo.rotateX(-Math.PI/2);
+
+  var pos = geo.attributes.position;
+  var colors = [];
+  var cHematite = new THREE.Color(0x7A2E1D);
+  var cIronbloom = new THREE.Color(0xC2673B);
+  var cScrub = new THREE.Color(0x5C6B5E);
+  var cScrubDark = new THREE.Color(0x445043);
+  var cPlain = new THREE.Color(0x3B342B);
+
+  for(var i=0;i<pos.count;i++){
+    var x = pos.getX(i), z = pos.getZ(i);
+    var y = displayY(x,z);
+    pos.setY(i, y);
+
+    var cf = crestFactor(x,z);
+    var mm = mineMask(x,z);
+    var tNorm = THREE.MathUtils.clamp((elevationKm(x,z)-BASE_ELEV)/(PEAK_ELEV-BASE_ELEV), 0, 1);
+
+    var col = new THREE.Color();
+    col.copy(cPlain).lerp(cScrubDark, THREE.MathUtils.clamp(tNorm*2.2,0,1));
+    col.lerp(cScrub, THREE.MathUtils.clamp((tNorm-0.15)*1.6,0,1) * (1-mm*0.7));
+    col.lerp(cIronbloom, Math.max(0, mm*1.15 - 0.15));
+    col.lerp(cHematite, Math.max(0, mm*0.9) * THREE.MathUtils.clamp(tNorm*1.4,0,1));
+    var speck = (hash(Math.floor(x*7), Math.floor(z*7)) - 0.5) * 0.05;
+    col.offsetHSL(0, 0, speck);
+
+    colors.push(col.r, col.g, col.b);
   }
-  const RIM_RADIUS = 195;
-  const MAX_DEPTH = 150;
-  const BENCH_COUNT = 14;
-  const STEP_SIZE = MAX_DEPTH / BENCH_COUNT;
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  geo.computeVertexNormals();
 
-  function heightAt(x, z) {
-    const angle = Math.atan2(z, x);
-    const dist = Math.sqrt(x * x + z * z);
-    const rNorm = dist / (RIM_RADIUS * pitRadiusFactor(angle));
-    const rClamped = Math.min(rNorm, 1.3);
-    const depthSmooth = -MAX_DEPTH * Math.pow(Math.max(0, 1 - rClamped), 1.4);
-    const terraced = Math.floor(depthSmooth / STEP_SIZE) * STEP_SIZE;
-    const noise = 1.5 * Math.sin(x * 0.15 + z * 0.11) + 1.0 * Math.sin(x * 0.27 - z * 0.19);
-    return terraced + noise;
+  var mat = new THREE.MeshStandardMaterial({
+    vertexColors:true, roughness:0.95, metalness:0.03, flatShading:false
+  });
+  var terrain = new THREE.Mesh(geo, mat);
+  terrain.receiveShadow = false;
+  scene.add(terrain);
+
+  /* =========================================================
+     5. ROAD (mine access + haul road along the crest)
+     ========================================================= */
+  var waypoints = [
+    [6.4, 19.5], [4.6, 17.6], [1.6, 15.4], [3.4, 13.2], [0.9, 11.0],
+    [0.0, 8.6], [0.35, 4.8], [-0.2, 1.0], [0.25, -3.2], [-0.3, -7.8],
+    [0.0, -12.6], [0.2, -16.8]
+  ];
+  var roadPts = waypoints.map(function(w){
+    var x = ridgeCenterX(w[1]) + w[0];
+    var z = w[1];
+    var y = displayY(x,z) + 0.10;
+    return new THREE.Vector3(x,y,z);
+  });
+  var roadCurve = new THREE.CatmullRomCurve3(roadPts);
+  roadCurve.curveType = 'catmullrom';
+  roadCurve.tension = 0.35;
+
+  var ROAD_SAMPLES = 400;
+  var sampled = roadCurve.getPoints(ROAD_SAMPLES);
+  for(var s=0;s<sampled.length;s++){
+    sampled[s].y = displayY(sampled[s].x, sampled[s].z) + 0.09;
   }
+  var smoothCurve = new THREE.CatmullRomCurve3(sampled);
 
-  const GRID_N = 130;
-  const EXTENT = 230;
-  const positions = [];
-  const colors = [];
-  const snowCol = new THREE.Color(0.75, 0.82, 0.88);
-  const rockCol = new THREE.Color(0.55, 0.42, 0.22);
-  const darkRockCol = new THREE.Color(0.28, 0.22, 0.16);
-
-  for (let j = 0; j <= GRID_N; j++) {
-    const z = -EXTENT + (2 * EXTENT) * (j / GRID_N);
-    for (let i = 0; i <= GRID_N; i++) {
-      const x = -EXTENT + (2 * EXTENT) * (i / GRID_N);
-      const y = heightAt(x, z);
-      positions.push(x, y, z);
-      const depthT = Math.max(0, Math.min(1, -y / MAX_DEPTH));
-      let c;
-      if (depthT < 0.15) c = snowCol.clone().lerp(rockCol, depthT / 0.15);
-      else c = rockCol.clone().lerp(darkRockCol, (depthT - 0.15) / 0.85);
-      colors.push(c.r, c.g, c.b);
+  var roadWidth = 0.16;
+  var ribbonVerts = [], ribbonIdx = [];
+  for(var r=0;r<sampled.length;r++){
+    var t = r/(sampled.length-1);
+    var tang = smoothCurve.getTangentAt(t).normalize();
+    var side = new THREE.Vector3(-tang.z, 0, tang.x).normalize().multiplyScalar(roadWidth);
+    var p = sampled[r];
+    ribbonVerts.push(p.x-side.x, p.y, p.z-side.z);
+    ribbonVerts.push(p.x+side.x, p.y, p.z+side.z);
+    if(r>0){
+      var a=(r-1)*2, b=(r-1)*2+1, c=r*2, d=r*2+1;
+      ribbonIdx.push(a,c,b, b,c,d);
     }
   }
+  var roadGeo = new THREE.BufferGeometry();
+  roadGeo.setAttribute('position', new THREE.Float32BufferAttribute(ribbonVerts,3));
+  roadGeo.setIndex(ribbonIdx);
+  roadGeo.computeVertexNormals();
+  var roadMat = new THREE.MeshStandardMaterial({color:0xC9A227, roughness:0.75, metalness:0.05});
+  var roadMesh = new THREE.Mesh(roadGeo, roadMat);
+  scene.add(roadMesh);
 
-  const indices = [];
-  const rowLen = GRID_N + 1;
-  for (let j = 0; j < GRID_N; j++) {
-    for (let i = 0; i < GRID_N; i++) {
-      const a = j * rowLen + i;
-      const b = a + 1;
-      const c = a + rowLen;
-      const d = c + 1;
-      indices.push(a, c, b, b, c, d);
-    }
+  var roadLengthKm = smoothCurve.getLength();
+  document.getElementById('stat-road').textContent = roadLengthKm.toFixed(1) + ' km';
+
+  /* =========================================================
+     6. MARKERS (Bailadila Deposits & Settlements)
+     ========================================================= */
+  function makeLabelSprite(text, color){
+    var cnv = document.createElement('canvas');
+    cnv.width = 256; cnv.height = 64;
+    var ctx = cnv.getContext('2d');
+    ctx.font = '600 28px "Space Grotesk", sans-serif';
+    ctx.fillStyle = 'rgba(20,17,13,0.85)';
+    ctx.fillRect(0,0,256,64);
+    ctx.strokeStyle = color; ctx.lineWidth = 3;
+    ctx.strokeRect(1.5,1.5,253,61);
+    ctx.fillStyle = '#EDE6D6';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(text, 128, 34);
+    var tex = new THREE.CanvasTexture(cnv);
+    var sm = new THREE.SpriteMaterial({map:tex, depthTest:false, transparent:true});
+    var sprite = new THREE.Sprite(sm);
+    sprite.scale.set(2.4, 0.6, 1);
+    return sprite;
   }
 
-  const terrainGeo = new THREE.BufferGeometry();
-  terrainGeo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  terrainGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-  terrainGeo.setIndex(indices);
-  terrainGeo.computeVertexNormals();
-  const terrainMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0.05 });
-  scene.add(new THREE.Mesh(terrainGeo, terrainMat));
+  var markerDefs = [
+    {name:'Kirandul (base)', off:6.4, z:19.5, type:'town'},
+    {name:'Deposit 14', off:0.0, z:8.6, type:'mine'},
+    {name:'Deposit 13', off:0.35, z:4.8, type:'mine'},
+    {name:'Deposit 11', off:-0.2, z:1.0, type:'mine'},
+    {name:'Deposit 10', off:0.25, z:-3.2, type:'mine'},
+    {name:'Ridge viewpoint', off:0.2, z:-16.8, type:'view'}
+  ];
+  var markers = [];
+  markerDefs.forEach(function(m){
+    var x = ridgeCenterX(m.z) + m.off;
+    var y = displayY(x, m.z);
+    var color = m.type==='town' ? 0xEDE6D6 : (m.type==='mine' ? 0xC2673B : 0x9fb0c9);
+    var pinGeo = new THREE.ConeGeometry(0.11, 0.42, 10);
+    var pinMat = new THREE.MeshStandardMaterial({color:color, roughness:0.5, emissive:color, emissiveIntensity:0.12});
+    var pin = new THREE.Mesh(pinGeo, pinMat);
+    pin.position.set(x, y+0.24, m.z);
+    pin.userData.label = m.name;
+    scene.add(pin);
+    markers.push(pin);
 
-  // Pit lake at the floor
-  const lakeGeo = new THREE.CircleGeometry(22, 40);
-  const lakeMat = new THREE.MeshStandardMaterial({ color: 0x1a4a4a, roughness: 0.15, metalness: 0.3 });
-  const lake = new THREE.Mesh(lakeGeo, lakeMat);
-  lake.rotation.x = -Math.PI / 2;
-  lake.position.y = -MAX_DEPTH + 1.5;
-  scene.add(lake);
+    var label = makeLabelSprite(m.name, m.type==='mine' ? '#C2673B' : '#C9A227');
+    label.position.set(x, y+0.85, m.z);
+    scene.add(label);
+  });
 
-  // Continuous spiral haul road descending the terraces
-  const roadPoints = [];
-  const turns = 3.4;
-  const steps = 300;
-  for (let i = 0; i <= steps; i++) {
-    const t = i / steps;
-    const angle = t * turns * Math.PI * 2;
-    const rFrac = 1 - t * 0.87;
-    const r = RIM_RADIUS * rFrac * pitRadiusFactor(angle);
-    const x = r * Math.cos(angle);
-    const z = r * Math.sin(angle);
-    roadPoints.push(new THREE.Vector3(x, heightAt(x, z) + 2.2, z));
-  }
-  const roadCurve = new THREE.CatmullRomCurve3(roadPoints);
-  const roadGeo = new THREE.TubeGeometry(roadCurve, 500, 2.8, 8, false);
-  const roadMat = new THREE.MeshStandardMaterial({ color: 0x3a3228, roughness: 1 });
-  scene.add(new THREE.Mesh(roadGeo, roadMat));
+  /* =========================================================
+     7. LIVE 3D HAUL TRUCK FLEET (TELEMETRY INTEGRATION)
+     ========================================================= */
+  var truckMeshes = {};
+  var truckCount = 6;
 
-  // ===========================================================================
-  // TRUCK MODELS & SENSOR RADAR RINGS
-  // ===========================================================================
-  const sensorRingGeo = new THREE.RingGeometry(14, 15.5, 32);
-  sensorRingGeo.rotateX(-Math.PI / 2);
+  function createHaulTruckMesh(v) {
+    var grp = new THREE.Group();
+    var colorHex = parseInt((v.avatar_color || '#10b981').replace('#', '0x'), 16);
 
-  function makeTruckMesh(colorHex) {
-    const group = new THREE.Group();
-    const mat = new THREE.MeshStandardMaterial({ color: colorHex || 0x35d07f, roughness: 0.6 });
-
-    // Body
-    const bodyGeo = new THREE.BoxGeometry(4.2, 2.5, 6.2);
-    const body = new THREE.Mesh(bodyGeo, mat);
-    body.position.y = 1.4;
-    group.add(body);
+    // Chassis & Bed
+    var bodyGeo = new THREE.BoxGeometry(0.24, 0.14, 0.42);
+    var bodyMat = new THREE.MeshStandardMaterial({color: 0x222222, roughness: 0.6});
+    var body = new THREE.Mesh(bodyGeo, bodyMat);
+    body.position.y = 0.08;
+    grp.add(body);
 
     // Cab
-    const cabGeo = new THREE.BoxGeometry(3.2, 1.8, 2.2);
-    const cab = new THREE.Mesh(cabGeo, mat);
-    cab.position.set(0, 3.1, -2.4);
-    group.add(cab);
+    var cabGeo = new THREE.BoxGeometry(0.16, 0.12, 0.16);
+    var cabMat = new THREE.MeshStandardMaterial({color: colorHex, roughness: 0.4});
+    var cab = new THREE.Mesh(cabGeo, cabMat);
+    cab.position.set(0, 0.18, 0.12);
+    grp.add(cab);
 
-    // Wheels
-    const wheelGeo = new THREE.CylinderGeometry(1.1, 1.1, 0.8, 16);
-    wheelGeo.rotateZ(Math.PI / 2);
-    const wheelMat = new THREE.MeshStandardMaterial({ color: 0x111827 });
-    const wheelPos = [
-      [-2.2, 1.1, 2.0], [2.2, 1.1, 2.0],
-      [-2.2, 1.1, -2.0], [2.2, 1.1, -2.0]
-    ];
-    wheelPos.forEach(p => {
-      const w = new THREE.Mesh(wheelGeo, wheelMat);
-      w.position.set(...p);
-      group.add(w);
-    });
+    // Headlight cones
+    var hlLight = new THREE.SpotLight(0xfff7ed, 1.2, 3.5, Math.PI/7, 0.4);
+    hlLight.position.set(0, 0.14, 0.22);
+    hlLight.target.position.set(0, 0.02, 2.5);
+    grp.add(hlLight);
+    grp.add(hlLight.target);
 
-    // Radar safety ring
-    const ringMat = new THREE.MeshBasicMaterial({ color: 0x3aa0ff, transparent: true, opacity: 0.45, side: THREE.DoubleSide });
-    const ring = new THREE.Mesh(sensorRingGeo, ringMat);
-    ring.position.y = 0.3;
-    group.add(ring);
+    // Situational Radar Ring
+    var ringGeo = new THREE.RingGeometry(0.55, 0.65, 24);
+    ringGeo.rotateX(-Math.PI/2);
+    var ringMat = new THREE.MeshBasicMaterial({color: 0x10b981, transparent: true, opacity: 0.45, side: THREE.DoubleSide});
+    var ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.position.y = 0.02;
+    grp.add(ring);
+    grp.radarRing = ring;
 
-    // Dynamic Tag Sprite
-    const canvas = document.createElement('canvas');
-    canvas.width = 128;
-    canvas.height = 40;
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#0b0e14';
-    ctx.fillRect(0, 0, 128, 40);
-    ctx.fillStyle = '#3aa0ff';
-    ctx.font = 'bold 22px monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText('TRUCK', 64, 28);
-    const tex = new THREE.CanvasTexture(canvas);
-    const tag = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true }));
-    tag.position.set(0, 5.8, 0);
-    tag.scale.set(8, 2.5, 1);
-    group.add(tag);
+    // Sprite Tag
+    var tag = makeLabelSprite(v.id.replace('TRUCK_', 'T-'), '#C9A227');
+    tag.position.set(0, 0.45, 0);
+    tag.scale.set(0.7, 0.18, 1);
+    grp.add(tag);
 
-    return { group, body, cab, ring, tag, canvas, ctx, tex };
+    return grp;
   }
 
-  const trucks = {};
-  const alertLogEl = document.getElementById('alert-log');
-  const truckListEl = document.getElementById('truck-list-items');
-  const activeAlerts = new Set();
-
-  function logAlert(msg) {
-    const item = document.createElement('div');
-    item.className = 'alert-item';
-    const time = new Date().toLocaleTimeString();
-    item.innerHTML = '<span class="alert-time">' + time + '</span>' + msg;
-    alertLogEl.prepend(item);
-    while (alertLogEl.children.length > 40) {
-      alertLogEl.removeChild(alertLogEl.lastChild);
-    }
-  }
-
-  function tangentAt(t) {
-    const eps = 0.001;
-    const p1 = roadCurve.getPointAt(Math.max(0, Math.min(1, t)));
-    const p2 = roadCurve.getPointAt(Math.max(0, Math.min(1, t + eps)));
-    return p2.clone().sub(p1).normalize();
-  }
-
-  // ===========================================================================
-  // LIVE TELEMETRY INTEGRATION VIA /api/fleet
-  // ===========================================================================
-  async function fetchFleetTelemetry() {
+  async function fetchFleetPositions() {
     try {
-      const res = await fetch('/api/fleet');
-      if (!res.ok) return;
-      const data = await res.json();
-      const vList = data.vehicles || [];
+      var res = await fetch('/api/fleet');
+      if(!res.ok) return;
+      var data = await res.json();
+      var vList = data.vehicles || [];
 
-      vList.forEach((v, idx) => {
-        let tObj = trucks[v.id];
-        if (!tObj) {
-          const colorHex = v.status === 'CRITICAL' ? 0xff4d4d : 0x35d07f;
-          const mesh = makeTruckMesh(colorHex);
-          scene.add(mesh.group);
-          tObj = {
-            id: v.id,
-            name: v.name || v.id,
-            mesh: mesh,
-            t: (idx / Math.max(1, vList.length)) * 0.94,
-            speed: 0.00025 + (v.speed_kmh || 15) * 0.000015,
-            alert: v.action === 'STOP' || v.dist_front < 60,
-            raw: v
-          };
-          trucks[v.id] = tObj;
-
-          // Update sprite text
-          mesh.ctx.fillStyle = '#0b0e14';
-          mesh.ctx.fillRect(0, 0, 128, 40);
-          mesh.ctx.fillStyle = v.action === 'STOP' ? '#ff4d4d' : '#35d07f';
-          mesh.ctx.font = 'bold 20px monospace';
-          mesh.ctx.textAlign = 'center';
-          mesh.ctx.fillText(v.id.replace('TRUCK_', 'T-'), 64, 27);
-          mesh.tex.needsUpdate = true;
+      vList.forEach(function(v, idx){
+        var mesh = truckMeshes[v.id];
+        if(!mesh){
+          mesh = createHaulTruckMesh(v);
+          truckMeshes[v.id] = mesh;
+          scene.add(mesh);
         }
 
-        tObj.raw = v;
-        tObj.alert = v.action === 'STOP' || v.dist_front < 60;
-        tObj.speed = v.action === 'STOP' ? 0 : Math.max(0.0001, (v.speed_kmh || 20) * 0.000018);
+        // Place along the road curve
+        var tProg = ((idx * 0.16) + (Date.now() * 0.000015 * (v.speed_kmh || 20))) % 1.0;
+        var p = smoothCurve.getPointAt(tProg);
+        var tang = smoothCurve.getTangentAt(tProg).normalize();
 
-        // Alert styling
-        const isWarn = tObj.alert;
-        const color = isWarn ? 0xff4d4d : (v.action === 'SLOW DOWN' ? 0xffb238 : 0x35d07f);
-        tObj.mesh.body.material.color.setHex(color);
-        tObj.mesh.cab.material.color.setHex(color);
-        tObj.mesh.ring.material.color.setHex(isWarn ? 0xff4d4d : (v.action === 'SLOW DOWN' ? 0xffb238 : 0x3aa0ff));
+        mesh.position.set(p.x, p.y + 0.02, p.z);
+        mesh.rotation.y = Math.atan2(tang.x, tang.z);
 
-        if (isWarn && !activeAlerts.has(v.id)) {
-          activeAlerts.add(v.id);
-          logAlert('<strong>' + v.id + '</strong> — ' + (v.action || 'COLLISION RISK') + ' (Obstacle ' + v.dist_front + 'cm)');
-        } else if (!isWarn && activeAlerts.has(v.id)) {
-          activeAlerts.delete(v.id);
+        // Update radar ring color
+        if(mesh.radarRing){
+          if(v.action === 'STOP' || v.dist_front < 60){
+            mesh.radarRing.material.color.setHex(0xef4444); // Red
+          } else if(v.action === 'SLOW DOWN' || v.dist_front < 150){
+            mesh.radarRing.material.color.setHex(0xf59e0b); // Amber
+          } else {
+            mesh.radarRing.material.color.setHex(0x10b981); // Green
+          }
         }
       });
-
-      renderTruckList();
-    } catch (e) {
-      console.warn('Telemetry poll err:', e);
+    } catch(err) {
+      console.warn('Fleet 3D poll err:', err);
     }
   }
 
-  function renderTruckList() {
-    truckListEl.innerHTML = '';
-    Object.values(trucks).forEach(t => {
-      const v = t.raw || {};
-      const row = document.createElement('div');
-      row.className = 'truck-row' + (t.id === selectedTruckId ? ' selected' : '');
-      const isWarn = t.alert;
-      row.innerHTML =
-        '<div class="row-left"><div class="status-dot ' + (isWarn ? 'status-warn' : 'status-ok') + '"></div>' +
-        '<div><div class="truck-id">' + t.id + ' <span style="font-size:10px;color:var(--text-dim);">' + (v.model || '') + '</span></div>' +
-        '<div class="truck-meta">Dist ' + (v.dist_front ?? '--') + 'cm · ' + (v.speed_kmh ?? 0) + ' km/h</div></div></div>' +
-        '<div class="badge ' + (isWarn ? 'badge-warn' : 'badge-ok') + '">' + (isWarn ? 'ALERT' : 'OK') + '</div>';
-      row.addEventListener('click', () => {
-        selectedTruckId = t.id;
-        renderTruckList();
-      });
-      truckListEl.appendChild(row);
-    });
-  }
-
-  // Camera switching
-  window.switchCameraMode = function(mode) {
-    cameraMode = mode;
-    document.querySelectorAll('.cam-btn').forEach(b => b.classList.remove('active'));
-    if (mode === 'orbit') document.getElementById('btnOrbit').classList.add('active');
-    if (mode === 'chase') document.getElementById('btnChase').classList.add('active');
-    if (mode === 'cockpit') document.getElementById('btnCockpit').classList.add('active');
-    if (mode === 'orbit') updateCamera();
-  };
-
-  document.getElementById('btnResetView').addEventListener('click', () => {
-    camTheta = Math.PI * 0.22;
-    camPhi = 0.62;
-    camRadius = 380;
-    camTarget.set(0, -55, 0);
-    switchCameraMode('orbit');
+  /* =========================================================
+     8. RAYCAST TOOLTIP FOR MARKERS (orbit mode)
+     ========================================================= */
+  var raycaster = new THREE.Raycaster();
+  var mouseNDC = new THREE.Vector2();
+  var tooltip = document.getElementById('marker-tooltip');
+  renderer.domElement.addEventListener('mousemove', function(e){
+    if(currentMode !== 'orbit') { tooltip.style.display='none'; return; }
+    mouseNDC.x = (e.clientX/window.innerWidth)*2-1;
+    mouseNDC.y = -(e.clientY/window.innerHeight)*2+1;
+    raycaster.setFromCamera(mouseNDC, camera);
+    var hits = raycaster.intersectObjects(markers);
+    if(hits.length){
+      tooltip.style.display='block';
+      tooltip.style.left = e.clientX+'px';
+      tooltip.style.top = e.clientY+'px';
+      tooltip.textContent = hits[0].object.userData.label;
+    } else {
+      tooltip.style.display='none';
+    }
   });
+
+  /* =========================================================
+     9. MODE SWITCHING: ORBIT <-> DRIVE
+     ========================================================= */
+  var currentMode = 'orbit';
+  var btnOrbit = document.getElementById('btn-orbit');
+  var btnDrive = document.getElementById('btn-drive');
+  var orbitUI = document.getElementById('orbit-controls');
+  var driveUI = document.getElementById('drive-controls');
+  var statMode = document.getElementById('stat-mode');
+  var statElev = document.getElementById('stat-elev');
+
+  var progressSlider = document.getElementById('road-progress');
+  var speedSlider = document.getElementById('road-speed');
+  var btnPlay = document.getElementById('btn-play');
+  var btnReset = document.getElementById('btn-reset');
+
+  var driveT = 0;      // 0..1 along road
+  var playing = true;
+  var yawOffset = 0, pitchOffset = 0;
+  var dragging = false, lastMX=0, lastMY=0;
+
+  function setMode(mode){
+    currentMode = mode;
+    btnOrbit.classList.toggle('active', mode==='orbit');
+    btnDrive.classList.toggle('active', mode==='drive');
+    orbitUI.style.display = mode==='orbit' ? 'block':'none';
+    driveUI.style.display = mode==='drive' ? 'block':'none';
+    statMode.textContent = mode.toUpperCase();
+    controls.enabled = (mode==='orbit');
+    tooltip.style.display='none';
+  }
+  btnOrbit.addEventListener('click', function(){ setMode('orbit'); });
+  btnDrive.addEventListener('click', function(){ setMode('drive'); });
+
+  progressSlider.addEventListener('input', function(){
+    driveT = progressSlider.value/1000;
+  });
+  btnPlay.addEventListener('click', function(){
+    playing = !playing;
+    btnPlay.textContent = playing ? '❚❚ PAUSE' : '▶ PLAY';
+    btnPlay.classList.toggle('active', playing);
+  });
+  btnReset.addEventListener('click', function(){ driveT = 0; progressSlider.value = 0; });
 
   // Fog slider
-  const fogSlider = document.getElementById('fog-slider');
-  const fogValueEl = document.getElementById('fog-value');
-  function updateFogLabel(v) {
-    const visibility = Math.max(15, Math.round(400 - v * 3.6));
-    let label = 'clear';
-    if (v > 70) label = 'dense monsoon fog';
-    else if (v > 40) label = 'moderate fog';
-    else if (v > 15) label = 'light fog';
-    fogValueEl.textContent = 'Visibility: ~' + visibility + 'm (' + label + ')';
-  }
-  fogSlider.addEventListener('input', (e) => {
-    const v = parseFloat(e.target.value);
-    fogDensity = 0.0015 + (v / 100) * 0.02;
-    scene.fog.density = fogDensity;
-    updateFogLabel(v);
-  });
-  updateFogLabel(parseFloat(fogSlider.value));
-
-  // Sidebar collapse toggle
-  const sidebar = document.getElementById('sidebar');
-  const sidebarToggle = document.getElementById('sidebar-toggle');
-  let collapsed = false;
-  sidebarToggle.addEventListener('click', () => {
-    collapsed = !collapsed;
-    sidebar.classList.toggle('collapsed', collapsed);
-    sidebarToggle.classList.toggle('collapsed', collapsed);
-    sidebarToggle.textContent = collapsed ? '◀' : '▶';
-  });
-
-  // Orbit controls
-  let dragging = false;
-  let lastX = 0, lastY = 0;
-  canvas.addEventListener('pointerdown', (e) => {
-    dragging = true; lastX = e.clientX; lastY = e.clientY;
-  });
-  window.addEventListener('pointerup', () => { dragging = false; });
-  window.addEventListener('pointermove', (e) => {
-    if (!dragging || cameraMode !== 'orbit') return;
-    const dx = e.clientX - lastX;
-    const dy = e.clientY - lastY;
-    lastX = e.clientX; lastY = e.clientY;
-    camTheta -= dx * 0.005;
-    camPhi = Math.max(0.25, Math.min(1.45, camPhi - dy * 0.005));
-    updateCamera();
-  });
-  canvas.addEventListener('wheel', (e) => {
-    if (cameraMode !== 'orbit') return;
-    e.preventDefault();
-    camRadius = Math.max(80, Math.min(650, camRadius + e.deltaY * 0.4));
-    updateCamera();
-  }, { passive: false });
-
-  function resize() {
-    const w = window.innerWidth;
-    const h = window.innerHeight;
-    renderer.setSize(w, h);
-    camera.aspect = w / h;
-    camera.updateProjectionMatrix();
-  }
-  window.addEventListener('resize', resize);
-  resize();
-
-  // Animation loop
-  function animate() {
-    requestAnimationFrame(animate);
-
-    // Update truck positions along 3D spiral road
-    Object.values(trucks).forEach(truck => {
-      if (truck.speed > 0) {
-        truck.t += truck.speed;
-        if (truck.t > 1) truck.t -= 1;
-      }
-      const pos = roadCurve.getPointAt(truck.t);
-      const tangent = tangentAt(truck.t);
-      truck.mesh.group.position.copy(pos);
-      truck.mesh.group.position.y += 2.6;
-      const angle = Math.atan2(tangent.x, tangent.z);
-      truck.mesh.group.rotation.y = angle;
-
-      // Pulse radar ring opacity
-      const ring = truck.mesh.ring;
-      if (ring) {
-        ring.material.opacity = 0.35 + Math.sin(Date.now() * 0.005) * 0.2;
-      }
+  var fogSlider = document.getElementById('fog-slider');
+  if(fogSlider){
+    fogSlider.addEventListener('input', function(e){
+      var v = parseFloat(e.target.value);
+      scene.fog.density = 0.003 + (v/100)*0.035;
     });
+  }
 
-    // Camera follow mode
-    const selectedTruck = trucks[selectedTruckId] || Object.values(trucks)[0];
-    if (selectedTruck) {
-      const tPos = selectedTruck.mesh.group.position;
-      const tRot = selectedTruck.mesh.group.rotation.y;
+  window.addEventListener('keydown', function(e){
+    if(currentMode !== 'drive') return;
+    var step = 0.01;
+    if(e.key === 'ArrowUp' || e.key === 'ArrowRight'){ driveT = Math.min(1, driveT+step); progressSlider.value = driveT*1000; }
+    if(e.key === 'ArrowDown' || e.key === 'ArrowLeft'){ driveT = Math.max(0, driveT-step); progressSlider.value = driveT*1000; }
+  });
 
-      if (cameraMode === 'chase') {
-        const offX = -Math.sin(tRot) * 28;
-        const offZ = -Math.cos(tRot) * 28;
-        camera.position.lerp(new THREE.Vector3(tPos.x + offX, tPos.y + 14, tPos.z + offZ), 0.08);
-        camera.lookAt(tPos.x, tPos.y + 3, tPos.z);
-      } else if (cameraMode === 'cockpit') {
-        const cabX = Math.sin(tRot) * 1.5;
-        const cabZ = Math.cos(tRot) * 1.5;
-        camera.position.set(tPos.x + cabX, tPos.y + 3.8, tPos.z + cabZ);
-        camera.lookAt(tPos.x + Math.sin(tRot) * 40, tPos.y + 3.2, tPos.z + Math.cos(tRot) * 40);
-      }
+  renderer.domElement.addEventListener('mousedown', function(e){
+    if(currentMode !== 'drive') return;
+    dragging = true; lastMX = e.clientX; lastMY = e.clientY;
+  });
+  window.addEventListener('mouseup', function(){ dragging = false; });
+  renderer.domElement.addEventListener('mousemove', function(e){
+    if(currentMode !== 'drive' || !dragging) return;
+    yawOffset -= (e.clientX-lastMX)*0.003;
+    pitchOffset = THREE.MathUtils.clamp(pitchOffset - (e.clientY-lastMY)*0.002, -0.5, 0.5);
+    lastMX = e.clientX; lastMY = e.clientY;
+  });
+
+  var tmpPos = new THREE.Vector3(), tmpTang = new THREE.Vector3(), tmpLook = new THREE.Vector3();
+  function updateDrive(dt){
+    if(playing){
+      var speed = parseFloat(speedSlider.value)/1000 * dt;
+      driveT = (driveT + speed) % 1;
+      progressSlider.value = driveT*1000;
     }
+    smoothCurve.getPointAt(driveT, tmpPos);
+    smoothCurve.getTangentAt(driveT, tmpTang).normalize();
+    camera.position.set(tmpPos.x, tmpPos.y+0.22, tmpPos.z);
 
+    var yaw = Math.atan2(tmpTang.x, tmpTang.z) + yawOffset;
+    var lookDist = 3;
+    tmpLook.set(
+      camera.position.x + Math.sin(yaw)*lookDist,
+      camera.position.y + pitchOffset*lookDist,
+      camera.position.z + Math.cos(yaw)*lookDist
+    );
+    camera.lookAt(tmpLook);
+    statElev.textContent = Math.round((elevationKm(tmpPos.x, tmpPos.z))*1000) + ' m';
+  }
+
+  /* =========================================================
+     10. RENDER LOOP
+     ========================================================= */
+  var clock = new THREE.Clock();
+  function animate(){
+    requestAnimationFrame(animate);
+    var dt = Math.min(clock.getDelta(), 0.05);
+    if(currentMode==='orbit'){
+      controls.update();
+      var camElevKm = elevationKm(camera.position.x, camera.position.z);
+      statElev.textContent = Math.round(camElevKm * 1000) + ' m';
+    } else {
+      updateDrive(dt);
+    }
     renderer.render(scene, camera);
   }
+
+  window.addEventListener('resize', function(){
+    camera.aspect = window.innerWidth/window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  document.getElementById('loading').style.display = 'none';
   animate();
 
-  fetchFleetTelemetry();
-  setInterval(fetchFleetTelemetry, 1200);
+  fetchFleetPositions();
+  setInterval(fetchFleetPositions, 1200);
+
 })();
 </script>
 </body>
