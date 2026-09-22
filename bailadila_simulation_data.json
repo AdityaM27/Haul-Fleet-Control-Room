@@ -1,0 +1,306 @@
+{
+  "schema_version": "1.0",
+  "purpose": "Deterministic Bailadila/Kirandul/Deposit-14 digital-twin demo simulation",
+  "coordinate_system": {
+    "type": "WGS84",
+    "epsg": "EPSG:4326",
+    "lat_range": [
+      18.5,
+      18.75
+    ],
+    "lng_range": [
+      81.15,
+      81.27
+    ]
+  },
+  "terrain": {
+    "heightmap": "bailadila_terrain_256.png",
+    "metadata": "bailadila_terrain_meta.json",
+    "min_elevation_m": 220.0,
+    "max_elevation_m": 1272.3
+  },
+  "mine_focus": {
+    "complex": "Kirandul Complex",
+    "deposit": "Deposit 14",
+    "kirandul": [
+      18.5867,
+      81.2228
+    ],
+    "deposit14": [
+      18.5792,
+      81.2194
+    ]
+  },
+  "route": {
+    "loop": true,
+    "interpolation": "linear between consecutive waypoints; wrap last waypoint to first",
+    "waypoints": [
+      {
+        "id": "KIRANDUL_YARD",
+        "lat": 18.5928,
+        "lng": 81.2215,
+        "name": "Kirandul Dispatch Yard",
+        "speed_limit_kmh": 20
+      },
+      {
+        "id": "RIM_NORTH",
+        "lat": 18.5918,
+        "lng": 81.225,
+        "name": "Deposit 14 North Rim",
+        "speed_limit_kmh": 18
+      },
+      {
+        "id": "RAMP_EAST_1",
+        "lat": 18.5898,
+        "lng": 81.227,
+        "name": "East Ramp Upper Bench",
+        "speed_limit_kmh": 14
+      },
+      {
+        "id": "HAIRPIN_E1",
+        "lat": 18.5876,
+        "lng": 81.2264,
+        "name": "East Hairpin 1",
+        "speed_limit_kmh": 12
+      },
+      {
+        "id": "BENCH_MID_E",
+        "lat": 18.5858,
+        "lng": 81.225,
+        "name": "East Middle Bench",
+        "speed_limit_kmh": 14
+      },
+      {
+        "id": "HAIRPIN_E2",
+        "lat": 18.5839,
+        "lng": 81.2262,
+        "name": "East Hairpin 2",
+        "speed_limit_kmh": 11
+      },
+      {
+        "id": "SOUTH_RIM",
+        "lat": 18.5818,
+        "lng": 81.2248,
+        "name": "Deposit 14 South Rim",
+        "speed_limit_kmh": 12
+      },
+      {
+        "id": "PIT_SOUTH_BENCH",
+        "lat": 18.5805,
+        "lng": 81.2226,
+        "name": "Lower South Bench",
+        "speed_limit_kmh": 10
+      },
+      {
+        "id": "PIT_FLOOR",
+        "lat": 18.5792,
+        "lng": 81.2194,
+        "name": "Deposit 14 Pit Floor",
+        "speed_limit_kmh": 8
+      },
+      {
+        "id": "LOADING_BAY",
+        "lat": 18.5801,
+        "lng": 81.2174,
+        "name": "Ore Loading Bay",
+        "speed_limit_kmh": 8
+      },
+      {
+        "id": "WEST_LOWER",
+        "lat": 18.5821,
+        "lng": 81.2158,
+        "name": "West Lower Bench",
+        "speed_limit_kmh": 10
+      },
+      {
+        "id": "HAIRPIN_W1",
+        "lat": 18.584,
+        "lng": 81.2148,
+        "name": "West Hairpin 1",
+        "speed_limit_kmh": 11
+      },
+      {
+        "id": "WEST_MID",
+        "lat": 18.5861,
+        "lng": 81.2158,
+        "name": "West Middle Bench",
+        "speed_limit_kmh": 14
+      },
+      {
+        "id": "HAIRPIN_W2",
+        "lat": 18.5878,
+        "lng": 81.2147,
+        "name": "West Hairpin 2",
+        "speed_limit_kmh": 12
+      },
+      {
+        "id": "NORTHWEST_BENCH",
+        "lat": 18.5898,
+        "lng": 81.2165,
+        "name": "Northwest Upper Bench",
+        "speed_limit_kmh": 15
+      },
+      {
+        "id": "RAMP_NORTH",
+        "lat": 18.5912,
+        "lng": 81.2188,
+        "name": "North Ramp Exit",
+        "speed_limit_kmh": 18
+      }
+    ]
+  },
+  "simulation": {
+    "tick_hz": 1,
+    "position_source": "server_simulation",
+    "map_and_3d_source": "same /api/fleet lat/lng",
+    "obstacle_sensor_unit": "cm",
+    "fog_visibility_unit": "m",
+    "speed_unit": "km/h"
+  },
+  "trucks": [
+    {
+      "id": "TRUCK_01",
+      "model": "Caterpillar 797F",
+      "source_type": "SIMULATED",
+      "route_index": 0,
+      "route_progress": 0.08,
+      "speed_kmh": 16.0,
+      "payload_tons": 250,
+      "dist_front_cm": 120,
+      "dist_left_cm": 95,
+      "dist_right_cm": 110,
+      "fog_visibility_m": 75
+    },
+    {
+      "id": "TRUCK_02",
+      "model": "Bucyrus MT4400",
+      "source_type": "SIMULATED",
+      "route_index": 3,
+      "route_progress": 0.25,
+      "speed_kmh": 11.0,
+      "payload_tons": 220,
+      "dist_front_cm": 48,
+      "dist_left_cm": 72,
+      "dist_right_cm": 55,
+      "fog_visibility_m": 38
+    },
+    {
+      "id": "TRUCK_03",
+      "model": "Komatsu 930E-5",
+      "source_type": "SIMULATED",
+      "route_index": 6,
+      "route_progress": 0.55,
+      "speed_kmh": 9.0,
+      "payload_tons": 0,
+      "dist_front_cm": 180,
+      "dist_left_cm": 130,
+      "dist_right_cm": 145,
+      "fog_visibility_m": 110
+    },
+    {
+      "id": "TRUCK_04",
+      "model": "Liebherr T 284",
+      "source_type": "SIMULATED",
+      "route_index": 9,
+      "route_progress": 0.1,
+      "speed_kmh": 7.0,
+      "payload_tons": 335,
+      "dist_front_cm": 24,
+      "dist_left_cm": 46,
+      "dist_right_cm": 85,
+      "fog_visibility_m": 22
+    },
+    {
+      "id": "TRUCK_05",
+      "model": "BelAZ 75710",
+      "source_type": "SIMULATED",
+      "route_index": 12,
+      "route_progress": 0.7,
+      "speed_kmh": 13.0,
+      "payload_tons": 410,
+      "dist_front_cm": 90,
+      "dist_left_cm": 100,
+      "dist_right_cm": 105,
+      "fog_visibility_m": 55
+    },
+    {
+      "id": "TRUCK_06",
+      "model": "Hitachi EH5000AC-3",
+      "source_type": "SIMULATED",
+      "route_index": 14,
+      "route_progress": 0.35,
+      "speed_kmh": 15.0,
+      "payload_tons": 180,
+      "dist_front_cm": 155,
+      "dist_left_cm": 120,
+      "dist_right_cm": 125,
+      "fog_visibility_m": 95
+    }
+  ],
+  "scenario_library": [
+    {
+      "id": "CLEAR_RUN",
+      "description": "Normal haul cycle",
+      "fog_visibility_m": 140,
+      "front_cm": 180,
+      "left_cm": 150,
+      "right_cm": 160
+    },
+    {
+      "id": "DENSE_FOG",
+      "description": "Pit-floor low visibility",
+      "fog_visibility_m": 18,
+      "front_cm": 72,
+      "left_cm": 90,
+      "right_cm": 85
+    },
+    {
+      "id": "OBSTACLE_AHEAD",
+      "description": "Rockfall / stopped vehicle detected",
+      "fog_visibility_m": 45,
+      "front_cm": 12,
+      "left_cm": 75,
+      "right_cm": 48
+    },
+    {
+      "id": "HAIRPIN_CAUTION",
+      "description": "Tight switchback",
+      "fog_visibility_m": 38,
+      "front_cm": 45,
+      "left_cm": 38,
+      "right_cm": 92
+    },
+    {
+      "id": "TRAFFIC_CLOSE",
+      "description": "Two haul trucks within collision threshold",
+      "fog_visibility_m": 65,
+      "front_cm": 28,
+      "left_cm": 65,
+      "right_cm": 70
+    }
+  ],
+  "integration_contract": {
+    "canonical_vehicle_fields": [
+      "id",
+      "lat",
+      "lng",
+      "heading",
+      "speed_kmh",
+      "status",
+      "action",
+      "dist_front",
+      "dist_left",
+      "dist_right",
+      "current_zone",
+      "risk_score",
+      "source_type"
+    ],
+    "update_endpoint": "POST /update",
+    "fleet_endpoint": "GET /api/fleet",
+    "single_vehicle_endpoint": "GET /api/vehicle/{id}",
+    "map_rule": "Leaflet marker position MUST equal vehicle.lat/vehicle.lng.",
+    "3d_rule": "Three.js truck position MUST be computed from the same vehicle.lat/vehicle.lng; never animate trucks using a separate clock.",
+    "terrain_rule": "Three.js Y position MUST be sampled from the DEM at vehicle.lat/vehicle.lng.",
+    "heading_rule": "Vehicle heading comes from the server and must be used by both map popup/arrow and 3D truck rotation."
+  }
+}

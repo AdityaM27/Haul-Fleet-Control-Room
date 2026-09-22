@@ -273,10 +273,11 @@
 <!-- Data Disclaimer Panel -->
 <div class="hud panel corner" id="disclaimer-panel">
   <div class="disclaimer-title">DATA SOURCE & SPECIFICATION</div>
-  <div>• <b>Terrain:</b> Copernicus GLO-30 DEM-derived visualization</div>
-  <div>• <b>Mine geometry:</b> Conceptual coordinate-based approximation</div>
-  <div>• <b>Vehicles:</b> Simulated — not live NMDC telemetry</div>
-  <div class="disclaimer-note">Not an official mine survey or mine-plan representation.</div>
+  <div>• <b>Terrain:</b> Copernicus GLO-30 DEM (30m resolution)</div>
+  <div>• <b>Haul Route:</b> Conceptual 16-waypoint Deposit-14 simulation haul loop</div>
+  <div>• <b>Mine Geometry:</b> Conceptual coordinate-based approximation</div>
+  <div>• <b>Vehicles:</b> Authoritative digital-twin simulation (DMP-101..106)</div>
+  <div class="disclaimer-note">Conceptual 16-waypoint Deposit-14 simulation haul loop created for Digital Twin & Fog-Guard prototype testing. Not official NMDC mine plan.</div>
 </div>
 
 <!-- Color Legend -->
@@ -503,7 +504,7 @@
     }
   });
 
-  // Telemetry Polling (Simulated NMDC Fleet)
+  // Telemetry Polling (Authoritative Digital Twin Fleet)
   let latestFleet = null;
   async function fetchFleet() {
     try {
@@ -511,22 +512,23 @@
       if (res.ok) {
         const data = await res.json();
         latestFleet = data.vehicles || [];
+        engine.updateFleetTelemetry(latestFleet);
       }
     } catch (err) {
       // Telemetry fallback
     }
   }
   fetchFleet();
-  setInterval(fetchFleet, 1500);
+  setInterval(fetchFleet, 1000);
 
-  // Render Loop
+  // Render Loop with Authoritative Interpolation Smoothing
   const clock = new THREE.Clock();
   function animate() {
     requestAnimationFrame(animate);
     const dt = Math.min(clock.getDelta(), 0.05);
 
-    // Update truck positions along haul road
-    engine.updateFleetTelemetry(latestFleet);
+    // Frame-by-frame smoothing towards authoritative backend coordinates
+    engine.stepInterpolation(dt);
 
     if (currentMode === 'orbit') {
       controls.update();

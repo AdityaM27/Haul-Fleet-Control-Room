@@ -28,47 +28,142 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "resurgence_mine_fleet_auth_key_2026")
 
 # ==============================================================================
-# BAILADILA IRON ORE MINING REGION WAYPOINTS (NMDC Deposit 5 & Bacheli Complex)
-# Location: Bailadila Range, Dantewada District, Chhattisgarh (18.7250° N, 81.2450° E)
+# CANONICAL SIMULATION DATA & REAL DEM TERRAIN ENGINE
+# Conceptual 16-waypoint Deposit-14 simulation haul loop
+# (Copernicus GLO-30 DEM, Kirandul / Deposit-14, Dantewada District, Chhattisgarh)
+# Notice: Conceptual simulation route & pit geometry for digital-twin prototype.
 # ==============================================================================
-BASE_LAT = 18.7250
-BASE_LNG = 81.2450
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+SIM_DATA_PATH = os.path.join(BASE_DIR, "bailadila_simulation_data.json")
+TERRAIN_META_PATH = os.path.join(BASE_DIR, "static", "bailadila_terrain_meta.json")
+TERRAIN_PNG_PATH = os.path.join(BASE_DIR, "static", "bailadila_terrain_256.png")
 
-BAILADILA_WAYPOINTS = [
-    {"lat": 18.7210, "lng": 81.2420, "name": "Deposit 5 Pit Bottom Loading Bay", "speed_limit": 25},
-    {"lat": 18.7232, "lng": 81.2448, "name": "Deposit 5 Pit Incline Ramp 1", "speed_limit": 30},
-    {"lat": 18.7260, "lng": 81.2475, "name": "Ridge Switchback Turn 1", "speed_limit": 18},
-    {"lat": 18.7288, "lng": 81.2462, "name": "Bailadila Crest Haulway", "speed_limit": 38},
-    {"lat": 18.7312, "lng": 81.2438, "name": "Bacheli Crusher Plant Junction", "speed_limit": 28},
-    {"lat": 18.7335, "lng": 81.2412, "name": "Primary Gyratory Crusher Hopper", "speed_limit": 15},
-    {"lat": 18.7320, "lng": 81.2380, "name": "Bacheli Rail Siding Weighbridge", "speed_limit": 22},
-    {"lat": 18.7295, "lng": 81.2355, "name": "West Overburden Waste Dump Ridge", "speed_limit": 32},
-    {"lat": 18.7268, "lng": 81.2345, "name": "Deposit 5 West Bench Decline Ramp", "speed_limit": 26},
-    {"lat": 18.7240, "lng": 81.2365, "name": "South Switchback Turn 2", "speed_limit": 18},
-    {"lat": 18.7220, "lng": 81.2388, "name": "Heavy Equipment Workshop Spur", "speed_limit": 35},
-    {"lat": 18.7205, "lng": 81.2405, "name": "Refueling Depot & Shift Staging", "speed_limit": 20},
-]
-QUARRY_WAYPOINTS = BAILADILA_WAYPOINTS  # Maintained for backwards compatibility
+with open(SIM_DATA_PATH, "r", encoding="utf-8") as f:
+    SIM_DATA = json.load(f)
 
-# ==============================================================================
-# DYNAMIC FOG ZONES & 10-MINUTE PREDICTIVE ENGINE (Bailadila Ridge Model)
-# ==============================================================================
+with open(TERRAIN_META_PATH, "r", encoding="utf-8") as f:
+    TERRAIN_META = json.load(f)
+
+# Load 16-bit DEM heightmap into numpy array
+DEM_IMG = cv2.imread(TERRAIN_PNG_PATH, cv2.IMREAD_UNCHANGED)
+if DEM_IMG is None:
+    DEM_IMG = np.full((256, 256), 32768, dtype=np.uint16)
+
+DEM_W = TERRAIN_META.get("width", 256)
+DEM_H = TERRAIN_META.get("height", 256)
+DEM_Y_MIN = float(TERRAIN_META.get("minElevationMeters", 219.9658))
+DEM_Y_MAX = float(TERRAIN_META.get("maxElevationMeters", 1272.3497))
+DEM_SOUTH = float(TERRAIN_META.get("south", 18.500139))
+DEM_NORTH = float(TERRAIN_META.get("north", 18.750139))
+DEM_WEST = float(TERRAIN_META.get("west", 81.149861))
+DEM_EAST = float(TERRAIN_META.get("east", 81.269861))
+
+DEM_LAT0 = (DEM_NORTH + DEM_SOUTH) / 2.0
+DEM_LON0 = (DEM_EAST + DEM_WEST) / 2.0
+M_LAT = 111320.0
+M_LON = 111320.0 * math.cos(DEM_LAT0 * math.pi / 180.0)
+
+# Deposit 14 Pit Center & Geometry (Conceptual excavation)
+PIT_LAT = 18.5792
+PIT_LON = 81.2194
+PIT_X = (PIT_LON - DEM_LON0) * M_LON
+PIT_Z = -(PIT_LAT - DEM_LAT0) * M_LAT
+PIT_RX = 1380.0
+PIT_RZ = 1120.0
+PIT_CUT_DEPTH = 225.0
+PIT_BENCHES = 10
+
+def sample_raw_dem_elevation(lon, lat):
+    """Bilinear interpolation of Copernicus GLO-30 DEM elevation in meters."""
+    if DEM_IMG is None:
+        return 720.0
+    fx = (lon - DEM_WEST) / (DEM_EAST - DEM_WEST) * (DEM_W - 1)
+    fz = (DEM_NORTH - lat) / (DEM_NORTH - DEM_SOUTH) * (DEM_H - 1)
+    x0 = max(0, min(DEM_W - 1, int(math.floor(fx))))
+    z0 = max(0, min(DEM_H - 1, int(math.floor(fz))))
+    x1 = min(DEM_W - 1, x0 + 1)
+    z1 = min(DEM_H - 1, z0 + 1)
+    tx = fx - x0
+    tz = fz - z0
+
+    def val_to_meters(val):
+        return DEM_Y_MIN + (float(val) / 65535.0) * (DEM_Y_MAX - DEM_Y_MIN)
+
+    a = val_to_meters(DEM_IMG[z0, x0])
+    b = val_to_meters(DEM_IMG[z0, x1])
+    c = val_to_meters(DEM_IMG[z1, x0])
+    d = val_to_meters(DEM_IMG[z1, x1])
+    return a * (1 - tx) * (1 - tz) + b * tx * (1 - tz) + c * (1 - tx) * tz + d * tx * tz
+
+def sample_mine_surface_elevation(lat, lon):
+    """
+    Authoritative surface elevation: calculates natural DEM elevation,
+    tests if point falls inside conceptual Deposit-14 pit excavation,
+    and returns final rendered mine surface elevation with 10 stepped benches.
+    """
+    x = (lon - DEM_LON0) * M_LON
+    z = -(lat - DEM_LAT0) * M_LAT
+    raw_dem_h = sample_raw_dem_elevation(lon, lat)
+
+    dx = x - PIT_X
+    dz = z - PIT_Z
+    theta = math.atan2(dz, dx)
+    r_organic = 1.0 + 0.12 * math.cos(3 * theta + 0.5) + 0.08 * math.sin(5 * theta - 0.7) + 0.04 * math.cos(2 * theta)
+    norm_dist = math.hypot(dx / PIT_RX, dz / PIT_RZ) / r_organic
+
+    if norm_dist >= 1.0:
+        return raw_dem_h  # Outside conceptual pit footprint
+
+    rim_h = sample_raw_dem_elevation(PIT_LON, PIT_LAT) + 12.0
+    floor_h = max(DEM_Y_MIN + 25.0, rim_h - PIT_CUT_DEPTH)
+    total_cut = rim_h - floor_h
+    num_benches = PIT_BENCHES
+    bench_height = total_cut / num_benches
+
+    if norm_dist > 0.88:
+        blend = (norm_dist - 0.88) / 0.12
+        top_bench_h = rim_h - bench_height * 0.4
+        pit_h = top_bench_h * (1.0 - blend) + raw_dem_h * blend
+    elif norm_dist > 0.15:
+        bench_param = (0.88 - norm_dist) / 0.73 * num_benches
+        bench_idx = min(num_benches - 1, int(math.floor(bench_param)))
+        bench_frac = bench_param - bench_idx
+        if bench_frac < 0.75:
+            step_offset = (bench_idx + 0.08) * bench_height
+        else:
+            slope_frac = (bench_frac - 0.75) / 0.25
+            step_offset = (bench_idx + 0.08 + slope_frac * 0.92) * bench_height
+        pit_h = rim_h - step_offset
+    else:
+        pit_h = floor_h
+
+    return min(raw_dem_h, pit_h)
+
+BASE_LAT = 18.5792
+BASE_LNG = 81.2194
+
+# Canonical 16-waypoint Deposit-14 simulation haul loop from bailadila_simulation_data.json
+SIM_WAYPOINTS = SIM_DATA["route"]["waypoints"]
+BAILADILA_WAYPOINTS = SIM_WAYPOINTS
+QUARRY_WAYPOINTS = SIM_WAYPOINTS
+
+# Dynamic Fog Zones centered around Kirandul & Deposit-14 Pit
 FOG_ZONES = {
     "ZONE_1": {
         "id": "ZONE_1",
-        "name": "Zone 1: Deposit 5 Pit Bottom Bench",
-        "elevation_m": 1040,
+        "name": "Zone 1: Deposit 14 Pit Floor & Loading Bay",
+        "elevation_m": 530,
         "polygon": [
-            [18.7185, 81.2390],
-            [18.7245, 81.2390],
-            [18.7245, 81.2455],
-            [18.7185, 81.2455],
+            [18.5775, 81.2155],
+            [18.5815, 81.2155],
+            [18.5815, 81.2215],
+            [18.5775, 81.2215],
         ],
-        "center": [18.7215, 81.2422],
-        "temperature_c": 17.4,
-        "humidity_pct": 93.0,
-        "dew_point_c": 16.2,
-        "wind_speed_kmh": 4.8,
+        "center": [18.5795, 81.2185],
+        "temperature_c": 16.8,
+        "humidity_pct": 94.0,
+        "dew_point_c": 15.9,
+        "wind_speed_kmh": 3.6,
         "wind_dir": "NE",
         "visibility_m": 18,
         "severity": "SEVERE FOG",
@@ -78,88 +173,88 @@ FOG_ZONES = {
             "visibility_m": 12,
             "severity": "CRITICAL FOG",
             "trend": "Worsening (Bastar Valley Cloud Inversion)",
-            "advisory": "Dense valley cloud inversion rising into pit. Mandate automated speed governor."
+            "advisory": "Dense valley cloud inversion pooling into pit basin. Mandatory 10 km/h speed governor."
         }
     },
     "ZONE_2": {
         "id": "ZONE_2",
-        "name": "Zone 2: North Ridge Switchback Haulway",
-        "elevation_m": 1165,
+        "name": "Zone 2: East & West Hairpin Switchbacks",
+        "elevation_m": 680,
         "polygon": [
-            [18.7245, 81.2430],
-            [18.7300, 81.2430],
-            [18.7300, 81.2495],
-            [18.7245, 81.2495],
+            [18.5815, 81.2135],
+            [18.5885, 81.2135],
+            [18.5885, 81.2275],
+            [18.5815, 81.2275],
         ],
-        "center": [18.7272, 81.2465],
-        "temperature_c": 18.8,
-        "humidity_pct": 82.0,
-        "dew_point_c": 15.6,
-        "wind_speed_kmh": 9.5,
+        "center": [18.5850, 81.2205],
+        "temperature_c": 18.2,
+        "humidity_pct": 84.0,
+        "dew_point_c": 15.2,
+        "wind_speed_kmh": 8.0,
         "wind_dir": "ENE",
         "visibility_m": 42,
         "severity": "LOW VISIBILITY",
         "color": "#f97316",
-        "max_safe_speed": 18,
+        "max_safe_speed": 16,
         "prediction_10m": {
-            "visibility_m": 24,
+            "visibility_m": 26,
             "severity": "SEVERE FOG",
-            "trend": "Deteriorating (Upslope Mountain Mist)",
-            "advisory": "Mountain ridge updraft creating dense fog pockets along switchback turns."
+            "trend": "Deteriorating (Mountain Mist)",
+            "advisory": "Ridge updraft condensing along middle bench switchbacks. Active Fog-Guard radar required."
         }
     },
     "ZONE_3": {
         "id": "ZONE_3",
-        "name": "Zone 3: Waste Dump Ridge (Peak 1220m)",
-        "elevation_m": 1220,
+        "name": "Zone 3: Deposit 14 North & South Rim Crest",
+        "elevation_m": 745,
         "polygon": [
-            [18.7245, 81.2325],
-            [18.7310, 81.2325],
-            [18.7310, 81.2390],
-            [18.7245, 81.2390],
+            [18.5880, 81.2150],
+            [18.5940, 81.2150],
+            [18.5940, 81.2280],
+            [18.5880, 81.2280],
         ],
-        "center": [18.7278, 81.2358],
-        "temperature_c": 20.2,
-        "humidity_pct": 60.0,
-        "dew_point_c": 12.1,
-        "wind_speed_kmh": 17.0,
+        "center": [18.5910, 81.2215],
+        "temperature_c": 19.5,
+        "humidity_pct": 68.0,
+        "dew_point_c": 13.0,
+        "wind_speed_kmh": 14.5,
         "wind_dir": "E",
-        "visibility_m": 85,
+        "visibility_m": 80,
         "severity": "CAUTION",
         "color": "#f59e0b",
-        "max_safe_speed": 25,
+        "max_safe_speed": 22,
         "prediction_10m": {
             "visibility_m": 75,
             "severity": "CAUTION",
             "trend": "Stable (Ridge Wind Dispersing Haze)",
-            "advisory": "Maintain caution distance; intermittent mountain crest mist."
+            "advisory": "Intermittent mountain crest fog bands. Maintain safe following clearance."
         }
     },
     "ZONE_4": {
         "id": "ZONE_4",
-        "name": "Zone 4: Primary Crusher & Bacheli Terminal",
-        "elevation_m": 1110,
+        "name": "Zone 4: Kirandul Dispatch Yard & Rail Terminal",
+        "elevation_m": 715,
         "polygon": [
-            [18.7295, 81.2380],
-            [18.7355, 81.2380],
-            [18.7355, 81.2455],
-            [18.7295, 81.2455],
+            [18.5900, 81.2180],
+            [18.5960, 81.2180],
+            [18.5960, 81.2260],
+            [18.5900, 81.2260],
         ],
-        "center": [18.7325, 81.2418],
-        "temperature_c": 21.5,
-        "humidity_pct": 46.0,
-        "dew_point_c": 9.2,
-        "wind_speed_kmh": 12.5,
+        "center": [18.5930, 81.2220],
+        "temperature_c": 21.0,
+        "humidity_pct": 52.0,
+        "dew_point_c": 10.4,
+        "wind_speed_kmh": 11.0,
         "wind_dir": "ESE",
         "visibility_m": 145,
         "severity": "NORMAL",
         "color": "#10b981",
-        "max_safe_speed": 35,
+        "max_safe_speed": 30,
         "prediction_10m": {
             "visibility_m": 140,
             "severity": "NORMAL",
-            "trend": "Clear (Terminal Fans Active)",
-            "advisory": "Crusher plant approach and rail siding clear. Nominal operating speed permitted."
+            "trend": "Clear (Dispatch Yard Fans Active)",
+            "advisory": "Dispatch yard, maintenance spur, and crusher approach clear. Nominal haul speeds permitted."
         }
     },
 }
@@ -284,6 +379,7 @@ def get_zone_for_point(lat, lng):
 
 # ==============================================================================
 # 6 TRUCK FLEET DEFINITIONS (Clean Industrial Naming)
+# Canonical Deposit-14 Fleet Configuration
 # ==============================================================================
 FLEET_DEFS = [
     {
@@ -294,7 +390,7 @@ FLEET_DEFS = [
         "max_payload": 360,
         "base_wp_idx": 0,
         "avatar_color": "#38bdf8",
-        "default_source": "REAL_HARDWARE",  # Ready for ESP32 + GPS binding
+        "default_source": "SIMULATED",  # Dual-mode: SIMULATED or REAL_HARDWARE via /api/vehicle/mode
     },
     {
         "id": "TRUCK_02",
@@ -302,7 +398,7 @@ FLEET_DEFS = [
         "model": "Bucyrus MT4400",
         "type": "Haul Truck",
         "max_payload": 240,
-        "base_wp_idx": 2,
+        "base_wp_idx": 3,
         "avatar_color": "#10b981",
         "default_source": "SIMULATED",
     },
@@ -312,7 +408,7 @@ FLEET_DEFS = [
         "model": "Komatsu 930E-5",
         "type": "Haul Truck",
         "max_payload": 290,
-        "base_wp_idx": 4,
+        "base_wp_idx": 6,
         "avatar_color": "#3b82f6",
         "default_source": "SIMULATED",
     },
@@ -322,7 +418,7 @@ FLEET_DEFS = [
         "model": "Liebherr T 284",
         "type": "Haul Truck",
         "max_payload": 363,
-        "base_wp_idx": 6,
+        "base_wp_idx": 9,
         "avatar_color": "#f59e0b",
         "default_source": "SIMULATED",
     },
@@ -332,7 +428,7 @@ FLEET_DEFS = [
         "model": "BelAZ 75710",
         "type": "Haul Truck",
         "max_payload": 450,
-        "base_wp_idx": 8,
+        "base_wp_idx": 12,
         "avatar_color": "#ec4899",
         "default_source": "SIMULATED",
     },
@@ -342,7 +438,7 @@ FLEET_DEFS = [
         "model": "Hitachi EH5000AC-3",
         "type": "Haul Truck",
         "max_payload": 296,
-        "base_wp_idx": 10,
+        "base_wp_idx": 14,
         "avatar_color": "#a855f7",
         "default_source": "SIMULATED",
     },
@@ -373,91 +469,122 @@ TRUCK_CREDENTIALS = {
 
 fleet_lock = threading.Lock()
 fleet_data = {}
+telemetry_sequence = 0
+active_scenario = {
+    "id": "CLEAR_RUN",
+    "description": "Normal haul cycle",
+    "applied_at": time.time(),
+}
+safety_events = []
+
 simulation_config = {
     "running": True,
     "speed_multiplier": 1.0,
-    "obstacle_probability": 0.08,
+    "obstacle_probability": 0.05,
 }
 MAX_TRAIL_LEN = 80
 MAX_VEHICLE_LOG = 35
 
 # ==============================================================================
-# REALISTIC HETEROGENEOUS INDUSTRIAL SIMULATION PROFILES
-# Ensures each simulated haul unit has distinctly different speed, payload,
-# cycle stage, tire pressure, temperature, gear, and proximity behavior!
+# CANONICAL INDUSTRIAL SIMULATION PROFILES (Deposit-14 Haul Loop)
+# Extracted from bailadila_simulation_data.json
 # ==============================================================================
 SIMULATION_PROFILES = {
-    "TRUCK_02": {
-        "desc": "Loaded High-Grade Ore Hauler (Incline Ramp 1)",
-        "wp_idx": 1,
-        "target_speed": 19.5,
+    "TRUCK_01": {
+        "desc": "Heavy Dispatch Unit (Kirandul Dispatch Yard)",
+        "wp_idx": 0,
+        "wp_t": 0.08,
+        "target_speed": 16.0,
         "gear": "D2",
-        "payload_pct": 0.96,   # 230.4 tons (heavy ore load)
-        "engine_temp": 95.4,   # High load thermal profile
+        "payload_pct": 0.694,  # 250 tons / 360t
+        "engine_temp": 89.2,
+        "tire_pressure": 102.5,
+        "dist_front_range": (110, 160),
+        "dist_left_range": (85, 120),
+        "dist_right_range": (95, 130),
+        "fog_vis": 75,
+    },
+    "TRUCK_02": {
+        "desc": "Loaded High-Grade Ore Hauler (East Hairpin 1)",
+        "wp_idx": 3,
+        "wp_t": 0.25,
+        "target_speed": 11.0,
+        "gear": "D2",
+        "payload_pct": 0.916,  # 220 tons
+        "engine_temp": 95.4,
         "tire_pressure": 107.5,
-        "dist_front_range": (140, 195),
-        "dist_left_range": (110, 160),
-        "dist_right_range": (120, 170),
+        "dist_front_range": (42, 65),
+        "dist_left_range": (65, 90),
+        "dist_right_range": (50, 75),
+        "fog_vis": 38,
     },
     "TRUCK_03": {
-        "desc": "Empty High-Speed Return Unit (Crest Haulway)",
-        "wp_idx": 3,
-        "target_speed": 36.5,
-        "gear": "D4",
-        "payload_pct": 0.0,    # 0.0 tons (empty hopper return)
-        "engine_temp": 83.2,   # Cool running unloaded diesel
-        "tire_pressure": 98.5,
-        "dist_front_range": (210, 280),
-        "dist_left_range": (160, 220),
-        "dist_right_range": (160, 220),
+        "desc": "Empty Return Hauler (South Rim Crest)",
+        "wp_idx": 6,
+        "wp_t": 0.55,
+        "target_speed": 9.0,
+        "gear": "D1",
+        "payload_pct": 0.0,    # 0 tons empty
+        "engine_temp": 82.5,
+        "tire_pressure": 98.2,
+        "dist_front_range": (160, 220),
+        "dist_left_range": (110, 150),
+        "dist_right_range": (125, 165),
+        "fog_vis": 110,
     },
     "TRUCK_04": {
-        "desc": "Mountain Switchback Turn (Fog Caution Corridor)",
-        "wp_idx": 2,
-        "target_speed": 13.0,
+        "desc": "Pit Floor Loading Crawl (Ore Loading Bay)",
+        "wp_idx": 9,
+        "wp_t": 0.10,
+        "target_speed": 7.0,
         "gear": "D1",
-        "payload_pct": 0.94,   # 341.2 tons (heavy Liebherr load)
-        "engine_temp": 99.1,   # Hot heavy switchback climb
-        "tire_pressure": 105.2,
-        "dist_front_range": (35, 68),   # Switchback caution trigger
-        "dist_left_range": (45, 90),
-        "dist_right_range": (40, 85),
+        "payload_pct": 0.923,  # 335 tons
+        "engine_temp": 98.8,
+        "tire_pressure": 106.1,
+        "dist_front_range": (20, 35),
+        "dist_left_range": (40, 60),
+        "dist_right_range": (75, 100),
+        "fog_vis": 22,
     },
     "TRUCK_05": {
-        "desc": "Ultra-Class Behemoth (Deposit 5 Loading Crawl)",
-        "wp_idx": 0,
-        "target_speed": 8.5,
-        "gear": "D1",
-        "payload_pct": 0.97,   # 436.5 tons (450t mega capacity)
-        "engine_temp": 88.6,
-        "tire_pressure": 114.8, # Extreme load tire rating
-        "dist_front_range": (55, 105),
-        "dist_left_range": (70, 130),
-        "dist_right_range": (70, 130),
+        "desc": "Ultra-Class Heavy Hauler (West Middle Bench)",
+        "wp_idx": 12,
+        "wp_t": 0.70,
+        "target_speed": 13.0,
+        "gear": "D2",
+        "payload_pct": 0.911,  # 410 tons
+        "engine_temp": 90.4,
+        "tire_pressure": 115.0,
+        "dist_front_range": (80, 115),
+        "dist_left_range": (90, 120),
+        "dist_right_range": (95, 125),
+        "fog_vis": 55,
     },
     "TRUCK_06": {
-        "desc": "Primary Gyratory Crusher Terminal Approach",
-        "wp_idx": 5,
-        "target_speed": 25.0,
+        "desc": "North Ramp Climbing Unit (Northwest Upper Bench)",
+        "wp_idx": 14,
+        "wp_t": 0.35,
+        "target_speed": 15.0,
         "gear": "D3",
-        "payload_pct": 0.62,   # 183.5 tons (partial haul)
-        "engine_temp": 91.5,
-        "tire_pressure": 103.4,
-        "dist_front_range": (160, 220),
-        "dist_left_range": (130, 185),
-        "dist_right_range": (130, 185),
+        "payload_pct": 0.608,  # 180 tons
+        "engine_temp": 92.1,
+        "tire_pressure": 104.2,
+        "dist_front_range": (140, 180),
+        "dist_left_range": (110, 140),
+        "dist_right_range": (115, 145),
+        "fog_vis": 95,
     },
 }
 
 
 def decide_action(front, left, right):
-    if front < 15:
+    if front < 18:
         if left > right and left > 45:
             return "TURN LEFT"
         if right > left and right > 45:
             return "TURN RIGHT"
         return "STOP"
-    if front < 40:
+    if front < 45:
         if left > right and left > 40:
             return "TURN LEFT"
         if right > left and right > 40:
@@ -466,112 +593,121 @@ def decide_action(front, left, right):
     return "CLEAR"
 
 
-# Initialize vehicle states
+def determine_lifecycle_state(wp_idx, wp_name, action, speed_kmh):
+    """Calculates haul cycle stage based on Deposit-14 loop position."""
+    if action == "STOP":
+        return "STOPPED"
+    if action in ("SLOW DOWN", "TURN LEFT", "TURN RIGHT"):
+        return "CAUTION"
+    if wp_idx in (8, 9):  # PIT_FLOOR or LOADING_BAY
+        return "LOADING" if speed_kmh < 9.0 else "LOADED"
+    if 10 <= wp_idx <= 15:  # WEST_LOWER ascending towards RAMP_NORTH
+        return "HAULING"
+    if wp_idx == 0:  # KIRANDUL_YARD dispatch/dump terminal
+        return "DUMPING"
+    return "EMPTY_RETURN"
+
+
+def log_safety_event(vid, event_type, severity, lat, lng, message):
+    evt = {
+        "event_id": f"EVT-{int(time.time() * 1000) % 1000000}",
+        "vehicle_id": vid,
+        "timestamp": datetime.now().strftime("%H:%M:%S"),
+        "epoch": int(time.time()),
+        "type": event_type,
+        "severity": severity,
+        "lat": round(lat, 6),
+        "lng": round(lng, 6),
+        "message": message,
+    }
+    safety_events.insert(0, evt)
+    if len(safety_events) > 50:
+        safety_events.pop()
+    return evt
+
+
+# Initialize canonical vehicle states on the Deposit-14 Loop
+num_canonical_wps = len(SIM_WAYPOINTS)
 for vdef in FLEET_DEFS:
     vid = vdef["id"]
-    is_truck_01 = (vid == "TRUCK_01")
-    prof = SIMULATION_PROFILES.get(vid)
+    prof = SIMULATION_PROFILES.get(vid, {})
 
-    if prof:
-        wp_idx = prof["wp_idx"]
-    else:
-        wp_idx = vdef["base_wp_idx"] % len(QUARRY_WAYPOINTS)
+    wp_idx = prof.get("wp_idx", vdef["base_wp_idx"] % num_canonical_wps)
+    wp_t = prof.get("wp_t", 0.0)
 
-    wp = QUARRY_WAYPOINTS[wp_idx]
-    next_wp = QUARRY_WAYPOINTS[(wp_idx + 1) % len(QUARRY_WAYPOINTS)]
+    cur_wp = SIM_WAYPOINTS[wp_idx]
+    next_wp = SIM_WAYPOINTS[(wp_idx + 1) % num_canonical_wps]
 
-    d_lng = next_wp["lng"] - wp["lng"]
-    d_lat = next_wp["lat"] - wp["lat"]
-    heading = (math.degrees(math.atan2(d_lng, d_lat)) + 360) % 360
+    init_lat = round(cur_wp["lat"] + (next_wp["lat"] - cur_wp["lat"]) * wp_t, 6)
+    init_lng = round(cur_wp["lng"] + (next_wp["lng"] - cur_wp["lng"]) * wp_t, 6)
 
-    if is_truck_01:
-        # Real-time GPS node coordinates (matches ESP32 hardware node location)
-        init_lat = 17.5389
-        init_lng = 78.3846
-        zone = get_zone_for_point(init_lat, init_lng)
-        speed_kmh = 0.0
-        target_speed = 0.0
-        gear = None
-        engine_temp_c = None
-        tire_pressure_psi = None
-        payload_tons = None
-        dist_front = 180
-        dist_left = 150
-        dist_right = 150
-        action = "CLEAR"
-        status = "NORMAL"
-        risk_score = None
-        has_risk_data = False
-        has_diagnostics = False
-    else:
-        init_lat = round(wp["lat"], 6)
-        init_lng = round(wp["lng"], 6)
-        zone = get_zone_for_point(init_lat, init_lng)
+    d_lng = next_wp["lng"] - cur_wp["lng"]
+    d_lat = next_wp["lat"] - cur_wp["lat"]
+    heading = (math.degrees(math.atan2(d_lng, d_lat)) + 360.0) % 360.0
 
-        if prof:
-            speed_kmh = round(prof["target_speed"] * random.uniform(0.96, 1.04), 1)
-            target_speed = prof["target_speed"]
-            gear = prof["gear"]
-            engine_temp_c = round(prof["engine_temp"] + random.uniform(-0.6, 0.6), 1)
-            tire_pressure_psi = round(prof["tire_pressure"] + random.uniform(-0.4, 0.4), 1)
-            payload_tons = round(vdef["max_payload"] * prof["payload_pct"], 1)
-            dist_front = random.randint(*prof["dist_front_range"])
-            dist_left = random.randint(*prof["dist_left_range"])
-            dist_right = random.randint(*prof["dist_right_range"])
-        else:
-            speed_kmh = round(min(wp["speed_limit"], zone["max_safe_speed"]) * random.uniform(0.85, 1.02), 1)
-            target_speed = zone["max_safe_speed"]
-            gear = "D3"
-            engine_temp_c = round(random.uniform(84.0, 92.0), 1)
-            tire_pressure_psi = round(random.uniform(101.0, 104.5), 1)
-            payload_tons = round(vdef["max_payload"] * random.uniform(0.65, 0.98), 1)
-            dist_front = random.randint(140, 220)
-            dist_left = random.randint(120, 200)
-            dist_right = random.randint(120, 200)
+    zone = get_zone_for_point(init_lat, init_lng)
+    # Authoritative surface elevation sampled from Copernicus DEM & carved pit
+    init_elev = round(sample_mine_surface_elevation(init_lat, init_lng), 1)
 
-        action = decide_action(dist_front, dist_left, dist_right)
-        status = "CRITICAL" if action == "STOP" else ("CAUTION" if action != "CLEAR" else "NORMAL")
-        risk_score = {
-            "total": 24,
-            "level": "LOW",
-            "speed_factor": 15,
-            "fog_factor": 25,
-            "traffic_factor": 10,
-            "hazard_factor": 5,
-        }
-        has_risk_data = True
-        has_diagnostics = True
+    speed_kmh = prof.get("target_speed", 15.0)
+    target_speed = min(speed_kmh, zone["max_safe_speed"])
+    gear = prof.get("gear", "D2")
+    engine_temp_c = prof.get("engine_temp", 88.0)
+    tire_pressure_psi = prof.get("tire_pressure", 104.0)
+    payload_tons = round(vdef["max_payload"] * prof.get("payload_pct", 0.75), 1)
 
-    fleet_data[vdef["id"]] = {
-        "id": vdef["id"],
-        "name": vdef["name"],
+    dist_front = random.randint(*prof.get("dist_front_range", (120, 180)))
+    dist_left = random.randint(*prof.get("dist_left_range", (90, 140)))
+    dist_right = random.randint(*prof.get("dist_right_range", (90, 140)))
+    fog_vis = prof.get("fog_vis", zone["visibility_m"])
+
+    action = decide_action(dist_front, dist_left, dist_right)
+    status = "CRITICAL" if action == "STOP" else ("CAUTION" if action != "CLEAR" else "NORMAL")
+
+    lifecycle = determine_lifecycle_state(wp_idx, cur_wp.get("name", ""), action, speed_kmh)
+
+    risk_score = {
+        "total": 18,
+        "level": "SAFE",
+        "speed_factor": 12,
+        "fog_factor": 20,
+        "traffic_factor": 10,
+        "hazard_factor": 5,
+        "pit_edge_factor": 10,
+    }
+
+    fleet_data[vid] = {
+        "id": vid,
+        "name": vid,
         "model": vdef["model"],
         "type": vdef["type"],
         "max_payload": vdef["max_payload"],
         "avatar_color": vdef["avatar_color"],
         "source_type": vdef["default_source"],  # 'SIMULATED' or 'REAL_HARDWARE'
-        "hardware_status": "ONLINE" if vdef["default_source"] == "REAL_HARDWARE" else "N/A",
+        "hardware_status": "CONNECTED_LIVE" if vdef["default_source"] == "REAL_HARDWARE" else "N/A",
         "last_hardware_packet": None,
         "packet_count": 0,
         "status": status,
         "action": action,
+        "lifecycle_state": lifecycle,
         "speed_kmh": speed_kmh,
         "target_speed": target_speed,
         "gear": gear,
-        "battery_pct": 100.0 if is_truck_01 else round(random.uniform(82.0, 99.0), 1),
+        "battery_pct": round(random.uniform(88.0, 99.5), 1),
         "engine_temp_c": engine_temp_c,
         "tire_pressure_psi": tire_pressure_psi,
         "payload_tons": payload_tons,
         "dist_front": dist_front,
         "dist_left": dist_left,
         "dist_right": dist_right,
+        "fog_visibility_m": fog_vis,
         "gps_valid": True,
         "lat": init_lat,
         "lng": init_lng,
-        "elevation_m": zone.get("elevation_m", 580 if is_truck_01 else 1040),
-        "heading": 0.0 if is_truck_01 else round(heading, 1),
+        "elevation_m": init_elev,
+        "heading": round(heading, 1),
         "wp_idx": wp_idx,
-        "wp_t": 0.0,
+        "wp_t": wp_t,
         "trail": [[init_lat, init_lng]],
         "current_zone": {
             "id": zone["id"],
@@ -582,8 +718,8 @@ for vdef in FLEET_DEFS:
             "color": zone["color"],
         },
         "risk_score": risk_score,
-        "has_risk_data": has_risk_data,
-        "has_diagnostics": has_diagnostics,
+        "has_risk_data": True,
+        "has_diagnostics": True,
         "closest_truck": {
             "id": "NONE",
             "name": "None",
@@ -593,17 +729,21 @@ for vdef in FLEET_DEFS:
             {
                 "time": datetime.now().strftime("%H:%M:%S"),
                 "action": "CLEAR",
-                "dist_front": 180,
-                "note": f"{vdef['name']} online. Source: {vdef['default_source']}.",
+                "dist_front": dist_front,
+                "note": f"{vid} online on Deposit-14 loop. Surface Elev: {init_elev}m. Source: {vdef['default_source']}.",
             }
         ],
         "manual_obstacle_until": 0,
         "last_update": datetime.now().strftime("%H:%M:%S"),
+        "last_update_ts": time.time(),
+        "sequence": 0,
+        "is_connected": True,
+        "is_moving": True,
     }
 
 
 # ==============================================================================
-# REAL-TIME RISK SCORE CALCULATION
+# AUTHORITATIVE RISK SCORE ENGINE (0-100)
 # ==============================================================================
 def compute_risk_score(v, closest_dist, zone):
     """
@@ -612,29 +752,28 @@ def compute_risk_score(v, closest_dist, zone):
       - Fog Exposure: Inversely proportional to visibility
       - Traffic Proximity: Distance to closest other truck
       - Road Hazard: Front obstacle distance from ultrasonic sensor
+      - Pit Edge / Switchback Factor: Proximity to steep crests/edges
     """
-    # 1. Speed Factor (0 - 100)
-    safe_speed = zone["max_safe_speed"]
-    if v["speed_kmh"] <= safe_speed:
-        speed_factor = (v["speed_kmh"] / (safe_speed + 1e-5)) * 40.0
+    safe_speed = zone.get("max_safe_speed", 25)
+    speed = v.get("speed_kmh", 0.0)
+    if speed <= safe_speed:
+        speed_factor = (speed / (safe_speed + 1e-5)) * 35.0
     else:
-        overspeed = v["speed_kmh"] - safe_speed
-        speed_factor = min(100.0, 40.0 + (overspeed / 15.0) * 60.0)
+        overspeed = speed - safe_speed
+        speed_factor = min(100.0, 35.0 + (overspeed / 15.0) * 65.0)
 
-    # 2. Fog Exposure (0 - 100)
-    vis = zone["visibility_m"]
+    vis = v.get("fog_visibility_m") or zone.get("visibility_m", 100)
     if vis >= 120:
         fog_factor = 10.0
     elif vis >= 80:
         fog_factor = 30.0
     elif vis >= 40:
         fog_factor = 60.0
-    elif vis >= 15:
+    elif vis >= 20:
         fog_factor = 85.0
     else:
         fog_factor = 100.0
 
-    # 3. Traffic Proximity Factor (0 - 100)
     if closest_dist < 20.0:
         traffic_factor = 95.0
     elif closest_dist < 40.0:
@@ -646,36 +785,45 @@ def compute_risk_score(v, closest_dist, zone):
     else:
         traffic_factor = 5.0
 
-    # 4. Road Hazard Factor (0 - 100)
-    front = v["dist_front"]
+    front = v.get("dist_front", 180)
     if front < 15:
         hazard_factor = 100.0
-    elif front < 35:
-        hazard_factor = 75.0
+    elif front < 30:
+        hazard_factor = 85.0
     elif front < 60:
-        hazard_factor = 45.0
+        hazard_factor = 55.0
     elif front < 100:
-        hazard_factor = 20.0
+        hazard_factor = 30.0
+    elif front < 150:
+        hazard_factor = 15.0
     else:
         hazard_factor = 5.0
 
-    # Weighted composite score
+    wp_idx = v.get("wp_idx", 0)
+    if wp_idx in (3, 5, 11, 13):
+        pit_edge_factor = 55.0
+    elif wp_idx in (6, 7, 8, 9, 10):
+        pit_edge_factor = 35.0
+    else:
+        pit_edge_factor = 10.0
+
     total = (
-        0.30 * speed_factor +
-        0.30 * fog_factor +
+        0.25 * speed_factor +
+        0.25 * fog_factor +
         0.20 * traffic_factor +
-        0.20 * hazard_factor
+        0.20 * hazard_factor +
+        0.10 * pit_edge_factor
     )
     total_clamped = int(max(0, min(100, round(total))))
 
-    if total_clamped >= 80:
+    if total_clamped >= 76:
         level = "CRITICAL"
-    elif total_clamped >= 60:
+    elif total_clamped >= 51:
         level = "HIGH"
-    elif total_clamped >= 35:
-        level = "MODERATE"
+    elif total_clamped >= 26:
+        level = "CAUTION"
     else:
-        level = "LOW"
+        level = "SAFE"
 
     return {
         "total": total_clamped,
@@ -684,18 +832,31 @@ def compute_risk_score(v, closest_dist, zone):
         "fog_factor": int(round(fog_factor)),
         "traffic_factor": int(round(traffic_factor)),
         "hazard_factor": int(round(hazard_factor)),
+        "pit_edge_factor": int(round(pit_edge_factor)),
     }
 
 
 # ==============================================================================
-# AUTONOMOUS SIMULATION THREAD
+# AUTONOMOUS SIMULATION THREAD (Deposit-14 Canonical Haul Loop)
 # ==============================================================================
 def simulation_loop():
+    global telemetry_sequence
+    num_wp = len(SIM_WAYPOINTS)
+
+    # Precalculate metric segment distances along the canonical Deposit-14 loop
+    seg_distances = []
+    for i in range(num_wp):
+        w1 = SIM_WAYPOINTS[i]
+        w2 = SIM_WAYPOINTS[(i + 1) % num_wp]
+        d = haversine_distance_m(w1["lat"], w1["lng"], w2["lat"], w2["lng"])
+        seg_distances.append(max(10.0, d))
+
     while True:
         time.sleep(1.0)
         with fleet_lock:
-            now_str = datetime.now().strftime("%H:%M:%S")
+            telemetry_sequence += 1
             now_ts = time.time()
+            now_str = datetime.now().strftime("%H:%M:%S")
             multiplier = simulation_config["speed_multiplier"]
 
             # Calculate pairwise inter-truck distances for traffic proximity
@@ -719,8 +880,13 @@ def simulation_loop():
                     "distance_m": round(min_d, 1),
                 }
 
+            scen_id = active_scenario.get("id", "CLEAR_RUN")
+
             for vid, v in fleet_data.items():
                 v["closest_truck"] = closest_info[vid]
+                v["last_update_ts"] = now_ts
+                v["sequence"] = telemetry_sequence
+
                 zone = get_zone_for_point(v["lat"], v["lng"])
                 v["current_zone"] = {
                     "id": zone["id"],
@@ -731,77 +897,93 @@ def simulation_loop():
                     "color": zone["color"],
                 }
 
-                # If this vehicle is bound to REAL_HARDWARE or is TRUCK_01, do not simulate motion or sensors
-                # Real hardware posts into /update directly.
-                is_truck_01 = (vid == "TRUCK_01")
-                if v["source_type"] == "REAL_HARDWARE" or is_truck_01:
-                    if is_truck_01:
-                        v["speed_kmh"] = 0.0
-                        v["is_moving"] = False
-                        v["risk_score"] = None
-                        v["has_risk_data"] = False
-                        v["has_diagnostics"] = False
-                        v["engine_temp_c"] = None
-                        v["tire_pressure_psi"] = None
-                        v["payload_tons"] = None
-                        v["gear"] = None
-                    else:
-                        v["risk_score"] = compute_risk_score(v, closest_info[vid]["distance_m"], zone)
-
-                    if v["last_hardware_packet"]:
+                # REAL_HARDWARE handling (ESP32 node / TRUCK_01 hardware mode)
+                if v["source_type"] == "REAL_HARDWARE":
+                    if v.get("last_hardware_packet"):
                         elapsed = now_ts - v["last_hardware_packet"]
                         if elapsed > 12.0:
                             v["hardware_status"] = "LINK_TIMEOUT"
+                            v["is_connected"] = False
                         else:
                             v["hardware_status"] = "CONNECTED_LIVE"
-                    continue
+                            v["is_connected"] = True
+                    else:
+                        v["hardware_status"] = "WAITING_TELEMETRY"
+                        v["is_connected"] = False
 
-                if not simulation_config["running"]:
+                    # Authoritative surface elevation sampled from current GPS position
+                    v["elevation_m"] = round(sample_mine_surface_elevation(v["lat"], v["lng"]), 1)
                     v["risk_score"] = compute_risk_score(v, closest_info[vid]["distance_m"], zone)
                     continue
 
                 # SIMULATED VEHICLE LOGIC
-                cur_wp = QUARRY_WAYPOINTS[v["wp_idx"]]
-                next_wp_idx = (v["wp_idx"] + 1) % len(QUARRY_WAYPOINTS)
-                next_wp = QUARRY_WAYPOINTS[next_wp_idx]
+                if not simulation_config["running"]:
+                    v["elevation_m"] = round(sample_mine_surface_elevation(v["lat"], v["lng"]), 1)
+                    v["risk_score"] = compute_risk_score(v, closest_info[vid]["distance_m"], zone)
+                    continue
+
+                cur_wp_idx = v["wp_idx"] % num_wp
+                cur_wp = SIM_WAYPOINTS[cur_wp_idx]
+                next_wp_idx = (cur_wp_idx + 1) % num_wp
+                next_wp = SIM_WAYPOINTS[next_wp_idx]
 
                 prof = SIMULATION_PROFILES.get(vid)
+
+                # Sensor readings computation based on active scenario and profiles
                 if now_ts < v.get("manual_obstacle_until", 0):
                     front = v["dist_front"]
                     left = v["dist_left"]
                     right = v["dist_right"]
+                    vis = v.get("fog_visibility_m", zone["visibility_m"])
+                elif scen_id == "OBSTACLE_AHEAD" and vid == "TRUCK_04":
+                    front = 12  # Critical front obstacle <30cm
+                    left = 65
+                    right = 50
+                    vis = 45
+                elif scen_id == "DENSE_FOG":
+                    vis = 18  # Heavy pit-floor fog
+                    front = random.randint(45, 75)
+                    left = random.randint(70, 95)
+                    right = random.randint(70, 95)
+                elif scen_id == "HAIRPIN_CAUTION" and cur_wp_idx in (3, 5, 11, 13):
+                    front = random.randint(35, 48)
+                    left = random.randint(35, 55)
+                    right = random.randint(70, 100)
+                    vis = 38
+                elif scen_id == "TRAFFIC_CLOSE" and closest_info[vid]["distance_m"] < 35.0:
+                    front = 28
+                    left = 60
+                    right = 65
+                    vis = 60
                 else:
                     if prof:
-                        if random.random() < simulation_config["obstacle_probability"]:
-                            front = random.randint(10, 38)
-                            left = random.randint(25, 120)
-                            right = random.randint(25, 120)
-                        else:
-                            front = random.randint(*prof["dist_front_range"])
-                            left = random.randint(*prof["dist_left_range"])
-                            right = random.randint(*prof["dist_right_range"])
+                        front = random.randint(*prof["dist_front_range"])
+                        left = random.randint(*prof["dist_left_range"])
+                        right = random.randint(*prof["dist_right_range"])
+                        vis = zone["visibility_m"]
                     else:
-                        if random.random() < simulation_config["obstacle_probability"]:
-                            front = random.randint(8, 38)
-                            left = random.randint(20, 150)
-                            right = random.randint(20, 150)
-                        else:
-                            front = random.randint(85, 230)
-                            left = random.randint(70, 200)
-                            right = random.randint(70, 200)
+                        front = random.randint(140, 220)
+                        left = random.randint(110, 180)
+                        right = random.randint(110, 180)
+                        vis = zone["visibility_m"]
 
                 action = decide_action(front, left, right)
-                prev_action = v["action"]
+                prev_action = v.get("action", "CLEAR")
 
                 v["dist_front"] = front
                 v["dist_left"] = left
                 v["dist_right"] = right
+                v["fog_visibility_m"] = vis
                 v["action"] = action
                 v["last_update"] = now_str
 
-                # Speed & Gear adaptation: Governed by Profile & Zone Max Safe Fog Speed!
-                base_target = prof["target_speed"] if prof else cur_wp["speed_limit"]
+                # Speed adaptation governed by profile, speed limit & zone max safe speed
+                base_target = prof["target_speed"] if prof else cur_wp.get("speed_limit_kmh", 20)
                 target_speed = min(base_target, zone["max_safe_speed"])
+                if scen_id == "DENSE_FOG":
+                    target_speed = min(target_speed, 10.0)
+                elif scen_id == "HAIRPIN_CAUTION" and cur_wp_idx in (3, 5, 11, 13):
+                    target_speed = min(target_speed, 11.0)
                 v["target_speed"] = target_speed
 
                 if action == "STOP":
@@ -810,45 +992,32 @@ def simulation_loop():
                     v["gear"] = "N"
                 elif action in ("SLOW DOWN", "TURN LEFT", "TURN RIGHT"):
                     v["status"] = "CAUTION"
-                    v["speed_kmh"] = round(max(6.0, v["speed_kmh"] * 0.65), 1)
+                    v["speed_kmh"] = round(max(5.0, v["speed_kmh"] * 0.70), 1)
                     v["gear"] = "D1"
                 else:
                     v["status"] = "NORMAL"
                     if v["speed_kmh"] < target_speed:
-                        v["speed_kmh"] = round(min(target_speed, v["speed_kmh"] + random.uniform(1.2, 2.8)), 1)
+                        v["speed_kmh"] = round(min(target_speed, v["speed_kmh"] + random.uniform(1.2, 2.5)), 1)
                     elif v["speed_kmh"] > target_speed:
-                        v["speed_kmh"] = round(max(target_speed, v["speed_kmh"] - random.uniform(1.5, 3.0)), 1)
+                        v["speed_kmh"] = round(max(target_speed, v["speed_kmh"] - random.uniform(1.2, 2.5)), 1)
+                    v["gear"] = prof["gear"] if prof else "D2"
 
-                    if prof:
-                        v["gear"] = prof["gear"] if v["speed_kmh"] > 10 else "D1"
-                    else:
-                        v["gear"] = "D3" if v["speed_kmh"] > 22 else "D2"
+                v["lifecycle_state"] = determine_lifecycle_state(cur_wp_idx, cur_wp.get("name", ""), action, v["speed_kmh"])
 
-                # Update Risk Score
-                v["risk_score"] = compute_risk_score(v, closest_info[vid]["distance_m"], zone)
-
-                if action != prev_action or (action != "CLEAR" and random.random() < 0.25):
-                    v["log"].insert(
-                        0,
-                        {
-                            "time": now_str,
-                            "action": action,
-                            "dist_front": front,
-                            "note": f"Trigger: Front {front}cm (L:{left}cm R:{right}cm) | Risk: {v['risk_score']['total']}",
-                        },
-                    )
-                    del v["log"][MAX_VEHICLE_LOG:]
-
-                # Move vehicle along waypoint segment
+                # Move vehicle smoothly along waypoint segment
                 if v["speed_kmh"] > 0:
-                    step = (v["speed_kmh"] / 100.0) * 0.04 * multiplier
+                    seg_len = seg_distances[cur_wp_idx]
+                    dist_moved = (v["speed_kmh"] * 1000.0 / 3600.0) * 1.0 * multiplier
+                    step = dist_moved / seg_len
                     v["wp_t"] += step
 
-                    if v["wp_t"] >= 1.0:
+                    while v["wp_t"] >= 1.0:
                         v["wp_t"] -= 1.0
-                        v["wp_idx"] = next_wp_idx
-                        cur_wp = QUARRY_WAYPOINTS[v["wp_idx"]]
-                        next_wp = QUARRY_WAYPOINTS[(v["wp_idx"] + 1) % len(QUARRY_WAYPOINTS)]
+                        v["wp_idx"] = (v["wp_idx"] + 1) % num_wp
+                        cur_wp_idx = v["wp_idx"]
+                        cur_wp = SIM_WAYPOINTS[cur_wp_idx]
+                        next_wp_idx = (cur_wp_idx + 1) % num_wp
+                        next_wp = SIM_WAYPOINTS[next_wp_idx]
 
                     t = v["wp_t"]
                     lat = cur_wp["lat"] + (next_wp["lat"] - cur_wp["lat"]) * t
@@ -856,7 +1025,7 @@ def simulation_loop():
 
                     d_lng = next_wp["lng"] - cur_wp["lng"]
                     d_lat = next_wp["lat"] - cur_wp["lat"]
-                    heading = (math.degrees(math.atan2(d_lng, d_lat)) + 360) % 360
+                    heading = (math.degrees(math.atan2(d_lng, d_lat)) + 360.0) % 360.0
 
                     v["lat"] = round(lat, 6)
                     v["lng"] = round(lng, 6)
@@ -869,9 +1038,58 @@ def simulation_loop():
                         if len(trail) > MAX_TRAIL_LEN:
                             trail.pop(0)
 
-                v["battery_pct"] = round(max(5.0, v["battery_pct"] - 0.006 * multiplier), 1)
+                # Authoritative surface elevation sampled from local mine/DEM surface
+                v["elevation_m"] = round(sample_mine_surface_elevation(v["lat"], v["lng"]), 1)
+
+                # Update composite risk score
+                v["risk_score"] = compute_risk_score(v, closest_info[vid]["distance_m"], zone)
+
+                # Safety event logging on state triggers
+                if action == "STOP" and prev_action != "STOP":
+                    log_safety_event(
+                        vid=vid,
+                        event_type="OBSTACLE_DETECTED",
+                        severity="CRITICAL",
+                        lat=v["lat"],
+                        lng=v["lng"],
+                        message=f"{vid} triggered EMERGENCY STOP: obstacle {front}cm ahead in {zone['name']}."
+                    )
+                elif vis < 25 and (now_ts - v.get("last_fog_alert_ts", 0)) > 30.0:
+                    v["last_fog_alert_ts"] = now_ts
+                    log_safety_event(
+                        vid=vid,
+                        event_type="LOW_VISIBILITY",
+                        severity="HIGH",
+                        lat=v["lat"],
+                        lng=v["lng"],
+                        message=f"Severe fog inversion in {zone['name']}: visibility {vis}m."
+                    )
+                elif closest_info[vid]["distance_m"] < 25.0 and (now_ts - v.get("last_prox_alert_ts", 0)) > 20.0:
+                    v["last_prox_alert_ts"] = now_ts
+                    log_safety_event(
+                        vid=vid,
+                        event_type="COLLISION_RISK",
+                        severity="HIGH",
+                        lat=v["lat"],
+                        lng=v["lng"],
+                        message=f"{vid} traffic proximity alert: {closest_info[vid]['name']} is {closest_info[vid]['distance_m']}m away."
+                    )
+
+                if action != prev_action or (action != "CLEAR" and random.random() < 0.25):
+                    v["log"].insert(
+                        0,
+                        {
+                            "time": now_str,
+                            "action": action,
+                            "dist_front": front,
+                            "note": f"Trigger: Front {front}cm (L:{left}cm R:{right}cm) | Elev: {v['elevation_m']}m | Risk: {v['risk_score']['total']}",
+                        },
+                    )
+                    del v["log"][MAX_VEHICLE_LOG:]
+
+                v["battery_pct"] = round(max(5.0, v["battery_pct"] - 0.005 * multiplier), 1)
                 base_temp = prof["engine_temp"] if prof else 88.0
-                temp_delta = 0.25 if v["speed_kmh"] > 20 else -0.12
+                temp_delta = 0.20 if v["speed_kmh"] > 14 else -0.10
                 v["engine_temp_c"] = round(
                     max(base_temp - 3.0, min(base_temp + 6.0, v["engine_temp_c"] + temp_delta * random.uniform(0.4, 1.1))),
                     1,
@@ -1393,6 +1611,176 @@ def get_camera_status():
 # ==============================================================================
 # REST API ENDPOINTS
 # ==============================================================================
+@app.route("/api/simulation_route", methods=["GET"])
+def get_simulation_route():
+    """
+    Exposes canonical 16-waypoint Deposit-14 simulation haul loop
+    from bailadila_simulation_data.json. Single source of truth for Leaflet & Three.js.
+    """
+    return jsonify({
+        "status": "ok",
+        "name": "Conceptual 16-waypoint Deposit-14 simulation haul loop",
+        "disclaimer": "Conceptual simulation route for digital-twin prototype. Not an official NMDC mine survey or mine-plan representation.",
+        "loop": True,
+        "waypoints": SIM_WAYPOINTS,
+        "count": len(SIM_WAYPOINTS)
+    })
+
+
+@app.route("/api/terrain/sample", methods=["GET"])
+def get_terrain_sample():
+    """
+    Authoritative terrain surface sampling endpoint.
+    Determines regional DEM elevation, Deposit-14 pit footprint intersection,
+    and returns exact final rendered mine surface elevation in meters.
+    """
+    try:
+        lat = float(request.args.get("lat", BASE_LAT))
+        lng = float(request.args.get("lng", BASE_LNG))
+    except (ValueError, TypeError):
+        return jsonify({"status": "error", "msg": "Invalid lat or lng parameters"}), 400
+
+    raw_dem_h = round(sample_raw_dem_elevation(lng, lat), 2)
+    mine_surface_h = round(sample_mine_surface_elevation(lat, lng), 2)
+
+    x = (lng - DEM_LON0) * M_LON
+    z = -(lat - DEM_LAT0) * M_LAT
+    dx = x - PIT_X
+    dz = z - PIT_Z
+    norm_dist = math.hypot(dx / PIT_RX, dz / PIT_RZ)
+
+    inside_dem = (DEM_SOUTH <= lat <= DEM_NORTH) and (DEM_WEST <= lng <= DEM_EAST)
+
+    return jsonify({
+        "status": "ok",
+        "lat": lat,
+        "lng": lng,
+        "elevation_m": mine_surface_h,
+        "raw_dem_elevation_m": raw_dem_h,
+        "cut_depth_m": round(raw_dem_h - mine_surface_h, 2),
+        "inside_dem": inside_dem,
+        "inside_pit": bool(norm_dist < 1.0),
+        "disclaimer": "Copernicus GLO-30 DEM regional elevation with conceptual 10-bench Deposit-14 pit excavation."
+    })
+
+
+@app.route("/api/scenarios", methods=["GET"])
+def get_scenarios():
+    return jsonify({
+        "status": "ok",
+        "active_scenario": active_scenario,
+        "scenarios": SIM_DATA.get("scenario_library", [])
+    })
+
+
+@app.route("/api/scenarios/apply", methods=["POST"])
+def apply_scenario():
+    req = request.get_json(force=True, silent=True) or {}
+    scen_id = str(req.get("scenario_id") or req.get("scenario") or "").upper().strip()
+
+    valid_scenarios = {s["id"]: s for s in SIM_DATA.get("scenario_library", [])}
+    if scen_id not in valid_scenarios:
+        return jsonify({
+            "status": "error",
+            "msg": f"Invalid scenario '{scen_id}'. Valid: {list(valid_scenarios.keys())}"
+        }), 400
+
+    scen = valid_scenarios[scen_id]
+    with fleet_lock:
+        active_scenario["id"] = scen_id
+        active_scenario["description"] = scen.get("description", "")
+        active_scenario["applied_at"] = time.time()
+
+        if scen_id == "OBSTACLE_AHEAD":
+            if "TRUCK_04" in fleet_data:
+                t = fleet_data["TRUCK_04"]
+                t["dist_front"] = 12
+                t["action"] = "STOP"
+                t["status"] = "CRITICAL"
+                t["speed_kmh"] = 0.0
+                t["gear"] = "N"
+                t["manual_obstacle_until"] = time.time() + 35.0
+            log_safety_event(
+                vid="TRUCK_04",
+                event_type="OBSTACLE_DETECTED",
+                severity="CRITICAL",
+                lat=fleet_data["TRUCK_04"]["lat"] if "TRUCK_04" in fleet_data else BASE_LAT,
+                lng=fleet_data["TRUCK_04"]["lng"] if "TRUCK_04" in fleet_data else BASE_LNG,
+                message="SCENARIO OBSTACLE_AHEAD: Emergency stop triggered on TRUCK_04 (front obstacle 12cm)."
+            )
+        elif scen_id == "DENSE_FOG":
+            for v in fleet_data.values():
+                v["fog_visibility_m"] = 18
+                v["dist_front"] = min(v["dist_front"], 65)
+            log_safety_event(
+                vid="ALL",
+                event_type="LOW_VISIBILITY",
+                severity="HIGH",
+                lat=BASE_LAT,
+                lng=BASE_LNG,
+                message="SCENARIO DENSE_FOG: Severe Bastar cloud inversion pooling into pit basin (visibility 18m)."
+            )
+        elif scen_id == "TRAFFIC_CLOSE":
+            if "TRUCK_02" in fleet_data:
+                fleet_data["TRUCK_02"]["dist_front"] = 28
+                fleet_data["TRUCK_02"]["action"] = "SLOW DOWN"
+                fleet_data["TRUCK_02"]["status"] = "CAUTION"
+            log_safety_event(
+                vid="TRUCK_02",
+                event_type="COLLISION_RISK",
+                severity="HIGH",
+                lat=fleet_data["TRUCK_02"]["lat"] if "TRUCK_02" in fleet_data else BASE_LAT,
+                lng=fleet_data["TRUCK_02"]["lng"] if "TRUCK_02" in fleet_data else BASE_LNG,
+                message="SCENARIO TRAFFIC_CLOSE: Inter-truck distance dropped below 30m collision caution threshold."
+            )
+        elif scen_id == "HAIRPIN_CAUTION":
+            for v in fleet_data.values():
+                if v.get("wp_idx") in (3, 5, 11, 13):
+                    v["dist_front"] = 45
+                    v["action"] = "SLOW DOWN"
+                    v["status"] = "CAUTION"
+            log_safety_event(
+                vid="ALL",
+                event_type="PIT_EDGE_WARNING",
+                severity="CAUTION",
+                lat=BASE_LAT,
+                lng=BASE_LNG,
+                message="SCENARIO HAIRPIN_CAUTION: Haulers approaching steep Deposit-14 switchback benches."
+            )
+        elif scen_id == "CLEAR_RUN":
+            for v in fleet_data.values():
+                v["manual_obstacle_until"] = 0
+                v["fog_visibility_m"] = 140
+                v["dist_front"] = random.randint(140, 200)
+                v["action"] = "CLEAR"
+                v["status"] = "NORMAL"
+            log_safety_event(
+                vid="ALL",
+                event_type="NOMINAL_RECOVERY",
+                severity="SAFE",
+                lat=BASE_LAT,
+                lng=BASE_LNG,
+                message="SCENARIO CLEAR_RUN: Nominal operating conditions restored across Deposit-14 haul loop."
+            )
+
+    return jsonify({
+        "status": "ok",
+        "scenario_id": scen_id,
+        "description": scen.get("description", ""),
+        "timestamp": datetime.now().strftime("%H:%M:%S")
+    })
+
+
+@app.route("/api/events", methods=["GET"])
+def get_safety_events():
+    return jsonify({
+        "status": "ok",
+        "events": safety_events[:40],
+        "total": len(safety_events),
+        "timestamp": datetime.now().strftime("%H:%M:%S")
+    })
+
+
 @app.route("/api/fleet", methods=["GET"])
 def get_fleet():
     with fleet_lock:
@@ -1412,30 +1800,18 @@ def get_fleet():
             items_to_process = [(k, v) for k, v in fleet_data.items() if k == current_vid]
 
         for vid, v in list(items_to_process):
-            is_truck_01 = (vid == "TRUCK_01")
-            if is_truck_01:
-                v["speed_kmh"] = 0.0
-                v["is_moving"] = False
-                v["risk_score"] = None
-                v["has_risk_data"] = False
-                v["has_diagnostics"] = False
-                v["payload_tons"] = None
-                v["engine_temp_c"] = None
-                v["tire_pressure_psi"] = None
-                v["gear"] = None
-
             # Calculate live connection status
             is_connected = False
             if v["source_type"] == "REAL_HARDWARE":
                 if v.get("last_hardware_packet"):
                     elapsed = time.time() - v["last_hardware_packet"]
-                    is_connected = (elapsed <= 15.0)
+                    is_connected = (elapsed <= 12.0)
                 else:
                     is_connected = False
             else:
                 is_connected = simulation_config["running"]
 
-            is_moving = False if is_truck_01 else (v["speed_kmh"] > 0.5 and v["action"] != "STOP")
+            is_moving = (v["speed_kmh"] > 0.5 and v["action"] != "STOP")
             v["is_connected"] = is_connected
             v["is_moving"] = is_moving
 
@@ -1448,29 +1824,34 @@ def get_fleet():
                 "hardware_status": v["hardware_status"],
                 "is_connected": is_connected,
                 "is_moving": is_moving,
+                "lifecycle_state": v.get("lifecycle_state", "HAULING"),
                 "packet_count": v["packet_count"],
                 "status": v["status"],
                 "action": v["action"],
-                "speed_kmh": 0.0 if is_truck_01 else v["speed_kmh"],
+                "speed_kmh": v["speed_kmh"],
+                "target_speed": v.get("target_speed", 20.0),
                 "battery_pct": v["battery_pct"],
-                "payload_tons": None if is_truck_01 else v.get("payload_tons"),
-                "engine_temp_c": None if is_truck_01 else v.get("engine_temp_c"),
-                "tire_pressure_psi": None if is_truck_01 else v.get("tire_pressure_psi"),
-                "gear": None if is_truck_01 else v.get("gear"),
+                "payload_tons": v.get("payload_tons"),
+                "engine_temp_c": v.get("engine_temp_c"),
+                "tire_pressure_psi": v.get("tire_pressure_psi"),
+                "gear": v.get("gear"),
                 "dist_front": v["dist_front"],
                 "dist_left": v["dist_left"],
                 "dist_right": v["dist_right"],
+                "fog_visibility_m": v.get("fog_visibility_m", 75),
                 "lat": v["lat"],
                 "lng": v["lng"],
-                "elevation_m": v.get("elevation_m", 580 if is_truck_01 else 1040),
+                "elevation_m": v["elevation_m"],
                 "heading": v["heading"],
                 "avatar_color": v["avatar_color"],
                 "current_zone": v["current_zone"],
-                "risk_score": None if is_truck_01 else v.get("risk_score"),
-                "has_risk_data": not is_truck_01,
-                "has_diagnostics": not is_truck_01,
+                "risk_score": v.get("risk_score"),
+                "has_risk_data": True,
+                "has_diagnostics": True,
                 "closest_truck": v["closest_truck"],
                 "last_update": v["last_update"],
+                "last_update_ts": v.get("last_update_ts", time.time()),
+                "sequence": telemetry_sequence,
             })
 
             if v["action"] == "STOP":
@@ -1480,10 +1861,10 @@ def get_fleet():
             else:
                 clear_count += 1
 
-            if v.get("risk_score") and isinstance(v["risk_score"], dict) and v["risk_score"].get("total", 0) >= 70:
+            if v.get("risk_score") and isinstance(v["risk_score"], dict) and v["risk_score"].get("total", 0) >= 60:
                 high_risk_count += 1
 
-            total_speed += (0.0 if is_truck_01 else v["speed_kmh"])
+            total_speed += v["speed_kmh"]
 
         avg_speed = round(total_speed / len(v_list), 1) if v_list else 0.0
 
@@ -1492,6 +1873,7 @@ def get_fleet():
             "simulation": {
                 "running": simulation_config["running"],
                 "speed_multiplier": simulation_config["speed_multiplier"],
+                "active_scenario": active_scenario,
             },
             "fleet_stats": {
                 "total": len(v_list),
@@ -1501,7 +1883,9 @@ def get_fleet():
                 "high_risk": high_risk_count,
                 "avg_speed": avg_speed,
             },
+            "sequence": telemetry_sequence,
             "timestamp": datetime.now().strftime("%H:%M:%S"),
+            "epoch": int(time.time()),
         })
 
 
@@ -1521,30 +1905,19 @@ def get_vehicle(vehicle_id):
                 "msg": f"Access restricted. You are authenticated as {current_vid} and cannot access telemetry for {norm_vid}."
             }), 403
 
-        is_truck_01 = (norm_vid == "TRUCK_01")
-        if is_truck_01:
-            v["speed_kmh"] = 0.0
-            v["is_moving"] = False
-            v["risk_score"] = None
-            v["has_risk_data"] = False
-            v["has_diagnostics"] = False
-            v["payload_tons"] = None
-            v["engine_temp_c"] = None
-            v["tire_pressure_psi"] = None
-            v["gear"] = None
-
         if v["source_type"] == "REAL_HARDWARE":
             if v.get("last_hardware_packet"):
                 elapsed = time.time() - v["last_hardware_packet"]
-                is_connected = (elapsed <= 15.0)
+                is_connected = (elapsed <= 12.0)
             else:
                 is_connected = False
         else:
             is_connected = simulation_config["running"]
 
-        is_moving = False if is_truck_01 else (v["speed_kmh"] > 0.5 and v["action"] != "STOP")
+        is_moving = (v["speed_kmh"] > 0.5 and v["action"] != "STOP")
         v["is_connected"] = is_connected
         v["is_moving"] = is_moving
+        v["sequence"] = telemetry_sequence
 
         return jsonify(v)
 
@@ -1730,7 +2103,9 @@ def set_vehicle_mode():
     req = request.get_json(force=True, silent=True) or {}
     raw_vid = req.get("vehicle_id", "TRUCK_01")
     vid = VEHICLE_ALIASES.get(raw_vid.upper(), raw_vid.upper())
-    mode = req.get("source_type", "REAL_HARDWARE").upper()
+    mode = str(req.get("mode") or req.get("source_type") or "SIMULATED").upper().strip()
+    if mode not in ("SIMULATED", "REAL_HARDWARE"):
+        mode = "SIMULATED"
 
     with fleet_lock:
         if vid not in fleet_data:
@@ -1738,22 +2113,42 @@ def set_vehicle_mode():
 
         v = fleet_data[vid]
         v["source_type"] = mode
-        v["hardware_status"] = "CONNECTED_LIVE" if mode == "REAL_HARDWARE" else "N/A"
+        if mode == "REAL_HARDWARE":
+            v["hardware_status"] = "WAITING_TELEMETRY"
+            v["speed_kmh"] = 0.0
+            v["is_moving"] = False
+        else:
+            v["hardware_status"] = "N/A"
+            v["is_connected"] = True
+
         v["log"].insert(0, {
             "time": datetime.now().strftime("%H:%M:%S"),
             "action": "CONFIG",
             "dist_front": v["dist_front"],
-            "note": f"Mode changed to {mode}",
+            "note": f"Telemetry mode switched to {mode}",
         })
+        log_safety_event(
+            vid=vid,
+            event_type="MODE_CHANGED",
+            severity="INFO",
+            lat=v["lat"],
+            lng=v["lng"],
+            message=f"{vid} telemetry mode switched to {mode}."
+        )
 
-    return jsonify({"status": "ok", "vehicle_id": vid, "source_type": mode})
+    return jsonify({
+        "status": "ok",
+        "vehicle_id": vid,
+        "source_type": mode,
+        "hardware_status": v["hardware_status"]
+    })
 
 
 @app.route("/update", methods=["POST"])
 def update_telemetry():
     """
     Accepts telemetry updates from external ESP32 + GPS hardware node.
-    Supports legacy and modern vehicle IDs: TRUCK_01, HAUL_01, DUMPER_01, PROTOTYPE_1.
+    Supports vehicle IDs: TRUCK_01, HAUL_01, DUMPER_01, PROTOTYPE_1.
     """
     data = request.get_json(force=True, silent=True)
     if not data:
@@ -1783,47 +2178,38 @@ def update_telemetry():
         v["dist_right"] = right
         v["action"] = action
         v["last_update"] = now_str
+        v["last_update_ts"] = time.time()
 
         if "lat" in data and "lng" in data:
             lat = float(data["lat"])
             lng = float(data["lng"])
             if lat != 0.0 and lng != 0.0:
-                v["lat"] = lat
-                v["lng"] = lng
+                v["lat"] = round(lat, 6)
+                v["lng"] = round(lng, 6)
                 v["trail"].append([v["lat"], v["lng"]])
                 if len(v["trail"]) > MAX_TRAIL_LEN:
                     v["trail"].pop(0)
 
+        if "heading" in data:
+            v["heading"] = round(float(data["heading"]), 1)
+
+        if "speed" in data:
+            v["speed_kmh"] = round(float(data["speed"]), 1)
+
         if "gps_valid" in data:
             v["gps_valid"] = bool(data["gps_valid"])
 
-        is_truck_01 = (vid == "TRUCK_01")
-        if is_truck_01:
+        if action == "STOP":
+            v["status"] = "CRITICAL"
             v["speed_kmh"] = 0.0
-            v["is_moving"] = False
-            v["risk_score"] = None
-            v["has_risk_data"] = False
-            v["has_diagnostics"] = False
-            v["payload_tons"] = None
-            v["engine_temp_c"] = None
-            v["tire_pressure_psi"] = None
-            v["gear"] = None
-            if action == "STOP":
-                v["status"] = "CRITICAL"
-            elif action in ("SLOW DOWN", "TURN LEFT", "TURN RIGHT"):
-                v["status"] = "CAUTION"
-            else:
-                v["status"] = "NORMAL"
+            v["gear"] = "N"
+        elif action in ("SLOW DOWN", "TURN LEFT", "TURN RIGHT"):
+            v["status"] = "CAUTION"
+            v["gear"] = "D1"
         else:
-            if "speed" in data:
-                v["speed_kmh"] = float(data["speed"])
-            if action == "STOP":
-                v["status"] = "CRITICAL"
-                v["speed_kmh"] = 0.0
-            elif action in ("SLOW DOWN", "TURN LEFT", "TURN RIGHT"):
-                v["status"] = "CAUTION"
-            else:
-                v["status"] = "NORMAL"
+            v["status"] = "NORMAL"
+
+        v["is_moving"] = (v["speed_kmh"] > 0.5 and v["action"] != "STOP")
 
         zone = get_zone_for_point(v["lat"], v["lng"])
         v["current_zone"] = {
@@ -1834,17 +2220,17 @@ def update_telemetry():
             "max_safe_speed": zone["max_safe_speed"],
             "color": zone["color"],
         }
-        v["elevation_m"] = zone.get("elevation_m", 580 if is_truck_01 else 1040)
 
-        if not is_truck_01:
-            v["risk_score"] = compute_risk_score(v, v["closest_truck"]["distance_m"], zone)
+        # Authoritative surface elevation sampled from Copernicus DEM & carved pit
+        v["elevation_m"] = round(sample_mine_surface_elevation(v["lat"], v["lng"]), 1)
+        v["risk_score"] = compute_risk_score(v, v["closest_truck"]["distance_m"], zone)
 
         if action != "CLEAR":
             v["log"].insert(0, {
                 "time": now_str,
                 "action": action,
                 "dist_front": front,
-                "note": f"ESP32 Hardware: {action} (Front {front}cm)",
+                "note": f"ESP32 Hardware: {action} (Front {front}cm) | Elev: {v['elevation_m']}m",
             })
             del v["log"][MAX_VEHICLE_LOG:]
 
@@ -1852,11 +2238,13 @@ def update_telemetry():
         "status": "ok",
         "vehicle_id": vid,
         "source_type": "REAL_HARDWARE",
-        "speed_kmh": 0.0 if is_truck_01 else v["speed_kmh"],
-        "risk_score": None if is_truck_01 else (v["risk_score"]["total"] if v.get("risk_score") else None),
+        "speed_kmh": v["speed_kmh"],
+        "risk_score": v["risk_score"]["total"] if v.get("risk_score") else None,
+        "elevation_m": v["elevation_m"],
         "zone": zone["name"],
         "lat": v["lat"],
-        "lng": v["lng"]
+        "lng": v["lng"],
+        "heading": v["heading"]
     })
 
 

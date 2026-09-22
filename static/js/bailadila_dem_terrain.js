@@ -139,6 +139,17 @@
         await this._decodeWithCanvas(pngUrl);
       }
 
+      // 3. Fetch canonical Deposit-14 simulation route
+      try {
+        const routeRes = await fetch('/api/simulation_route').catch(() => fetch('/bailadila_simulation_data.json'));
+        if (routeRes && routeRes.ok) {
+          const rData = await routeRes.json();
+          this.canonicalWaypoints = rData.waypoints || rData.SIM_WAYPOINTS || null;
+        }
+      } catch (err) {
+        console.warn('Failed to load canonical simulation route:', err);
+      }
+
       this.isLoaded = true;
       return this.meta;
     }
@@ -494,40 +505,50 @@
      * BUILD TERRAIN-FOLLOWING HAUL ROAD SYSTEM
      * Conforms directly to the carved terrain surface (no floating tubes).
      */
-    buildHaulRoads(scene, vscale = 1.0) {
+    buildHaulRoads(scene, vscale = 1.0, waypoints = null) {
       if (this.roadGroup && scene) {
         scene.remove(this.roadGroup);
       }
       this.roadGroup = new THREE.Group();
       this.roadGroup.name = 'BailadilaHaulRoads';
 
-      // Authentic switchback road path from Kirandul Dispatch down into Deposit-14 Pit Bottom
-      const kP = this.lonLatToWorld(LANDMARKS.KIRANDUL.lon, LANDMARKS.KIRANDUL.lat, 0);
-      const pC = this.pitPos;
+      const wpList = waypoints || this.canonicalWaypoints;
+      let rawWaypoints = [];
 
-      const rawWaypoints = [
-        // Kirandul Rail Siding & Crusher Dispatch Yard
-        new THREE.Vector3(kP.x, 0, kP.y),
-        new THREE.Vector3(kP.x - 120, 0, kP.z + 280),
-        new THREE.Vector3(kP.x - 220, 0, kP.z + 560),
-        // Pit Rim Entry Portal (Deposit 14 North Crest)
-        new THREE.Vector3(pC.x + 360, 0, pC.z - 780),
-        new THREE.Vector3(pC.x + 650, 0, pC.z - 520),
-        // Switchback Hairpin 1 (East High Bench)
-        new THREE.Vector3(pC.x + 820, 0, pC.z - 180),
-        new THREE.Vector3(pC.x + 750, 0, pC.z + 180),
-        new THREE.Vector3(pC.x + 480, 0, pC.z + 420),
-        // Switchback Hairpin 2 (South Middle Bench)
-        new THREE.Vector3(pC.x + 120, 0, pC.z + 620),
-        new THREE.Vector3(pC.x - 260, 0, pC.z + 580),
-        new THREE.Vector3(pC.x - 580, 0, pC.z + 320),
-        // Switchback Hairpin 3 (West Lower Bench)
-        new THREE.Vector3(pC.x - 680, 0, pC.z - 60),
-        new THREE.Vector3(pC.x - 520, 0, pC.z - 340),
-        new THREE.Vector3(pC.x - 220, 0, pC.z - 380),
-        // Central Loading Bay Floor
-        new THREE.Vector3(pC.x, 0, pC.z)
-      ];
+      if (wpList && wpList.length >= 3) {
+        rawWaypoints = wpList.map(wp => {
+          const pos = this.lonLatToWorld(wp.lng, wp.lat, 0);
+          return new THREE.Vector3(pos.x, 0, pos.z);
+        });
+      } else {
+        // Fallback default switchback path
+        const kP = this.lonLatToWorld(LANDMARKS.KIRANDUL.lon, LANDMARKS.KIRANDUL.lat, 0);
+        const pC = this.pitPos;
+
+        rawWaypoints = [
+          // Kirandul Rail Siding & Crusher Dispatch Yard
+          new THREE.Vector3(kP.x, 0, kP.z),
+          new THREE.Vector3(kP.x - 120, 0, kP.z + 280),
+          new THREE.Vector3(kP.x - 220, 0, kP.z + 560),
+          // Pit Rim Entry Portal (Deposit 14 North Crest)
+          new THREE.Vector3(pC.x + 360, 0, pC.z - 780),
+          new THREE.Vector3(pC.x + 650, 0, pC.z - 520),
+          // Switchback Hairpin 1 (East High Bench)
+          new THREE.Vector3(pC.x + 820, 0, pC.z - 180),
+          new THREE.Vector3(pC.x + 750, 0, pC.z + 180),
+          new THREE.Vector3(pC.x + 480, 0, pC.z + 420),
+          // Switchback Hairpin 2 (South Middle Bench)
+          new THREE.Vector3(pC.x + 120, 0, pC.z + 620),
+          new THREE.Vector3(pC.x - 260, 0, pC.z + 580),
+          new THREE.Vector3(pC.x - 580, 0, pC.z + 320),
+          // Switchback Hairpin 3 (West Lower Bench)
+          new THREE.Vector3(pC.x - 680, 0, pC.z - 60),
+          new THREE.Vector3(pC.x - 520, 0, pC.z - 340),
+          new THREE.Vector3(pC.x - 220, 0, pC.z - 380),
+          // Central Loading Bay Floor
+          new THREE.Vector3(pC.x, 0, pC.z)
+        ];
+      }
 
       // Assign precise terrain elevation to each waypoint
       rawWaypoints.forEach(pt => {
@@ -535,11 +556,12 @@
         pt.y = (h - this.yMin) * vscale + 0.8;
       });
 
-      const curve = new THREE.CatmullRomCurve3(rawWaypoints);
+      const isLoop = (wpList && wpList.length >= 3) ? true : false;
+      const curve = new THREE.CatmullRomCurve3(rawWaypoints, isLoop);
       curve.curveType = 'catmullrom';
-      curve.tension = 0.35;
+      curve.tension = 0.30;
 
-      const ROAD_SAMPLES = 280;
+      const ROAD_SAMPLES = 300;
       this.sampledRoad = curve.getPoints(ROAD_SAMPLES);
 
       // Re-project every point onto the exact surface
@@ -768,9 +790,18 @@
       this.truckObjects = {};
 
       defaultIds.forEach((id, idx) => {
-        const vData = (fleetList && fleetList[idx]) ? fleetList[idx] : { id: `TRUCK_0${idx+1}` };
+        const vId = (fleetList && fleetList[idx] && fleetList[idx].id) ? fleetList[idx].id : `TRUCK_0${idx+1}`;
         const truckMesh = this.createMiningTruck(id, 0xe5a93c);
-        this.truckObjects[vData.id] = { mesh: truckMesh, idText: id, idx };
+        truckMesh.name = vId;
+        this.truckObjects[vId] = {
+          mesh: truckMesh,
+          idText: id,
+          idx,
+          targetPos: new THREE.Vector3(),
+          targetYaw: 0,
+          initialized: false,
+          backendData: null
+        };
         this.truckGroup.add(truckMesh);
       });
 
@@ -779,38 +810,51 @@
     }
 
     /**
-     * UPDATE TRUCK LOCATIONS ON HAUL ROAD
+     * UPDATE TRUCK LOCATIONS DIRECTLY FROM AUTHORITATIVE BACKEND TELEMETRY
+     * No independent clock, no performance.now(), no synthetic tProg progress math.
+     * Positions strictly follow (v.lat, v.lng, v.elevation_m, v.heading).
      */
     updateFleetTelemetry(fleet) {
-      if (!this.sampledRoad || !this.sampledRoad.length) return;
+      if (!fleet || !Array.isArray(fleet)) return;
 
-      const now = performance.now();
-      const numTrucks = 6;
+      fleet.forEach(v => {
+        const item = this.truckObjects[v.id];
+        if (!item || !item.mesh) return;
 
-      for (let i = 0; i < numTrucks; i++) {
-        const vId = `TRUCK_0${i+1}`;
-        const item = this.truckObjects[vId];
-        if (!item) continue;
+        item.backendData = v;
 
-        const vData = fleet ? fleet.find(v => v.id === vId) : null;
-        const speed = (vData && vData.speed_kmh) ? vData.speed_kmh : 22;
+        // Authoritative positioning from backend
+        const elev = (v.elevation_m !== undefined && v.elevation_m !== null)
+          ? v.elevation_m
+          : this.sampleCarvedElevation(v.lng, v.lat);
+        const targetWorld = this.lonLatToWorld(v.lng, v.lat, elev, this.vscale);
+        targetWorld.y += 0.5; // Slight offset so tires sit on terrain surface
 
-        // Progress along road switchbacks (spaced evenly)
-        const tProg = ((i / numTrucks) + (now * 0.000015 * (speed / 20.0))) % 1.0;
-        const rInfo = this.getRoadPointAndTangent(tProg);
-        const p = rInfo.point;
-        const tang = rInfo.tangent;
+        // Authoritative yaw rotation:
+        // Heading is in degrees clockwise from North (0° = North, 90° = East, 180° = South, 270° = West).
+        // Model faces +Z (South) at rotation.y = 0.
+        // Therefore rotation.y = Math.PI - (heading * Math.PI / 180.0).
+        const headingDeg = (v.heading !== undefined && v.heading !== null) ? v.heading : 0;
+        const targetYaw = Math.PI - (headingDeg * Math.PI / 180.0);
 
-        item.mesh.position.set(p.x, p.y + 0.8, p.z);
-        item.mesh.rotation.y = Math.atan2(tang.x, tang.z);
-        item.mesh.rotation.x = Math.asin(THREE.MathUtils.clamp(tang.y, -0.6, 0.6));
+        if (!item.initialized) {
+          item.mesh.position.set(targetWorld.x, targetWorld.y, targetWorld.z);
+          item.mesh.rotation.y = targetYaw;
+          item.targetPos.set(targetWorld.x, targetWorld.y, targetWorld.z);
+          item.targetYaw = targetYaw;
+          item.initialized = true;
+        } else {
+          item.targetPos.set(targetWorld.x, targetWorld.y, targetWorld.z);
+          item.targetYaw = targetYaw;
+        }
 
-        // Radar safety ring color based on risk / action
+        // Radar safety ring color based on authoritative risk / action
         if (item.mesh.radarRing) {
-          if (vData && (vData.action === 'STOP' || vData.dist_front < 60)) {
+          const riskTotal = (v.risk_score && v.risk_score.total !== undefined) ? v.risk_score.total : 0;
+          if (v.action === 'STOP' || riskTotal >= 70 || (v.dist_front !== undefined && v.dist_front < 60)) {
             item.mesh.radarRing.material.color.setHex(0xef4444); // Red collision hazard
             item.mesh.radarRing.material.opacity = 0.85;
-          } else if (vData && (vData.action === 'SLOW DOWN' || vData.dist_front < 150)) {
+          } else if (v.action === 'SLOW DOWN' || riskTotal >= 40 || (v.dist_front !== undefined && v.dist_front < 150)) {
             item.mesh.radarRing.material.color.setHex(0xf59e0b); // Amber caution
             item.mesh.radarRing.material.opacity = 0.65;
           } else {
@@ -818,7 +862,97 @@
             item.mesh.radarRing.material.opacity = 0.45;
           }
         }
+      });
+    }
+
+    /**
+     * FRAME INTERPOLATION (SMOOTHING A -> B BETWEEN 1-SECOND SERVER TICKS)
+     * Strictly client-side smoothing towards backend target without altering progression.
+     */
+    stepInterpolation(dt = 0.016) {
+      const alpha = Math.min(1.0, dt * 5.0);
+      for (const vId in this.truckObjects) {
+        const item = this.truckObjects[vId];
+        if (!item || !item.mesh || !item.initialized) continue;
+
+        // Position Lerp
+        item.mesh.position.lerp(item.targetPos, alpha);
+
+        // Shortest arc yaw rotation lerp
+        let dyaw = item.targetYaw - item.mesh.rotation.y;
+        while (dyaw < -Math.PI) dyaw += Math.PI * 2;
+        while (dyaw > Math.PI) dyaw -= Math.PI * 2;
+        item.mesh.rotation.y += dyaw * alpha;
       }
+    }
+
+    /**
+     * Real-time geographic state retrieval for Map <-> 3D Synchronization Validation
+     */
+    getVehicleGeographicState(vId) {
+      const item = this.truckObjects[vId];
+      if (!item || !item.mesh) return null;
+      const geo = this.worldToLonLat(item.mesh.position.x, item.mesh.position.z);
+      const elev = ((item.mesh.position.y - 0.5) / this.vscale) + this.yMin;
+      let headingDeg = (Math.PI - item.mesh.rotation.y) * 180.0 / Math.PI;
+      headingDeg = (headingDeg % 360 + 360) % 360;
+      return {
+        id: vId,
+        lat: geo.lat,
+        lng: geo.lon,
+        elevation_m: elev,
+        heading: headingDeg,
+        backend: item.backendData || null
+      };
+    }
+
+    /**
+     * Focus 3D camera / orbit controls on a vehicle
+     */
+    focusVehicle(vId, controls) {
+      const item = this.truckObjects[vId];
+      if (!item || !item.mesh) return;
+      const p = item.mesh.position;
+      if (controls && controls.target) {
+        controls.target.set(p.x, p.y + 10, p.z);
+        controls.update();
+      }
+    }
+
+    /**
+     * Set up raycasting click selection for trucks in 3D scene
+     */
+    setupInteraction(camera, domElement, onSelectVehicle) {
+      if (!camera || !domElement) return;
+      const raycaster = new THREE.Raycaster();
+      const mouse = new THREE.Vector2();
+
+      domElement.addEventListener('click', (event) => {
+        const rect = domElement.getBoundingClientRect();
+        mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+        mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+        raycaster.setFromCamera(mouse, camera);
+        if (!this.truckGroup) return;
+
+        const intersects = raycaster.intersectObjects(this.truckGroup.children, true);
+        if (intersects.length > 0) {
+          let obj = intersects[0].object;
+          while (obj && obj.parent && obj.parent !== this.truckGroup) {
+            obj = obj.parent;
+          }
+          if (obj) {
+            for (const [vId, entry] of Object.entries(this.truckObjects)) {
+              if (entry.mesh === obj || entry.idText === obj.name || vId === obj.name) {
+                if (typeof onSelectVehicle === 'function') {
+                  onSelectVehicle(vId);
+                }
+                break;
+              }
+            }
+          }
+        }
+      });
     }
 
     /**

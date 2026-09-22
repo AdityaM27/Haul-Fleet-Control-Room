@@ -1408,6 +1408,32 @@
     }
     .log-dot { width: 6px; height: 6px; border-radius: 50%; }
 
+    /* Scenario Buttons */
+    .scenario-btn {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      color: var(--text);
+      font-family: "Space Grotesk", sans-serif;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+    .scenario-btn:hover {
+      background: rgba(56, 189, 248, 0.15);
+      border-color: var(--teal);
+      color: #fff;
+    }
+    .scenario-btn.active {
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.25), rgba(2, 132, 199, 0.25));
+      border-color: var(--teal);
+      color: #fff;
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.2);
+    }
+
     @media (max-width: 1280px) {
       .telemetry-grid { grid-template-columns: 1fr; }
       .bottom-grid { grid-template-columns: 1fr; }
@@ -1754,6 +1780,7 @@
             <div style="display:flex;align-items:center;gap:8px;margin-left:auto;flex-wrap:wrap">
               <div class="map-layer-toggle-group">
                 <button type="button" class="mine3d-cam-btn active" id="btnCamOrbit" onclick="set3DCameraMode('orbit')">🌐 Orbit</button>
+                <button type="button" class="mine3d-cam-btn" id="btnCamFollow" onclick="set3DCameraMode('follow')">🔭 Follow</button>
                 <button type="button" class="mine3d-cam-btn" id="btnCamChase" onclick="set3DCameraMode('chase')">🎥 Chase</button>
                 <button type="button" class="mine3d-cam-btn" id="btnCamCockpit" onclick="set3DCameraMode('cockpit')">🪟 Cockpit</button>
               </div>
@@ -1764,6 +1791,21 @@
                 ⛶ Fullscreen Twin ↗
               </a>
             </div>
+          </div>
+
+          <!-- Digital Twin Scenarios Interactive Bar -->
+          <div class="scenarios-control-bar" style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:rgba(15,23,42,0.95);border-bottom:1px solid rgba(255,255,255,0.06);flex-wrap:wrap">
+            <span style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;display:flex;align-items:center;gap:5px">
+              <span>⚡</span> <span>Twin Scenarios:</span>
+            </span>
+            <button type="button" class="scenario-btn active" data-scenario="CLEAR_RUN" onclick="applyScenario('CLEAR_RUN')">🟢 Nominal Run</button>
+            <button type="button" class="scenario-btn" data-scenario="DENSE_FOG" onclick="applyScenario('DENSE_FOG')">🌫️ Dense Fog Inversion</button>
+            <button type="button" class="scenario-btn" data-scenario="OBSTACLE_AHEAD" onclick="applyScenario('OBSTACLE_AHEAD')">🛑 Boulder Obstacle</button>
+            <button type="button" class="scenario-btn" data-scenario="HAIRPIN_CAUTION" onclick="applyScenario('HAIRPIN_CAUTION')">⚠️ Hairpin Caution</button>
+            <button type="button" class="scenario-btn" data-scenario="TRAFFIC_CLOSE" onclick="applyScenario('TRAFFIC_CLOSE')">🚛 Traffic Proximity</button>
+            <span id="activeScenarioBadge" class="status-pill" style="margin-left:auto;font-size:9.5px;background:rgba(56,189,248,0.15);color:var(--teal);border:1px solid rgba(56,189,248,0.3)">
+              CLEAR RUN
+            </span>
           </div>
 
           <!-- Digital Twin Layer Toggles & Precision Sliders -->
@@ -1804,6 +1846,31 @@
             <div style="position:absolute;top:10px;left:12px;z-index:10;font-size:10px;color:var(--text-muted);background:rgba(10,13,18,0.85);padding:5px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);backdrop-filter:blur(6px);pointer-events:none">
               Copernicus GLO-30 DEM · Kirandul → Deposit 14 Pit Circuit · Drag to orbit · Scroll to zoom
             </div>
+
+            <!-- Real-time Synchronization HUD Overlay -->
+            <div id="syncValidatorOverlay" style="position:absolute;bottom:10px;left:12px;z-index:10;font-size:9px;color:var(--text-muted);background:rgba(10,13,18,0.92);padding:7px 12px;border-radius:6px;border:1px solid rgba(56,189,248,0.25);backdrop-filter:blur(8px);pointer-events:none;display:flex;flex-direction:column;gap:3px;max-width:440px">
+              <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,255,255,0.08);padding-bottom:3px">
+                <span style="font-weight:700;color:var(--teal);letter-spacing:0.5px">AUTHORITATIVE SYNCHRONIZATION ENGINE</span>
+                <span id="syncValStatus"><span style="color:#10b981;font-weight:700">SYNC: ✓ SYNCHRONIZED</span></span>
+              </div>
+              <div style="display:flex;gap:6px">
+                <span style="color:var(--text-dim);width:55px">Backend:</span>
+                <span id="syncValBackend" style="color:#f8fafc;font-family:monospace">--</span>
+              </div>
+              <div style="display:flex;gap:6px">
+                <span style="color:var(--text-dim);width:55px">Leaflet:</span>
+                <span id="syncValLeaflet" style="color:#f8fafc;font-family:monospace">--</span>
+              </div>
+              <div style="display:flex;gap:6px">
+                <span style="color:var(--text-dim);width:55px">Three.js:</span>
+                <span id="syncValThree" style="color:#f8fafc;font-family:monospace">--</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;color:var(--teal);border-top:1px solid rgba(255,255,255,0.06);padding-top:2px">
+                <span id="syncValDelta">Δpos: 0.00m · Δelev: 0.0m</span>
+                <span style="color:var(--text-dim)">One Authoritative State</span>
+              </div>
+            </div>
+
             <div id="threeCanvasWrap" style="width:100%;height:100%"></div>
           </div>
 
@@ -1827,10 +1894,10 @@
             </div>
           </div>
 
-          <!-- Disclaimer Subnote -->
-          <div style="font-size:9.5px;color:var(--text-muted);padding:4px 14px;background:rgba(15,23,42,0.5);border-top:1px solid rgba(255,255,255,0.04);display:flex;justify-content:space-between">
-            <span>Terrain: Copernicus GLO-30 DEM (30m) · Conceptual pit benches & haul ramp</span>
-            <span style="font-style:italic">Simulated fleet (DMP-101..106) — not an official mine survey</span>
+          <!-- Conceptual Mine Disclaimer Subnote -->
+          <div style="font-size:9.5px;color:var(--text-muted);padding:6px 14px;background:rgba(15,23,42,0.65);border-top:1px solid rgba(255,255,255,0.04);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
+            <span style="color:#f59e0b;font-weight:600">⚠️ Conceptual 16-waypoint Deposit-14 simulation haul loop — Created for Digital Twin & Fog-Guard prototype testing. Not official NMDC mine plan.</span>
+            <span style="font-style:italic">Copernicus GLO-30 DEM (30m) · Real Authoritative Surface Elevation</span>
           </div>
         </div>
 
@@ -2231,10 +2298,10 @@ if (window.location.hash) {
 }
 
 // =============================================================================
-// LEAFLET MAP & FOG HEATMAP SETUP
+// LEAFLET MAP & FOG HEATMAP SETUP (DEPOSIT 14 & KIRANDUL COMPLEX)
 // =============================================================================
 const map = L.map('fleetMap', {
-  center: [18.7265, 81.2420],
+  center: [18.5850, 81.2200],
   zoom: 15,
   zoomControl: true
 });
@@ -2275,6 +2342,45 @@ function switchMapLayer(layerName) {
 
 const vehicleMarkers = {};
 const zoneLayers = {};
+let canonicalHaulRoadLayer = null;
+
+// Draw canonical 16-waypoint Deposit-14 simulation haul loop
+async function loadAndDrawSimulationRoute() {
+  try {
+    const res = await fetch('/api/simulation_route', { cache: 'no-store' });
+    if (!res.ok) return;
+    const data = await res.json();
+    const waypoints = data.waypoints || [];
+    if (!waypoints.length) return;
+
+    const latLngs = waypoints.map(wp => [wp.lat, wp.lng]);
+    latLngs.push(latLngs[0]); // Closed haul loop
+
+    if (canonicalHaulRoadLayer) {
+      map.removeLayer(canonicalHaulRoadLayer);
+    }
+
+    const roadCasing = L.polyline(latLngs, {
+      color: '#0f172a',
+      weight: 8,
+      opacity: 0.9,
+      lineCap: 'round',
+      lineJoin: 'round'
+    });
+
+    const roadCenter = L.polyline(latLngs, {
+      color: '#f59e0b',
+      weight: 2,
+      dashArray: '6, 8',
+      opacity: 0.85
+    });
+
+    canonicalHaulRoadLayer = L.layerGroup([roadCasing, roadCenter]).addTo(map);
+  } catch (err) {
+    console.warn('loadAndDrawSimulationRoute err:', err);
+  }
+}
+
 let selectedTrailPolyline = L.polyline([], {
   color: '#38bdf8',
   weight: 4,
@@ -2285,31 +2391,48 @@ function createVehicleIcon(v, isSelected) {
   const num = v.id.replace('TRUCK_0', '').replace('TRUCK_', '');
   const borderCol = isSelected ? '#ffffff' : v.avatar_color;
   const isReal = v.source_type === 'REAL_HARDWARE';
-  const pulseStyle = isReal ? `box-shadow: 0 0 12px ${v.avatar_color}, 0 0 5px #10b981;` : '';
+  const pulseStyle = isReal ? `box-shadow: 0 0 14px ${v.avatar_color}, 0 0 6px #10b981;` : '';
   const scaleStyle = isSelected ? 'transform: scale(1.22); z-index: 1000;' : '';
+  const headingDeg = (v.heading !== undefined && v.heading !== null) ? v.heading : 0;
 
   return L.divIcon({
     className: 'custom-vehicle-marker',
     html: `
-      <div style="
-        width: 34px; height: 34px;
-        background: #090e1a;
-        border: 2px solid ${borderCol};
-        border-radius: 50%;
-        display: flex; flex-direction: column; align-items: center; justify-content: center;
-        color: ${v.avatar_color};
-        font-family: 'Space Grotesk', sans-serif;
-        font-size: 12px; font-weight: 800;
-        cursor: pointer;
-        ${pulseStyle}
-        ${scaleStyle}
-        transition: all 0.2s ease;
-      ">
-        ${num}
+      <div style="position: relative; width: 36px; height: 36px; cursor: pointer; ${scaleStyle}" title="${v.name} (${v.id}) - Heading: ${Math.round(headingDeg)}°">
+        <!-- Directional Pointer Arrow (Oriented to vehicle.heading) -->
+        <div style="
+          position: absolute; inset: 0;
+          display: flex; align-items: flex-start; justify-content: center;
+          transform: rotate(${headingDeg}deg);
+          pointer-events: none;
+        ">
+          <div style="
+            width: 0; height: 0;
+            border-left: 5px solid transparent;
+            border-right: 5px solid transparent;
+            border-bottom: 9px solid ${borderCol};
+            margin-top: -6px;
+            filter: drop-shadow(0 0 3px ${borderCol});
+          "></div>
+        </div>
+        <!-- Circular Vehicle Node -->
+        <div style="
+          width: 32px; height: 32px; margin: 2px;
+          background: #090e1a;
+          border: 2px solid ${borderCol};
+          border-radius: 50%;
+          display: flex; flex-direction: column; align-items: center; justify-content: center;
+          color: ${v.avatar_color};
+          font-family: 'Space Grotesk', sans-serif;
+          font-size: 11px; font-weight: 800;
+          ${pulseStyle}
+        ">
+          ${num}
+        </div>
       </div>
     `,
-    iconSize: [34, 34],
-    iconAnchor: [17, 17]
+    iconSize: [36, 36],
+    iconAnchor: [18, 18]
   });
 }
 
@@ -2373,6 +2496,11 @@ function selectVehicle(vid) {
   fetchVehicleDetails();
   centerOnSelected();
 
+  // Focus 3D engine camera on the selected vehicle
+  if (dashBailadilaEngine && controls3D) {
+    dashBailadilaEngine.focusVehicle(vid, controls3D);
+  }
+
   if (vid === 'TRUCK_02') {
     activeCameraVid = 'TRUCK_02';
     updateCameraFeedUrls();
@@ -2383,11 +2511,10 @@ function selectVehicle(vid) {
 function showAllTruckLocations() {
   isFleetOverviewMode = true;
   document.getElementById('fleetOverviewBtn').classList.add('active');
-  // Fit map to trucks in the Bailadila mining circuit
+  // Fit map to trucks in the Deposit-14 Bailadila mining circuit
   const group = [];
   fleetList.forEach(v => {
-    // Prioritize vehicles within Bailadila range to ensure crisp mine framing
-    if (v.source_type === 'SIMULATED' || (Math.abs(v.lat - 18.725) < 0.15 && Math.abs(v.lng - 81.245) < 0.15)) {
+    if (v.source_type === 'SIMULATED' || (Math.abs(v.lat - 18.585) < 0.20 && Math.abs(v.lng - 81.220) < 0.20)) {
       group.push([v.lat, v.lng]);
     }
   });
@@ -3402,6 +3529,10 @@ function set3DCameraMode(mode) {
     const b = document.getElementById('btnCamOrbit');
     if (b) b.classList.add('active');
     if (controls3D) controls3D.enabled = true;
+  } else if (mode === 'follow') {
+    const b = document.getElementById('btnCamFollow');
+    if (b) b.classList.add('active');
+    if (controls3D) controls3D.enabled = false;
   } else if (mode === 'chase') {
     const b = document.getElementById('btnCamChase');
     if (b) b.classList.add('active');
@@ -3410,6 +3541,31 @@ function set3DCameraMode(mode) {
     const b = document.getElementById('btnCamCockpit');
     if (b) b.classList.add('active');
     if (controls3D) controls3D.enabled = false;
+  }
+}
+
+// Digital Twin Scenario Switcher
+let currentScenario = 'CLEAR_RUN';
+async function applyScenario(scenarioName) {
+  try {
+    const res = await fetch('/api/scenarios/apply', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ scenario: scenarioName })
+    });
+    const data = await res.json();
+    if (res.ok && data.status === 'ok') {
+      currentScenario = scenarioName;
+      document.querySelectorAll('.scenario-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.scenario === scenarioName);
+      });
+      const badge = document.getElementById('activeScenarioBadge');
+      if (badge) badge.textContent = scenarioName.replace(/_/g, ' ');
+      await fetchFleet();
+      await fetchVehicleDetails();
+    }
+  } catch (err) {
+    console.error('applyScenario err:', err);
   }
 }
 
@@ -3449,6 +3605,54 @@ function reset3DCameraTarget() {
     controls3D.target.copy(camTarget.target);
     controls3D.update();
     set3DCameraMode('orbit');
+  }
+}
+
+function updateSyncValidatorHUD() {
+  const syncHud = document.getElementById('syncValidatorOverlay');
+  if (!syncHud || !dashBailadilaEngine) return;
+
+  const vData = fleetList ? fleetList.find(x => x.id === selectedVehicleId) : null;
+  const threeState = dashBailadilaEngine.getVehicleGeographicState(selectedVehicleId);
+  const leafletEntry = vehicleMarkers[selectedVehicleId];
+
+  if (!vData || !threeState || !leafletEntry) {
+    return;
+  }
+
+  const leafLatLng = leafletEntry.marker.getLatLng();
+
+  // Compute delta distance in meters
+  const dLat = (threeState.lat - vData.lat) * 111320;
+  const dLng = (threeState.lng - vData.lng) * (111320 * Math.cos(vData.lat * Math.PI / 180));
+  const deltaDistM = Math.hypot(dLat, dLng);
+  const deltaElevM = Math.abs(threeState.elevation_m - vData.elevation_m);
+
+  const elBackend = document.getElementById('syncValBackend');
+  const elLeaflet = document.getElementById('syncValLeaflet');
+  const elThree = document.getElementById('syncValThree');
+  const elDelta = document.getElementById('syncValDelta');
+  const elStatus = document.getElementById('syncValStatus');
+
+  if (elBackend) {
+    elBackend.textContent = `${vData.lat.toFixed(5)}°N, ${vData.lng.toFixed(5)}°E, ${Math.round(vData.elevation_m)}m, ${Math.round(vData.heading)}°`;
+  }
+  if (elLeaflet) {
+    elLeaflet.textContent = `${leafLatLng.lat.toFixed(5)}°N, ${leafLatLng.lng.toFixed(5)}°E`;
+  }
+  if (elThree) {
+    elThree.textContent = `${threeState.lat.toFixed(5)}°N, ${threeState.lng.toFixed(5)}°E, ${Math.round(threeState.elevation_m)}m, ${Math.round(threeState.heading)}°`;
+  }
+  if (elDelta) {
+    elDelta.textContent = `Δpos: ${deltaDistM.toFixed(2)}m · Δelev: ${deltaElevM.toFixed(1)}m`;
+  }
+  if (elStatus) {
+    const isSync = (deltaDistM < 15.0 && deltaElevM < 5.0);
+    if (isSync) {
+      elStatus.innerHTML = '<span style="color:#10b981;font-weight:700">SYNC: ✓ SYNCHRONIZED</span>';
+    } else {
+      elStatus.innerHTML = '<span style="color:#f59e0b;font-weight:700">SYNC: ⟳ CONVERGING</span>';
+    }
   }
 }
 
@@ -3509,6 +3713,11 @@ async function initMine3DViewer() {
   dashBailadilaEngine.buildHazardZones(scene3D, 1.0);
   dashBailadilaEngine.buildLandmarks(scene3D, 1.0);
 
+  // Set up click raycasting to select trucks directly in the 3D scene
+  dashBailadilaEngine.setupInteraction(camera3D, renderer3D.domElement, (clickedVid) => {
+    selectVehicle(clickedVid);
+  });
+
   // Camera framing (Deposit 14 & Kirandul complex)
   const camTarget = dashBailadilaEngine.getRecommendedCameraOverview();
   camera3D.position.copy(camTarget.position);
@@ -3527,23 +3736,36 @@ async function initMine3DViewer() {
   selectedRadarCone3D = new THREE.Mesh(coneGeo, coneMat);
   scene3D.add(selectedRadarCone3D);
 
-  // Animation Loop
+  // Animation Loop with Frame-by-Frame Smoothing
+  const clock3D = new THREE.Clock();
+
   function animate3D() {
     requestAnimationFrame(animate3D);
+
+    const dt = Math.min(clock3D.getDelta(), 0.1);
+
+    // Frame-by-frame smoothing of 3D trucks towards authoritative backend coordinates
+    if (dashBailadilaEngine) {
+      dashBailadilaEngine.stepInterpolation(dt);
+    }
 
     if (scene3D && camera3D && renderer3D) {
       if (controls3D && controls3D.enabled) {
         controls3D.update();
       }
 
-      // Update chase / cockpit camera if active
+      // Update chase / follow / cockpit camera if active
       if (dashBailadilaEngine && dashBailadilaEngine.truckObjects) {
         const item = dashBailadilaEngine.truckObjects[selectedVehicleId];
         if (item && item.mesh) {
           const truckPos = item.mesh.position;
           const headingRad = item.mesh.rotation.y;
 
-          if (cameraMode3D === 'chase') {
+          if (cameraMode3D === 'follow') {
+            const targetPos = new THREE.Vector3(truckPos.x + 140, truckPos.y + 80, truckPos.z + 140);
+            camera3D.position.lerp(targetPos, 0.08);
+            camera3D.lookAt(truckPos.x, truckPos.y + 12, truckPos.z);
+          } else if (cameraMode3D === 'chase') {
             const offsetX = -Math.sin(headingRad) * 110;
             const offsetZ = -Math.cos(headingRad) * 110;
             camera3D.position.lerp(new THREE.Vector3(truckPos.x + offsetX, truckPos.y + 45, truckPos.z + offsetZ), 0.08);
@@ -3569,6 +3791,9 @@ async function initMine3DViewer() {
       }
 
       renderer3D.render(scene3D, camera3D);
+
+      // Update Live Sync Validator HUD
+      updateSyncValidatorHUD();
     }
   }
   animate3D();
@@ -3620,7 +3845,7 @@ function update3DMine(fleet) {
 }
 
 // =============================================================================
-// POLLING INTERVALS
+// POLLING INTERVALS & INITIALIZATION
 // =============================================================================
 setInterval(() => {
   fetchFleet();
@@ -3630,6 +3855,7 @@ setInterval(() => {
 setInterval(checkCameraStatus, 3000);
 
 fetchFogZones();
+loadAndDrawSimulationRoute();
 fetchFleet();
 fetchVehicleDetails();
 checkCameraStatus();
