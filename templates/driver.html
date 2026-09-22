@@ -639,9 +639,9 @@
       truckForebody.add(pillarR);
 
       // Dashboard bezel top edge
-      const dashGeo = new THREE.BoxGeometry(2.9, 0.18, 0.35);
+      const dashBezelGeo = new THREE.BoxGeometry(2.9, 0.18, 0.35);
       const dashMat = new THREE.MeshStandardMaterial({ color: 0x090d16, roughness: 0.95 });
-      const dash = new THREE.Mesh(dashGeo, dashMat);
+      const dash = new THREE.Mesh(dashBezelGeo, dashMat);
       dash.position.set(0, 1.58, 0.52);
       truckForebody.add(dash);
 
@@ -657,11 +657,11 @@
       scene.add(roadMesh);
 
       // Animated scrolling dashed road centerline
-      const dashGeo = new THREE.PlaneGeometry(0.22, 2.2);
-      dashGeo.rotateX(-Math.PI / 2);
-      const dashMat = new THREE.MeshBasicMaterial({ color: 0xfef08a });
+      const roadStripeGeo = new THREE.PlaneGeometry(0.22, 2.2);
+      roadStripeGeo.rotateX(-Math.PI / 2);
+      const roadStripeMat = new THREE.MeshBasicMaterial({ color: 0xfef08a });
       for (let i = 0; i < 14; i++) {
-        const d = new THREE.Mesh(dashGeo, dashMat);
+        const d = new THREE.Mesh(roadStripeGeo, roadStripeMat);
         d.position.set(0, 0.06, 3.5 + i * 5.2);
         scene.add(d);
         roadDashes.push(d);

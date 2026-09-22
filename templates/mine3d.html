@@ -213,12 +213,14 @@
     return (a*(1-u) + b*u) * (1-v) + (c*(1-u) + d*u) * v;
   }
   function fbm(x, y, octaves){
+    octaves = octaves || 4;
     var total = 0, amp = 1, freq = 1, maxAmp = 0;
     for(var i=0;i<octaves;i++){
       total += valueNoise(x*freq, y*freq) * amp;
       maxAmp += amp;
       amp *= 0.5; freq *= 2.15;
     }
+    if(maxAmp === 0) return 0;
     return (total/maxAmp) * 2 - 1; // -1..1
   }
 
@@ -368,13 +370,26 @@
   for(var s=0;s<sampled.length;s++){
     sampled[s].y = displayY(sampled[s].x, sampled[s].z) + 0.09;
   }
-  var smoothCurve = new THREE.CatmullRomCurve3(sampled);
+
+  function getRoadPointAndTangent(t) {
+    var safeT = Math.min(0.9999, Math.max(0.0001, t));
+    var idxFloat = safeT * (sampled.length - 1);
+    var i0 = Math.floor(idxFloat);
+    var i1 = Math.min(i0 + 1, sampled.length - 1);
+    var frac = idxFloat - i0;
+    var pt = new THREE.Vector3().lerpVectors(sampled[i0], sampled[i1], frac);
+    var tang = new THREE.Vector3().subVectors(sampled[i1], sampled[i0]).normalize();
+    return { point: pt, tangent: tang };
+  }
 
   var roadWidth = 0.16;
   var ribbonVerts = [], ribbonIdx = [];
   for(var r=0;r<sampled.length;r++){
-    var t = r/(sampled.length-1);
-    var tang = smoothCurve.getTangentAt(t).normalize();
+    var nextP = (r < sampled.length - 1) ? sampled[r + 1] : sampled[r];
+    var prevP = (r > 0) ? sampled[r - 1] : sampled[r];
+    var tang = new THREE.Vector3().subVectors(nextP, prevP);
+    tang.y = 0;
+    tang.normalize();
     var side = new THREE.Vector3(-tang.z, 0, tang.x).normalize().multiplyScalar(roadWidth);
     var p = sampled[r];
     ribbonVerts.push(p.x-side.x, p.y, p.z-side.z);
@@ -392,7 +407,10 @@
   var roadMesh = new THREE.Mesh(roadGeo, roadMat);
   scene.add(roadMesh);
 
-  var roadLengthKm = smoothCurve.getLength();
+  var roadLengthKm = 0;
+  for(var i=1;i<sampled.length;i++){
+    roadLengthKm += sampled[i].distanceTo(sampled[i-1]);
+  }
   document.getElementById('stat-road').textContent = roadLengthKm.toFixed(1) + ' km';
 
   /* =========================================================
@@ -509,11 +527,10 @@
 
         // Place along the road curve
         var tProg = ((idx * 0.16) + (Date.now() * 0.000015 * (v.speed_kmh || 20))) % 1.0;
-        var p = smoothCurve.getPointAt(tProg);
-        var tang = smoothCurve.getTangentAt(tProg).normalize();
+        var rInfo = getRoadPointAndTangent(tProg);
 
-        mesh.position.set(p.x, p.y + 0.02, p.z);
-        mesh.rotation.y = Math.atan2(tang.x, tang.z);
+        mesh.position.set(rInfo.point.x, rInfo.point.y + 0.02, rInfo.point.z);
+        mesh.rotation.y = Math.atan2(rInfo.tangent.x, rInfo.tangent.z);
 
         // Update radar ring color
         if(mesh.radarRing){
@@ -632,8 +649,9 @@
       driveT = (driveT + speed) % 1;
       progressSlider.value = driveT*1000;
     }
-    smoothCurve.getPointAt(driveT, tmpPos);
-    smoothCurve.getTangentAt(driveT, tmpTang).normalize();
+    var rInfo = getRoadPointAndTangent(driveT);
+    tmpPos.copy(rInfo.point);
+    tmpTang.copy(rInfo.tangent);
     camera.position.set(tmpPos.x, tmpPos.y+0.22, tmpPos.z);
 
     var yaw = Math.atan2(tmpTang.x, tmpTang.z) + yawOffset;

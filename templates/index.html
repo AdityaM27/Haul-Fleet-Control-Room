@@ -3394,12 +3394,14 @@ function valueNoise3D(x, y) {
   return (a * (1 - u) + b * u) * (1 - v) + (c * (1 - u) + d * u) * v;
 }
 function fbm3D(x, y, octaves) {
+  octaves = octaves || 4;
   var total = 0, amp = 1, freq = 1, maxAmp = 0;
   for (var i = 0; i < octaves; i++) {
     total += valueNoise3D(x * freq, y * freq) * amp;
     maxAmp += amp;
     amp *= 0.5; freq *= 2.15;
   }
+  if (!maxAmp) return 0;
   return (total / maxAmp) * 2 - 1;
 }
 
@@ -3531,13 +3533,25 @@ function buildBailadilaRangeTerrain(scene) {
   for (var s = 0; s < sampled.length; s++) {
     sampled[s].y = displayY3D(sampled[s].x, sampled[s].z) + 0.08;
   }
-  smoothBailadilaRoadCurve = new THREE.CatmullRomCurve3(sampled);
+  window.getBailadilaRoadPointAndTangent = function(t) {
+    var safeT = Math.min(0.9999, Math.max(0.0001, t));
+    var idxFloat = safeT * (sampled.length - 1);
+    var i0 = Math.floor(idxFloat);
+    var i1 = Math.min(i0 + 1, sampled.length - 1);
+    var frac = idxFloat - i0;
+    var pt = new THREE.Vector3().lerpVectors(sampled[i0], sampled[i1], frac);
+    var tang = new THREE.Vector3().subVectors(sampled[i1], sampled[i0]).normalize();
+    return { point: pt, tangent: tang };
+  };
 
   var roadWidth = 0.22;
   var ribbonVerts = [], ribbonIdx = [];
   for (var r = 0; r < sampled.length; r++) {
-    var t = r / (sampled.length - 1);
-    var tang = smoothBailadilaRoadCurve.getTangentAt(t).normalize();
+    var nextP = (r < sampled.length - 1) ? sampled[r + 1] : sampled[r];
+    var prevP = (r > 0) ? sampled[r - 1] : sampled[r];
+    var tang = new THREE.Vector3().subVectors(nextP, prevP);
+    tang.y = 0;
+    tang.normalize();
     var side = new THREE.Vector3(-tang.z, 0, tang.x).normalize().multiplyScalar(roadWidth);
     var p = sampled[r];
     ribbonVerts.push(p.x - side.x, p.y, p.z - side.z);
@@ -3822,8 +3836,9 @@ function update3DMine(fleet) {
     const idx = fleet.findIndex(item => item.id === v.id);
     const safeIdx = idx >= 0 ? idx : 0;
     const tProg = ((safeIdx * 0.16) + (Date.now() * 0.000018 * (v.speed_kmh || 20))) % 1.0;
-    const p = smoothBailadilaRoadCurve.getPointAt(tProg);
-    const tang = smoothBailadilaRoadCurve.getTangentAt(tProg).normalize();
+    const rInfo = window.getBailadilaRoadPointAndTangent ? window.getBailadilaRoadPointAndTangent(tProg) : { point: new THREE.Vector3(), tangent: new THREE.Vector3(0, 0, 1) };
+    const p = rInfo.point;
+    const tang = rInfo.tangent;
 
     mesh.position.set(p.x, p.y + 0.02, p.z);
     mesh.rotation.y = Math.atan2(tang.x, tang.z);
