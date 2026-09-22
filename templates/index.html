@@ -14,6 +14,7 @@
   <!-- Three.js & OrbitControls for 3D Open-Cast Mine Digital Twin -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="/static/js/bailadila_dem_terrain.js"></script>
 
   <style>
     :root {
@@ -1747,8 +1748,8 @@
           <div class="card-header map-card-header" style="flex-wrap:wrap;gap:8px">
             <div class="card-title" style="display:flex;align-items:center;gap:8px">
               <span>🏔️</span>
-              <span>Bailadila Range 3D Terrain Twin</span>
-              <span class="status-pill clear" style="font-size:8px">GEOLOGICAL RIDGE & ROAD MODEL</span>
+              <span>Bailadila Mine 3D DEM Twin</span>
+              <span class="status-pill clear" style="font-size:8px">COPERNICUS GLO-30 DEM · DEPOSIT 14</span>
             </div>
             <div style="display:flex;align-items:center;gap:8px;margin-left:auto;flex-wrap:wrap">
               <div class="map-layer-toggle-group">
@@ -1765,15 +1766,43 @@
             </div>
           </div>
 
-          <!-- 3D WebGL Canvas Viewport -->
-          <div style="position:relative;width:100%;height:460px;background:#14110D;overflow:hidden;border-bottom:1px solid var(--panel-border)">
-            <div style="position:absolute;top:10px;left:12px;z-index:10;font-size:10px;color:var(--text-muted);background:rgba(20,17,13,0.85);padding:5px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);backdrop-filter:blur(6px);pointer-events:none">
-              Drag to rotate · Scroll to zoom · Kirandul → Deposit 14/13/11/10
+          <!-- Digital Twin Layer Toggles & Precision Sliders -->
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 14px;background:rgba(10,13,18,0.92);border-bottom:1px solid rgba(255,255,255,0.06);font-size:11px;flex-wrap:wrap">
+            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+              <label style="display:flex;align-items:center;gap:5px;cursor:pointer;color:var(--text-muted)">
+                <input type="checkbox" id="dashChkTerrain" checked onchange="window.dashBailadilaEngine && window.dashBailadilaEngine.setTerrainVisible(this.checked)" style="accent-color:#38bdf8"> Terrain
+              </label>
+              <label style="display:flex;align-items:center;gap:5px;cursor:pointer;color:var(--text-muted)">
+                <input type="checkbox" id="dashChkPit" checked onchange="window.dashBailadilaEngine && window.dashBailadilaEngine.setMineVisible(scene3D, this.checked)" style="accent-color:#38bdf8"> Conceptual Mine
+              </label>
+              <label style="display:flex;align-items:center;gap:5px;cursor:pointer;color:var(--text-muted)">
+                <input type="checkbox" id="dashChkRoads" checked onchange="window.dashBailadilaEngine && window.dashBailadilaEngine.setRoadsVisible(this.checked)" style="accent-color:#38bdf8"> Haul Roads
+              </label>
+              <label style="display:flex;align-items:center;gap:5px;cursor:pointer;color:var(--text-muted)">
+                <input type="checkbox" id="dashChkTrucks" checked onchange="window.dashBailadilaEngine && window.dashBailadilaEngine.setTrucksVisible(this.checked)" style="accent-color:#38bdf8"> Simulated Trucks
+              </label>
+              <label style="display:flex;align-items:center;gap:5px;cursor:pointer;color:var(--text-muted)">
+                <input type="checkbox" id="dashChkHazards" checked onchange="window.dashBailadilaEngine && window.dashBailadilaEngine.setHazardsVisible(this.checked)" style="accent-color:#38bdf8"> Hazard Zones
+              </label>
             </div>
-            <div style="position:absolute;top:10px;right:12px;z-index:10;display:flex;align-items:center;gap:8px;background:rgba(20,17,13,0.88);padding:5px 12px;border-radius:6px;border:1px solid rgba(201,162,39,0.3);backdrop-filter:blur(6px)">
-              <span style="font-size:10px;color:#c9a227;font-weight:700">FOG:</span>
-              <input type="range" id="dashboardFogSlider" min="0" max="100" value="20" style="width:85px;accent-color:#c9a227;cursor:pointer" oninput="onDashboardFogSliderChange(this.value)">
-              <span id="dashboardFogLabel" style="font-size:10px;color:#c9a227;font-weight:600">Light</span>
+            <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+              <div style="display:flex;align-items:center;gap:6px">
+                <span style="font-size:10px;color:var(--text-muted)">V. Scale:</span>
+                <input type="range" id="dashVscaleSlider" min="70" max="220" step="5" value="100" style="width:70px;accent-color:#38bdf8;cursor:pointer" oninput="onDashVscaleChange(this.value)">
+                <span id="dashVscaleLabel" style="font-size:10px;color:var(--teal);font-weight:600">1.00×</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:6px">
+                <span style="font-size:10px;color:var(--text-muted)">Fog:</span>
+                <input type="range" id="dashboardFogSlider" min="0" max="100" value="20" style="width:70px;accent-color:#c9a227;cursor:pointer" oninput="onDashboardFogSliderChange(this.value)">
+                <span id="dashboardFogLabel" style="font-size:10px;color:#c9a227;font-weight:600">Light</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 3D WebGL Canvas Viewport -->
+          <div style="position:relative;width:100%;height:460px;background:#0a0d12;overflow:hidden;border-bottom:1px solid var(--panel-border)">
+            <div style="position:absolute;top:10px;left:12px;z-index:10;font-size:10px;color:var(--text-muted);background:rgba(10,13,18,0.85);padding:5px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);backdrop-filter:blur(6px);pointer-events:none">
+              Copernicus GLO-30 DEM · Kirandul → Deposit 14 Pit Circuit · Drag to orbit · Scroll to zoom
             </div>
             <div id="threeCanvasWrap" style="width:100%;height:100%"></div>
           </div>
@@ -1782,11 +1811,11 @@
           <div class="map-telemetry-bar">
             <div class="mstat-box">
               <div class="mstat-lbl">Terrain Model</div>
-              <div class="mstat-val" style="color:var(--teal)">Bailadila Ridge</div>
+              <div class="mstat-val" style="color:var(--teal)">Copernicus GLO-30</div>
             </div>
             <div class="mstat-box">
-              <div class="mstat-lbl">Relief Exaggeration</div>
-              <div class="mstat-val">540m – 1,250m (×7)</div>
+              <div class="mstat-lbl">Relief & DEM Range</div>
+              <div class="mstat-val" id="threeDElevRange">219m – 1,272m ASL</div>
             </div>
             <div class="mstat-box">
               <div class="mstat-lbl">Tracking Target</div>
@@ -1796,6 +1825,12 @@
               <div class="mstat-lbl">Radar Envelope</div>
               <div class="mstat-val" id="threeDRadarLabel" style="color:var(--green)">CLEAR</div>
             </div>
+          </div>
+
+          <!-- Disclaimer Subnote -->
+          <div style="font-size:9.5px;color:var(--text-muted);padding:4px 14px;background:rgba(15,23,42,0.5);border-top:1px solid rgba(255,255,255,0.04);display:flex;justify-content:space-between">
+            <span>Terrain: Copernicus GLO-30 DEM (30m) · Conceptual pit benches & haul ramp</span>
+            <span style="font-style:italic">Simulated fleet (DMP-101..106) — not an official mine survey</span>
           </div>
         </div>
 
@@ -3379,222 +3414,45 @@ function set3DCameraMode(mode) {
 }
 
 // =============================================================================
-// BAILADILA RANGE — 3D TERRAIN & HAUL ROAD NAVIGATOR (DIGITAL TWIN)
+// BAILADILA MINE — COPERNICUS GLO-30 DEM 3D DIGITAL TWIN
 // =============================================================================
-function hash3D(x, y) {
-  var s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
-  return s - Math.floor(s);
-}
-function smooth3D(t) { return t * t * (3 - 2 * t); }
-function valueNoise3D(x, y) {
-  var xi = Math.floor(x), yi = Math.floor(y);
-  var xf = x - xi, yf = y - yi;
-  var a = hash3D(xi, yi), b = hash3D(xi + 1, yi), c = hash3D(xi, yi + 1), d = hash3D(xi + 1, yi + 1);
-  var u = smooth3D(xf), v = smooth3D(yf);
-  return (a * (1 - u) + b * u) * (1 - v) + (c * (1 - u) + d * u) * v;
-}
-function fbm3D(x, y, octaves) {
-  octaves = octaves || 4;
-  var total = 0, amp = 1, freq = 1, maxAmp = 0;
-  for (var i = 0; i < octaves; i++) {
-    total += valueNoise3D(x * freq, y * freq) * amp;
-    maxAmp += amp;
-    amp *= 0.5; freq *= 2.15;
+var dashBailadilaEngine = null;
+var dashCurrentVscale = 1.0;
+
+function onDashVscaleChange(val) {
+  var v = parseFloat(val) / 100.0;
+  dashCurrentVscale = v;
+  var lbl = document.getElementById('dashVscaleLabel');
+  if (lbl) lbl.textContent = v.toFixed(2) + '×';
+  if (dashBailadilaEngine && scene3D) {
+    dashBailadilaEngine.setVerticalScale(scene3D, v);
   }
-  if (!maxAmp) return 0;
-  return (total / maxAmp) * 2 - 1;
 }
 
-var HALF_W = 6.2, HALF_L = 22;
-var BASE_ELEV = 0.54, PEAK_ELEV = 1.25;
-var VERT_EXAG = 7;
-
-function ridgeCenterX(z) {
-  return 0.8 * Math.sin(z * 0.10) + 1.5 * Math.sin(z * 0.035 + 1.1);
-}
-function ridgeHalfWidth(z) {
-  var n = (z + HALF_L) / (2 * HALF_L);
-  return 2.0 + 1.6 * Math.exp(-Math.pow((n - 0.18) / 0.32, 2)) + 0.7 * Math.sin(n * Math.PI);
-}
-var PEAKS_3D = [
-  { z: -14, amp: 0.78, sig: 4.2 }, { z: -6, amp: 0.92, sig: 3.6 }, { z: 2, amp: 1.0, sig: 4.4 },
-  { z: 9, amp: 0.88, sig: 3.4 }, { z: 15, amp: 0.62, sig: 3.8 }
-];
-function elevationEnvelope3D(z) {
-  var m = 0;
-  for (var i = 0; i < PEAKS_3D.length; i++) {
-    var p = PEAKS_3D[i];
-    var v = p.amp * Math.exp(-Math.pow(z - p.z, 2) / (2 * p.sig * p.sig));
-    if (v > m) m = v;
+function onDashboardFogSliderChange(val) {
+  var v = parseFloat(val);
+  if (scene3D && scene3D.fog) {
+    scene3D.fog.density = (v / 100) * 0.0012;
   }
-  return m;
-}
-function crestFactor3D(x, z) {
-  var dx = x - ridgeCenterX(z);
-  var hw = ridgeHalfWidth(z);
-  return Math.exp(-(dx * dx) / (2 * hw * hw));
-}
-function mineMask3D(x, z) {
-  var band = Math.exp(-Math.pow((z - 8) / 9, 2));
-  return band * crestFactor3D(x, z);
-}
-function elevationKm3D(x, z) {
-  var cf = crestFactor3D(x, z);
-  var env = elevationEnvelope3D(z);
-  var noise = fbm3D(x * 0.32 + 50, z * 0.32, 4) * 0.055 * (0.35 + 0.65 * cf);
-  return BASE_ELEV + (PEAK_ELEV - BASE_ELEV) * env * cf + noise;
-}
-function displayY3D(x, z) {
-  return (elevationKm3D(x, z) - BASE_ELEV) * VERT_EXAG;
-}
-
-var smoothBailadilaRoadCurve = null;
-
-function makeLabelSprite3D(text, color) {
-  var cnv = document.createElement('canvas');
-  cnv.width = 256; cnv.height = 64;
-  var ctx = cnv.getContext('2d');
-  ctx.font = '600 28px "Space Grotesk", sans-serif';
-  ctx.fillStyle = 'rgba(20, 17, 13, 0.84)';
-  ctx.fillRect(0, 0, 256, 64);
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 3;
-  ctx.strokeRect(1.5, 1.5, 253, 61);
-  ctx.fillStyle = '#EDE6D6';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(text, 128, 34);
-  var tex = new THREE.CanvasTexture(cnv);
-  var sm = new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true });
-  var sprite = new THREE.Sprite(sm);
-  sprite.scale.set(2.4, 0.6, 1);
-  return sprite;
-}
-
-function buildBailadilaRangeTerrain(scene) {
-  var WSEG = 110, LSEG = 220;
-  var geo = new THREE.PlaneGeometry(HALF_W * 2, HALF_L * 2, WSEG, LSEG);
-  geo.rotateX(-Math.PI / 2);
-
-  var pos = geo.attributes.position;
-  var colors = [];
-  var cHematite = new THREE.Color(0x7A2E1D);
-  var cIronbloom = new THREE.Color(0xC2673B);
-  var cScrub = new THREE.Color(0x5C6B5E);
-  var cScrubDark = new THREE.Color(0x445043);
-  var cPlain = new THREE.Color(0x3B342B);
-
-  for (var i = 0; i < pos.count; i++) {
-    var x = pos.getX(i), z = pos.getZ(i);
-    var y = displayY3D(x, z);
-    pos.setY(i, y);
-
-    var cf = crestFactor3D(x, z);
-    var mm = mineMask3D(x, z);
-    var tNorm = THREE.MathUtils.clamp((elevationKm3D(x, z) - BASE_ELEV) / (PEAK_ELEV - BASE_ELEV), 0, 1);
-
-    var col = new THREE.Color();
-    col.copy(cPlain).lerp(cScrubDark, THREE.MathUtils.clamp(tNorm * 2.2, 0, 1));
-    col.lerp(cScrub, THREE.MathUtils.clamp((tNorm - 0.15) * 1.6, 0, 1) * (1 - mm * 0.7));
-    col.lerp(cIronbloom, Math.max(0, mm * 1.15 - 0.15));
-    col.lerp(cHematite, Math.max(0, mm * 0.9) * THREE.MathUtils.clamp(tNorm * 1.4, 0, 1));
-
-    var speck = (hash3D(Math.floor(x * 7), Math.floor(z * 7)) - 0.5) * 0.05;
-    col.offsetHSL(0, 0, speck);
-    colors.push(col.r, col.g, col.b);
+  var labelEl = document.getElementById('dashboardFogLabel');
+  if (labelEl) {
+    if (v > 70) labelEl.textContent = 'Dense';
+    else if (v > 35) labelEl.textContent = 'Moderate';
+    else labelEl.textContent = 'Light';
   }
-  geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-  geo.computeVertexNormals();
-
-  var mat = new THREE.MeshStandardMaterial({
-    vertexColors: true, roughness: 0.95, metalness: 0.03
-  });
-  var terrainMesh = new THREE.Mesh(geo, mat);
-  scene.add(terrainMesh);
-
-  // Haul road ribbon along the crest
-  var waypoints = [
-    [6.4, 19.5], [4.6, 17.6], [1.6, 15.4], [3.4, 13.2], [0.9, 11.0],
-    [0.0, 8.6], [0.35, 4.8], [-0.2, 1.0], [0.25, -3.2], [-0.3, -7.8],
-    [0.0, -12.6], [0.2, -16.8]
-  ];
-  var roadPts = waypoints.map(function(w) {
-    var rx = ridgeCenterX(w[1]) + w[0];
-    var rz = w[1];
-    var ry = displayY3D(rx, rz) + 0.10;
-    return new THREE.Vector3(rx, ry, rz);
-  });
-  var roadCurve = new THREE.CatmullRomCurve3(roadPts);
-  roadCurve.curveType = 'catmullrom';
-  roadCurve.tension = 0.35;
-
-  var ROAD_SAMPLES = 360;
-  var sampled = roadCurve.getPoints(ROAD_SAMPLES);
-  for (var s = 0; s < sampled.length; s++) {
-    sampled[s].y = displayY3D(sampled[s].x, sampled[s].z) + 0.08;
-  }
-  window.getBailadilaRoadPointAndTangent = function(t) {
-    var safeT = Math.min(0.9999, Math.max(0.0001, t));
-    var idxFloat = safeT * (sampled.length - 1);
-    var i0 = Math.floor(idxFloat);
-    var i1 = Math.min(i0 + 1, sampled.length - 1);
-    var frac = idxFloat - i0;
-    var pt = new THREE.Vector3().lerpVectors(sampled[i0], sampled[i1], frac);
-    var tang = new THREE.Vector3().subVectors(sampled[i1], sampled[i0]).normalize();
-    return { point: pt, tangent: tang };
-  };
-
-  var roadWidth = 0.22;
-  var ribbonVerts = [], ribbonIdx = [];
-  for (var r = 0; r < sampled.length; r++) {
-    var nextP = (r < sampled.length - 1) ? sampled[r + 1] : sampled[r];
-    var prevP = (r > 0) ? sampled[r - 1] : sampled[r];
-    var tang = new THREE.Vector3().subVectors(nextP, prevP);
-    tang.y = 0;
-    tang.normalize();
-    var side = new THREE.Vector3(-tang.z, 0, tang.x).normalize().multiplyScalar(roadWidth);
-    var p = sampled[r];
-    ribbonVerts.push(p.x - side.x, p.y, p.z - side.z);
-    ribbonVerts.push(p.x + side.x, p.y, p.z + side.z);
-    if (r > 0) {
-      var a = (r - 1) * 2, b = (r - 1) * 2 + 1, c = r * 2, d = r * 2 + 1;
-      ribbonIdx.push(a, c, b, b, c, d);
-    }
-  }
-  var roadGeo = new THREE.BufferGeometry();
-  roadGeo.setAttribute('position', new THREE.Float32BufferAttribute(ribbonVerts, 3));
-  roadGeo.setIndex(ribbonIdx);
-  roadGeo.computeVertexNormals();
-  var roadMat = new THREE.MeshStandardMaterial({ color: 0xC9A227, roughness: 0.75, metalness: 0.05 });
-  var roadMesh = new THREE.Mesh(roadGeo, roadMat);
-  scene.add(roadMesh);
-
-  // Landmark markers
-  var markerDefs = [
-    { name: 'Kirandul (base)', off: 6.4, z: 19.5, type: 'town' },
-    { name: 'Deposit 14', off: 0.0, z: 8.6, type: 'mine' },
-    { name: 'Deposit 13', off: 0.35, z: 4.8, type: 'mine' },
-    { name: 'Deposit 11', off: -0.2, z: 1.0, type: 'mine' },
-    { name: 'Deposit 10', off: 0.25, z: -3.2, type: 'mine' },
-    { name: 'Ridge viewpoint', off: 0.2, z: -16.8, type: 'view' }
-  ];
-  markerDefs.forEach(function(m) {
-    var mx = ridgeCenterX(m.z) + m.off;
-    var my = displayY3D(mx, m.z);
-    var pinColor = m.type === 'town' ? 0xEDE6D6 : (m.type === 'mine' ? 0xC2673B : 0x9fb0c9);
-    var pinGeo = new THREE.ConeGeometry(0.12, 0.44, 10);
-    var pinMat = new THREE.MeshStandardMaterial({ color: pinColor, roughness: 0.5, emissive: pinColor, emissiveIntensity: 0.15 });
-    var pin = new THREE.Mesh(pinGeo, pinMat);
-    pin.position.set(mx, my + 0.25, m.z);
-    scene.add(pin);
-
-    var label = makeLabelSprite3D(m.name, m.type === 'mine' ? '#C2673B' : '#C9A227');
-    label.position.set(mx, my + 0.9, m.z);
-    scene.add(label);
-  });
 }
 
-function initMine3DViewer() {
+function reset3DCameraTarget() {
+  if (camera3D && controls3D && dashBailadilaEngine) {
+    var camTarget = dashBailadilaEngine.getRecommendedCameraOverview();
+    camera3D.position.copy(camTarget.position);
+    controls3D.target.copy(camTarget.target);
+    controls3D.update();
+    set3DCameraMode('orbit');
+  }
+}
+
+async function initMine3DViewer() {
   if (mine3DInit) {
     onMine3DResize();
     return;
@@ -3607,42 +3465,58 @@ function initMine3DViewer() {
   const h = container.clientHeight || 460;
 
   scene3D = new THREE.Scene();
-  scene3D.background = new THREE.Color(0x14110D);
-  scene3D.fog = new THREE.FogExp2(0x14110D, 0.011);
+  scene3D.background = new THREE.Color(0x0a0d12);
+  scene3D.fog = new THREE.FogExp2(0x0a0d12, 0.0003);
 
-  camera3D = new THREE.PerspectiveCamera(50, w / h, 0.08, 400);
-  camera3D.position.set(14, 9, 24);
+  camera3D = new THREE.PerspectiveCamera(50, w / h, 10, 100000);
 
   renderer3D = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   renderer3D.setSize(w, h);
   renderer3D.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer3D.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer3D.toneMappingExposure = 1.1;
   container.appendChild(renderer3D.domElement);
 
   controls3D = new THREE.OrbitControls(camera3D, renderer3D.domElement);
   controls3D.enableDamping = true;
   controls3D.dampingFactor = 0.06;
-  controls3D.minDistance = 3;
-  controls3D.maxDistance = 80;
+  controls3D.screenSpacePanning = true;
+  controls3D.minDistance = 150;
+  controls3D.maxDistance = 45000;
   controls3D.maxPolarAngle = Math.PI * 0.495;
-  controls3D.target.set(0, 2.5, 0);
 
   // Lighting
-  const hemiLight = new THREE.HemisphereLight(0x9aa5a0, 0x1a1410, 0.85);
+  const hemiLight = new THREE.HemisphereLight(0xcfd8dc, 0x1a2128, 1.25);
   scene3D.add(hemiLight);
 
-  const sunLight = new THREE.DirectionalLight(0xffd9ad, 1.2);
-  sunLight.position.set(-18, 22, 10);
+  const sunLight = new THREE.DirectionalLight(0xfff7ed, 1.6);
+  sunLight.position.set(-6000, 9500, 5000);
   scene3D.add(sunLight);
 
-  const fillLight = new THREE.DirectionalLight(0x5b6fa0, 0.35);
-  fillLight.position.set(15, 10, -14);
+  const fillLight = new THREE.DirectionalLight(0x7dd3fc, 0.45);
+  fillLight.position.set(5000, 6000, -7000);
   scene3D.add(fillLight);
 
-  // Build Bailadila Geological Ridge & Road Terrain
-  buildBailadilaRangeTerrain(scene3D);
+  // Initialize DEM Engine
+  dashBailadilaEngine = new BailadilaTerrainEngine();
+  window.dashBailadilaEngine = dashBailadilaEngine;
+  await dashBailadilaEngine.load('/static/bailadila_terrain_meta.json', '/static/bailadila_terrain_256.png');
 
-  // Build 3D Ultrasonic Radar Cone
-  const coneGeo = new THREE.ConeGeometry(0.65, 2.2, 16, 1, true);
+  // Build Terrain, Roads, Fleet, Hazards & Landmarks
+  dashBailadilaEngine.buildTerrain(scene3D, 1.0);
+  dashBailadilaEngine.buildHaulRoads(scene3D, 1.0);
+  dashBailadilaEngine.buildFleet(scene3D, fleetList);
+  dashBailadilaEngine.buildHazardZones(scene3D, 1.0);
+  dashBailadilaEngine.buildLandmarks(scene3D, 1.0);
+
+  // Camera framing (Deposit 14 & Kirandul complex)
+  const camTarget = dashBailadilaEngine.getRecommendedCameraOverview();
+  camera3D.position.copy(camTarget.position);
+  controls3D.target.copy(camTarget.target);
+  controls3D.update();
+
+  // 3D Ultrasonic Radar Cone
+  const coneGeo = new THREE.ConeGeometry(35, 120, 16, 1, true);
   coneGeo.rotateX(Math.PI / 2);
   const coneMat = new THREE.MeshBasicMaterial({
     color: 0x10b981,
@@ -3663,25 +3537,32 @@ function initMine3DViewer() {
       }
 
       // Update chase / cockpit camera if active
-      const activeMesh = truck3DMeshes[selectedVehicleId];
-      if (activeMesh) {
-        const truckPos = activeMesh.position;
-        const headingRad = activeMesh.rotation.y;
+      if (dashBailadilaEngine && dashBailadilaEngine.truckObjects) {
+        const item = dashBailadilaEngine.truckObjects[selectedVehicleId];
+        if (item && item.mesh) {
+          const truckPos = item.mesh.position;
+          const headingRad = item.mesh.rotation.y;
 
-        if (cameraMode3D === 'chase') {
-          const offsetX = -Math.sin(headingRad) * 2.2;
-          const offsetZ = -Math.cos(headingRad) * 2.2;
-          camera3D.position.lerp(new THREE.Vector3(truckPos.x + offsetX, truckPos.y + 0.9, truckPos.z + offsetZ), 0.08);
-          camera3D.lookAt(truckPos.x, truckPos.y + 0.2, truckPos.z);
-        } else if (cameraMode3D === 'cockpit') {
-          const cabX = Math.sin(headingRad) * 0.15;
-          const cabZ = Math.cos(headingRad) * 0.15;
-          camera3D.position.set(truckPos.x + cabX, truckPos.y + 0.28, truckPos.z + cabZ);
-          camera3D.lookAt(truckPos.x + Math.sin(headingRad) * 6, truckPos.y + 0.18, truckPos.z + Math.cos(headingRad) * 6);
+          if (cameraMode3D === 'chase') {
+            const offsetX = -Math.sin(headingRad) * 110;
+            const offsetZ = -Math.cos(headingRad) * 110;
+            camera3D.position.lerp(new THREE.Vector3(truckPos.x + offsetX, truckPos.y + 45, truckPos.z + offsetZ), 0.08);
+            camera3D.lookAt(truckPos.x, truckPos.y + 12, truckPos.z);
+          } else if (cameraMode3D === 'cockpit') {
+            const cabX = Math.sin(headingRad) * 8;
+            const cabZ = Math.cos(headingRad) * 8;
+            camera3D.position.set(truckPos.x + cabX, truckPos.y + 20, truckPos.z + cabZ);
+            camera3D.lookAt(truckPos.x + Math.sin(headingRad) * 250, truckPos.y + 16, truckPos.z + Math.cos(headingRad) * 250);
+          }
+
+          if (selectedRadarCone3D) {
+            selectedRadarCone3D.position.set(truckPos.x, truckPos.y + 12, truckPos.z);
+            selectedRadarCone3D.rotation.y = headingRad;
+          }
         }
       }
 
-      // Animate radar cone
+      // Animate radar cone opacity
       if (selectedRadarCone3D) {
         const t = Date.now() * 0.004;
         selectedRadarCone3D.material.opacity = 0.35 + Math.sin(t) * 0.18;
@@ -3697,28 +3578,6 @@ function initMine3DViewer() {
   update3DMine(fleetList);
 }
 
-function reset3DCameraTarget() {
-  if (camera3D && controls3D) {
-    camera3D.position.set(14, 9, 24);
-    controls3D.target.set(0, 2.5, 0);
-    controls3D.update();
-    set3DCameraMode('orbit');
-  }
-}
-
-function onDashboardFogSliderChange(val) {
-  const v = parseFloat(val);
-  if (scene3D && scene3D.fog) {
-    scene3D.fog.density = 0.003 + (v / 100) * 0.025;
-  }
-  const labelEl = document.getElementById('dashboardFogLabel');
-  if (labelEl) {
-    if (v > 70) labelEl.textContent = 'Dense';
-    else if (v > 35) labelEl.textContent = 'Moderate';
-    else labelEl.textContent = 'Light';
-  }
-}
-
 function onMine3DResize() {
   if (!renderer3D || !camera3D) return;
   const container = document.getElementById('threeCanvasWrap');
@@ -3732,142 +3591,10 @@ function onMine3DResize() {
   }
 }
 
-// Low-poly 3D Mining Haul Truck constructor (scaled for Bailadila terrain model)
-function create3DHaulTruck(v) {
-  const truck = new THREE.Group();
-  const hexColor = parseInt((v.avatar_color || '#38bdf8').replace('#', '0x'), 16);
-
-  // Chassis
-  const chassisGeo = new THREE.BoxGeometry(0.26, 0.12, 0.46);
-  const chassisMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.7 });
-  const chassis = new THREE.Mesh(chassisGeo, chassisMat);
-  chassis.position.y = 0.09;
-  truck.add(chassis);
-
-  // 6 Wheels
-  const wheelGeo = new THREE.CylinderGeometry(0.08, 0.08, 0.06, 12);
-  wheelGeo.rotateZ(Math.PI / 2);
-  const wheelMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.9 });
-  const wheelOffsets = [
-    [-0.14, 0.08, 0.14], [0.14, 0.08, 0.14],
-    [-0.14, 0.08, -0.08], [0.14, 0.08, -0.08],
-    [-0.15, 0.08, -0.16], [0.15, 0.08, -0.16]
-  ];
-  wheelOffsets.forEach(pos => {
-    const w = new THREE.Mesh(wheelGeo, wheelMat);
-    w.position.set(...pos);
-    truck.add(w);
-  });
-
-  // Cab Cabin
-  const cabGeo = new THREE.BoxGeometry(0.18, 0.13, 0.18);
-  const cabMat = new THREE.MeshStandardMaterial({ color: hexColor, roughness: 0.45 });
-  const cab = new THREE.Mesh(cabGeo, cabMat);
-  cab.position.set(0, 0.19, 0.12);
-  truck.add(cab);
-
-  // Windshield
-  const winGeo = new THREE.BoxGeometry(0.15, 0.06, 0.02);
-  const winMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
-  const win = new THREE.Mesh(winGeo, winMat);
-  win.position.set(0, 0.20, 0.215);
-  truck.add(win);
-
-  // Dump Bed
-  const bedGeo = new THREE.BoxGeometry(0.26, 0.16, 0.26);
-  const bedMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.6 });
-  const bed = new THREE.Mesh(bedGeo, bedMat);
-  bed.position.set(0, 0.20, -0.10);
-  truck.add(bed);
-
-  // Headlights
-  const hlLight = new THREE.SpotLight(0xfff7ed, 1.2, 3.2, Math.PI / 7, 0.4);
-  hlLight.position.set(0, 0.15, 0.24);
-  hlLight.target.position.set(0, 0.02, 2.5);
-  truck.add(hlLight);
-  truck.add(hlLight.target);
-
-  // Radar Ring
-  const ringGeo = new THREE.RingGeometry(0.65, 0.76, 24);
-  ringGeo.rotateX(-Math.PI / 2);
-  const ringMat = new THREE.MeshBasicMaterial({ color: 0x10b981, transparent: true, opacity: 0.45, side: THREE.DoubleSide });
-  const ring = new THREE.Mesh(ringGeo, ringMat);
-  ring.position.y = 0.03;
-  truck.add(ring);
-  truck.radarRing = ring;
-
-  // Floating Tag Sprite
-  const canvas = document.createElement('canvas');
-  canvas.width = 128;
-  canvas.height = 48;
-  const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#090e1a';
-  ctx.fillRect(0, 0, 128, 48);
-  ctx.strokeStyle = v.avatar_color || '#38bdf8';
-  ctx.lineWidth = 4;
-  ctx.strokeRect(2, 2, 124, 44);
-  ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 20px "Space Grotesk", monospace';
-  ctx.textAlign = 'center';
-  ctx.fillText(v.id.replace('TRUCK_', 'T-'), 64, 32);
-
-  const texture = new THREE.CanvasTexture(canvas);
-  const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true });
-  const sprite = new THREE.Sprite(spriteMat);
-  sprite.position.set(0, 0.50, 0);
-  sprite.scale.set(0.75, 0.25, 1);
-  truck.add(sprite);
-
-  return truck;
-}
-
 // Update all 3D trucks each telemetry tick along Bailadila Range
 function update3DMine(fleet) {
-  if (!scene3D || !fleet || !fleet.length || !smoothBailadilaRoadCurve) return;
-
-  fleet.forEach(v => {
-    let mesh = truck3DMeshes[v.id];
-    if (!mesh) {
-      mesh = create3DHaulTruck(v);
-      truck3DMeshes[v.id] = mesh;
-      scene3D.add(mesh);
-    }
-
-    const idx = fleet.findIndex(item => item.id === v.id);
-    const safeIdx = idx >= 0 ? idx : 0;
-    const tProg = ((safeIdx * 0.16) + (Date.now() * 0.000018 * (v.speed_kmh || 20))) % 1.0;
-    const rInfo = window.getBailadilaRoadPointAndTangent ? window.getBailadilaRoadPointAndTangent(tProg) : { point: new THREE.Vector3(), tangent: new THREE.Vector3(0, 0, 1) };
-    const p = rInfo.point;
-    const tang = rInfo.tangent;
-
-    mesh.position.set(p.x, p.y + 0.02, p.z);
-    mesh.rotation.y = Math.atan2(tang.x, tang.z);
-
-    // Update truck radar ring
-    if (mesh.radarRing) {
-      if (v.action === 'STOP' || v.dist_front < 60) {
-        mesh.radarRing.material.color.setHex(0xef4444);
-      } else if (v.action === 'SLOW DOWN' || v.dist_front < 150) {
-        mesh.radarRing.material.color.setHex(0xf59e0b);
-      } else {
-        mesh.radarRing.material.color.setHex(0x10b981);
-      }
-    }
-
-    // Highlight selected truck radar cone
-    if (v.id === selectedVehicleId && selectedRadarCone3D) {
-      selectedRadarCone3D.position.set(p.x, p.y + 0.1, p.z);
-      selectedRadarCone3D.rotation.y = mesh.rotation.y;
-
-      if (v.action === 'STOP' || v.dist_front < 60) {
-        selectedRadarCone3D.material.color.setHex(0xef4444);
-      } else if (v.action === 'SLOW DOWN' || v.dist_front < 150) {
-        selectedRadarCone3D.material.color.setHex(0xf59e0b);
-      } else {
-        selectedRadarCone3D.material.color.setHex(0x10b981);
-      }
-    }
-  });
+  if (!scene3D || !dashBailadilaEngine) return;
+  dashBailadilaEngine.updateFleetTelemetry(fleet);
 
   const targetLbl = document.getElementById('threeDTargetLabel');
   if (targetLbl) targetLbl.textContent = selectedVehicleId;
@@ -3878,12 +3605,15 @@ function update3DMine(fleet) {
       if (selV.action === 'STOP' || selV.dist_front < 60) {
         radarLbl.textContent = `STOP (${selV.dist_front}cm)`;
         radarLbl.style.color = 'var(--red)';
+        if (selectedRadarCone3D) selectedRadarCone3D.material.color.setHex(0xef4444);
       } else if (selV.action === 'SLOW DOWN' || selV.dist_front < 150) {
         radarLbl.textContent = `SLOW (${selV.dist_front}cm)`;
         radarLbl.style.color = 'var(--amber)';
+        if (selectedRadarCone3D) selectedRadarCone3D.material.color.setHex(0xf59e0b);
       } else {
         radarLbl.textContent = `CLEAR (${selV.dist_front}cm)`;
         radarLbl.style.color = 'var(--green)';
+        if (selectedRadarCone3D) selectedRadarCone3D.material.color.setHex(0x10b981);
       }
     }
   }

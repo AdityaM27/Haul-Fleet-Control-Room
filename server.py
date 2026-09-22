@@ -20,7 +20,7 @@ import threading
 import time
 import urllib.request
 from datetime import datetime
-from flask import Flask, Response, jsonify, render_template, request, session, redirect, url_for
+from flask import Flask, Response, jsonify, render_template, request, session, redirect, url_for, send_from_directory
 import cv2
 import numpy as np
 
@@ -2054,6 +2054,17 @@ def index():
     if session.get("role") == "driver" and session.get("vehicle_id"):
         return redirect(f"/driver?vehicle_id={session.get('vehicle_id')}")
     return render_template("index.html")
+
+
+@app.route("/bailadila_terrain_256.png")
+def get_terrain_png():
+    return send_from_directory(os.path.join(app.root_path, "static"), "bailadila_terrain_256.png")
+
+
+@app.route("/bailadila_terrain_meta.json")
+@app.route("/api/terrain/meta")
+def get_terrain_meta():
+    return send_from_directory(os.path.join(app.root_path, "static"), "bailadila_terrain_meta.json")
 
 
 if __name__ == "__main__":

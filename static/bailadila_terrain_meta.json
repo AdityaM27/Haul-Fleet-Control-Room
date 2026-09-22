@@ -1,0 +1,15 @@
+{
+  "width": 256,
+  "height": 256,
+  "south": 18.500138899999996,
+  "north": 18.750138899999996,
+  "west": 81.14986109999998,
+  "east": 81.26986109999999,
+  "minElevationMeters": 219.96580505371094,
+  "maxElevationMeters": 1272.3497314453125,
+  "source": "Copernicus GLO-30 DEM",
+  "sourceFile": "bailadila_dem_30m.tif",
+  "crs": "EPSG:4326",
+  "encoding": "16-bit grayscale PNG; elevation = minElevation + grayscale/65535 * (maxElevation-minElevation)",
+  "note": "This is a visualization heightmap. It is not a substitute for an official mine survey or bench design."
+}
