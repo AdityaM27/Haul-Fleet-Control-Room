@@ -306,9 +306,11 @@
     </div>
 
     <div class="header-actions">
-      <button class="hdr-btn" onclick="openLoginModal()">🔑 Switch Account</button>
-      <a href="/" class="hdr-btn admin-link">🛡️ Central Control Room</a>
-      <button class="hdr-btn" style="color:var(--red)" onclick="logout()">🔒 Logout</button>
+      <div style="display:flex;align-items:center;gap:6px;background:rgba(15,23,42,0.8);border:1px solid var(--panel-border);padding:5px 12px;border-radius:6px;font-size:11px;color:var(--teal)">
+        <span style="width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);display:inline-block"></span>
+        <span style="font-weight:700">IN-CAB DRIVER PORTAL</span>
+      </div>
+      <button class="hdr-btn" style="color:var(--red);border-color:rgba(239,68,68,0.35)" onclick="logout()">🔒 Disconnect / Logout</button>
     </div>
   </header>
 
@@ -374,6 +376,25 @@
 
         <div style="font-size:11px;color:var(--text-muted);line-height:1.4">
           Dedicated video feed processed on your cab unit. Converts low-visibility heavy rain streaks and pit bench smoke/fog into high-contrast edge-detected imagery in real time.
+        </div>
+
+        <!-- DRIVER PREVIEW IMAGE CONTROLS -->
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:8px 12px;background:rgba(255,255,255,0.02);border:1px solid var(--panel-border);border-radius:8px">
+          <div style="display:flex;align-items:center;gap:6px">
+            <span style="font-size:12px">🖼️</span>
+            <span style="font-size:11px;font-weight:700;color:var(--text)">Test Preview Scene:</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            <button type="button" class="hdr-btn" style="padding:4px 8px;font-size:10.5px" onclick="setDriverPreviewSample('pit_dense_fog')">🌫️ Dense Fog Pit</button>
+            <button type="button" class="hdr-btn" style="padding:4px 8px;font-size:10.5px" onclick="setDriverPreviewSample('rain_mist')">🌧️ Heavy Monsoon Rain</button>
+            <button type="button" class="hdr-btn" style="padding:4px 8px;font-size:10.5px" onclick="setDriverPreviewSample('haul_road_dust')">💨 Pit Dust Storm</button>
+            <button type="button" class="hdr-btn" style="padding:4px 8px;font-size:10.5px" onclick="setDriverPreviewSample('ridge_cloud')">☁️ Cloud Inversion</button>
+            <label class="hdr-btn" style="padding:4px 8px;font-size:10.5px;cursor:pointer;color:var(--teal);border-color:rgba(56,189,248,0.4)">
+              📷 Upload Image
+              <input type="file" id="driverImgUpload" accept="image/*" style="display:none" onchange="uploadDriverCustomImage(event)">
+            </label>
+            <button type="button" class="hdr-btn" style="padding:4px 8px;font-size:10.5px;color:var(--amber)" onclick="resetDriverCameraStream()">↺ Live Feed</button>
+          </div>
         </div>
 
         <div class="camera-dual-container">
@@ -478,40 +499,7 @@
 
   </main>
 
-  <!-- LOGIN / SWITCH ACCOUNT MODAL -->
-  <div class="modal-overlay" id="loginModal">
-    <div class="modal-box">
-      <div class="modal-hdr">
-        <div class="modal-title">🔐 Sign in to Resurgence Mining OS</div>
-        <button onclick="closeLoginModal()" style="background:none;border:none;color:var(--text-muted);font-size:18px;cursor:pointer">✕</button>
-      </div>
 
-      <div style="font-size:11.5px;color:var(--text-muted);margin-bottom:14px">
-        Select an account or enter your credentials. Drivers will access their localized in-cab console, while Dispatchers access the full Fleet Control Room.
-      </div>
-
-      <!-- Quick Fill Accounts -->
-      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px">
-        <button type="button" class="hdr-btn" onclick="fillCreds('ADMIN', 'admin123')">🛡️ Admin</button>
-        <button type="button" class="hdr-btn" onclick="fillCreds('TRUCK_01', 'truck01')">🚛 Truck 1 (ESP32)</button>
-        <button type="button" class="hdr-btn" onclick="fillCreds('TRUCK_02', 'truck02')">🚛 Truck 2</button>
-        <button type="button" class="hdr-btn" onclick="fillCreds('TRUCK_03', 'truck03')">🚛 Truck 3</button>
-        <button type="button" class="hdr-btn" onclick="fillCreds('TRUCK_04', 'truck04')">🚛 Truck 4</button>
-      </div>
-
-      <form id="loginForm" onsubmit="submitLogin(event)">
-        <label style="font-size:11px;color:var(--text-muted)">User ID or Truck ID</label>
-        <input type="text" id="loginUsername" class="form-input" placeholder="e.g. TRUCK_02 or ADMIN" required>
-
-        <label style="font-size:11px;color:var(--text-muted)">Password</label>
-        <input type="password" id="loginPassword" class="form-input" placeholder="••••••••" required>
-
-        <div id="loginError" style="display:none;padding:8px;background:rgba(239,68,68,0.15);color:var(--red);border-radius:6px;font-size:11.5px;margin-bottom:12px"></div>
-
-        <button type="submit" class="btn-submit" id="btnLoginSubmit">Sign In</button>
-      </form>
-    </div>
-  </div>
 
   <script>
     const currentVid = "{{ target_vehicle_id }}";
@@ -641,8 +629,11 @@
       try {
         const res = await fetch(`/api/vehicle/${encodeURIComponent(currentVid)}`, { cache: 'no-store' });
         if (res.status === 403) {
-          alert("Access restricted: You are not authorized to view this truck's in-cab console. Please log in.");
-          openLoginModal();
+          const bAction = document.getElementById('bannerAction');
+          if (bAction) {
+            bAction.textContent = 'ACCESS RESTRICTED: CAB BOUND TO ASSIGNED TRUCK';
+            bAction.style.color = 'var(--red)';
+          }
           return;
         }
         if (!res.ok) return;
@@ -744,53 +735,77 @@
     }
 
     // =========================================================================
-    // AUTHENTICATION & ROLE SWITCHING
+    // DRIVER PREVIEW IMAGE CONTROLS
     // =========================================================================
-    function openLoginModal() {
-      document.getElementById('loginModal').classList.add('open');
-    }
-    function closeLoginModal() {
-      document.getElementById('loginModal').classList.remove('open');
-    }
-    function fillCreds(u, p) {
-      document.getElementById('loginUsername').value = u;
-      document.getElementById('loginPassword').value = p;
-    }
-
-    async function submitLogin(e) {
-      e.preventDefault();
-      const u = document.getElementById('loginUsername').value.trim();
-      const p = document.getElementById('loginPassword').value.trim();
-      const errEl = document.getElementById('loginError');
-      errEl.style.display = 'none';
-
+    async function setDriverPreviewSample(sampleId) {
       try {
-        const res = await fetch('/api/auth/login', {
+        const res = await fetch('/api/camera/insert', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username: u, password: p })
+          body: JSON.stringify({
+            sample_id: sampleId,
+            vehicle_id: currentVid
+          })
         });
         const data = await res.json();
         if (data.status === 'ok') {
-          window.location.href = data.redirect_url;
-        } else {
-          errEl.textContent = data.msg || 'Login failed';
-          errEl.style.display = 'block';
+          refreshDriverCameraFeeds();
         }
       } catch (err) {
-        errEl.textContent = 'Connection error during authentication';
-        errEl.style.display = 'block';
+        console.error('Failed to change preview image:', err);
       }
+    }
+
+    async function uploadDriverCustomImage(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = async function(e) {
+        try {
+          const res = await fetch('/api/camera/insert', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              image_base64: e.target.result,
+              source_name: file.name,
+              vehicle_id: currentVid
+            })
+          });
+          const data = await res.json();
+          if (data.status === 'ok') {
+            refreshDriverCameraFeeds();
+          }
+        } catch (err) {
+          console.error('Failed to upload custom preview image:', err);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+
+    async function resetDriverCameraStream() {
+      try {
+        await fetch('/api/camera/reset', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ vehicle_id: currentVid })
+        });
+        refreshDriverCameraFeeds();
+      } catch (err) {
+        console.error('Failed to reset camera stream:', err);
+      }
+    }
+
+    function refreshDriverCameraFeeds() {
+      const t = Date.now();
+      const rawImg = document.getElementById('driverRawFeedImg');
+      const cleanImg = document.getElementById('driverCleanFeedImg');
+      if (rawImg) rawImg.src = `/raw_feed?v=${encodeURIComponent(currentVid)}&t=${t}`;
+      if (cleanImg) cleanImg.src = `/dehazed_feed?v=${encodeURIComponent(currentVid)}&t=${t}`;
     }
 
     async function logout() {
       await fetch('/api/auth/logout', { method: 'POST' });
-      window.location.href = '/login';
-    }
-
-    // Auto open login modal if requested via URL
-    if (new URLSearchParams(window.location.search).get('login') === '1') {
-      openLoginModal();
+      window.location.reload();
     }
 
     // Initialize

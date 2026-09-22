@@ -1031,8 +1031,8 @@ def generate_fog_sample(sample_id="pit_dense_fog", vid="TRUCK_02"):
     w, h = 640, 480
     frame = np.zeros((h, w, 3), dtype=np.uint8)
 
-    if sample_id == "mountain_switchback":
-        # Sky and mountains
+    if sample_id in ("mountain_switchback", "ridge_cloud"):
+        # Sky and steep rocky slopes
         cv2.rectangle(frame, (0, 0), (w, int(h * 0.45)), (110, 125, 135), -1)
         pts_m1 = np.array([[0, int(h * 0.45)], [int(w * 0.35), int(h * 0.20)], [int(w * 0.7), int(h * 0.45)]], np.int32)
         cv2.fillPoly(frame, [pts_m1], (70, 85, 95))
@@ -1042,13 +1042,57 @@ def generate_fog_sample(sample_id="pit_dense_fog", vid="TRUCK_02"):
         pts_road = np.array([[0, h], [int(w * 0.35), int(h * 0.65)], [int(w * 0.65), int(h * 0.65)], [w, h]], np.int32)
         cv2.fillPoly(frame, [pts_road], (45, 52, 58))
         # Large boulder hazard on road
-        cv2.circle(frame, (int(w * 0.52), int(h * 0.78)), 34, (38, 44, 48), -1)
-        cv2.circle(frame, (int(w * 0.50), int(h * 0.74)), 24, (55, 62, 68), -1)
+        cv2.circle(frame, (int(w * 0.52), int(h * 0.78)), 36, (38, 44, 48), -1)
+        cv2.circle(frame, (int(w * 0.50), int(h * 0.74)), 26, (55, 62, 68), -1)
         # Dense upslope fog
         fog = np.full((h, w, 3), (175, 185, 190), dtype=np.uint8)
         noise = np.random.randint(0, 22, (h, w, 3), dtype=np.uint8)
         fog = cv2.add(fog, noise)
         frame = cv2.addWeighted(frame, 0.26, fog, 0.74, 0)
+
+    elif sample_id == "rain_mist":
+        # Heavy Monsoon Rain & Wet Road Perspective
+        cv2.rectangle(frame, (0, 0), (w, int(h * 0.40)), (55, 65, 75), -1)
+        # Distant terraced bench in rain
+        pts_bench = np.array([[0, int(h * 0.40)], [w, int(h * 0.40)], [w, int(h * 0.52)], [0, int(h * 0.52)]], np.int32)
+        cv2.fillPoly(frame, [pts_bench], (35, 45, 52))
+        # Wet road with reflections
+        pts_road = np.array([[int(w * 0.42), int(h * 0.40)], [int(w * 0.58), int(h * 0.40)], [int(w * 0.96), h], [int(w * 0.04), h]], np.int32)
+        cv2.fillPoly(frame, [pts_road], (25, 28, 34))
+        # Wet asphalt sheen
+        pts_sheen = np.array([[int(w * 0.46), int(h * 0.50)], [int(w * 0.54), int(h * 0.50)], [int(w * 0.65), h], [int(w * 0.35), h]], np.int32)
+        cv2.fillPoly(frame, [pts_sheen], (35, 42, 50))
+        # Obstacle: Stopped Light Vehicle / Rockfall ahead
+        ox, oy = int(w * 0.50), int(h * 0.66)
+        cv2.rectangle(frame, (ox - 32, oy - 24), (ox + 32, oy + 16), (20, 22, 28), -1)
+        cv2.circle(frame, (ox - 22, oy + 10), 6, (0, 0, 220), -1)  # Red tail light
+        cv2.circle(frame, (ox + 22, oy + 10), 6, (0, 0, 220), -1)  # Red tail light
+        # Heavy angled rain streaks across camera lens
+        for rx in range(10, w - 10, 16):
+            ry = (rx * 13) % (h - 40)
+            cv2.line(frame, (rx, ry), (rx - 4, ry + 28), (210, 225, 240), 1)
+        # Wet spray & mist
+        mist = np.full((h, w, 3), (160, 172, 180), dtype=np.uint8)
+        noise = np.random.randint(0, 25, (h, w, 3), dtype=np.uint8)
+        mist = cv2.add(mist, noise)
+        frame = cv2.addWeighted(frame, 0.32, mist, 0.68, 0)
+
+    elif sample_id == "haul_road_dust":
+        # Hematite Iron Ore Dust Storm
+        cv2.rectangle(frame, (0, 0), (w, int(h * 0.42)), (90, 70, 60), -1)
+        pts_road = np.array([[int(w * 0.43), int(h * 0.42)], [int(w * 0.57), int(h * 0.42)], [int(w * 0.95), h], [int(w * 0.05), h]], np.int32)
+        cv2.fillPoly(frame, [pts_road], (48, 32, 28))
+        # Haul Truck bulk ahead in dust
+        hx, hy = int(w * 0.50), int(h * 0.62)
+        cv2.rectangle(frame, (hx - 40, hy - 32), (hx + 40, hy + 22), (28, 20, 18), -1)
+        cv2.circle(frame, (hx - 28, hy + 14), 7, (0, 140, 255), -1)  # Amber hazard light
+        cv2.circle(frame, (hx + 28, hy + 14), 7, (0, 140, 255), -1)  # Amber hazard light
+        # Red-ochre dust haze
+        dust = np.full((h, w, 3), (110, 130, 175), dtype=np.uint8)  # BGR for ochre dust
+        noise = np.random.randint(0, 28, (h, w, 3), dtype=np.uint8)
+        dust = cv2.add(dust, noise)
+        frame = cv2.addWeighted(frame, 0.28, dust, 0.72, 0)
+
     else:  # pit_dense_fog (default)
         # Open pit bench benches
         cv2.rectangle(frame, (0, 0), (w, int(h * 0.4)), (100, 115, 125), -1)
@@ -2004,6 +2048,8 @@ def mine_3d_portal():
 
 
 @app.route("/", methods=["GET"])
+@app.route("/control", methods=["GET"])
+@app.route("/control_room", methods=["GET"])
 def index():
     if session.get("role") == "driver" and session.get("vehicle_id"):
         return redirect(f"/driver?vehicle_id={session.get('vehicle_id')}")
