@@ -533,6 +533,43 @@
       box-shadow: 0 0 14px rgba(239, 68, 68, 0.35);
     }
 
+    /* DSR & DFRI STYLES FOR CONTROL ROOM */
+    .hero-status-pill.dsr-pill {
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      transition: all 0.2s;
+    }
+    .dfri-tiers-bar {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 5px;
+      margin: 8px 0;
+    }
+    .dfri-tier-step {
+      padding: 6px 3px;
+      border-radius: 6px;
+      text-align: center;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      transition: all 0.2s;
+    }
+    .dfri-tier-step .t-lbl { font-size: 7.5px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+    .dfri-tier-step .t-name { font-size: 8.5px; font-weight: 700; margin-top: 2px; }
+    .dfri-tier-step.tier-normal { color: #10b981; }
+    .dfri-tier-step.tier-caution { color: #f59e0b; }
+    .dfri-tier-step.tier-low { color: #f97316; }
+    .dfri-tier-step.tier-severe { color: #ef4444; }
+    .dfri-tier-step.tier-critical { color: #dc2626; }
+    .dfri-tier-step.active {
+      border-width: 1.5px;
+      background: rgba(255, 255, 255, 0.08);
+    }
+    .dfri-tier-step.active.tier-normal { border-color: #10b981; box-shadow: 0 0 10px rgba(16, 185, 129, 0.3); }
+    .dfri-tier-step.active.tier-caution { border-color: #f59e0b; box-shadow: 0 0 10px rgba(245, 158, 11, 0.3); }
+    .dfri-tier-step.active.tier-low { border-color: #f97316; box-shadow: 0 0 10px rgba(249, 115, 22, 0.3); }
+    .dfri-tier-step.active.tier-severe { border-color: #ef4444; box-shadow: 0 0 10px rgba(239, 68, 68, 0.3); }
+    .dfri-tier-step.active.tier-critical { border-color: #dc2626; box-shadow: 0 0 12px rgba(220, 38, 38, 0.5); }
+
     /* MODAL OVERLAY & DIALOGS */
     .modal-overlay {
       position: fixed;
@@ -1573,6 +1610,9 @@
             <span class="hero-status-pill moving" id="heroMotionPill">
               <span id="heroMotionText">⚡ MOVING (0.0 km/h)</span>
             </span>
+            <span class="hero-status-pill dsr-pill" id="heroDsrPill" style="background:rgba(16,185,129,0.14);border:1px solid var(--green);color:var(--green)">
+              <span id="heroDsrText">✓ MAINTAIN SAFE SPEED</span>
+            </span>
           </div>
         </div>
 
@@ -1580,6 +1620,10 @@
           <div class="hstat-item">
             <div class="hstat-label">Velocity</div>
             <div class="hstat-value"><span id="heroSpeed">0.0</span> <span style="font-size:11px;color:var(--text-muted)">km/h</span></div>
+          </div>
+          <div class="hstat-item" id="heroSafeSpeedItem">
+            <div class="hstat-label">Safe Rec.</div>
+            <div class="hstat-value" id="heroSafeSpeed" style="color:var(--teal)">18.0 <span style="font-size:11px;color:var(--text-muted)">km/h</span></div>
           </div>
           <div class="hstat-item" id="heroRiskScoreItem">
             <div class="hstat-label">Risk Score</div>
@@ -2075,7 +2119,7 @@
         <div class="fog-zone-panel" id="fogGovernorPanel">
           <div class="fog-panel-title">
             <span>🌫️</span>
-            <span>Current Zone Visibility & Safe Speed Governor</span>
+            <span>Fog Density Measurement System & Safe Speed Governor</span>
           </div>
 
           <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:rgba(255,255,255,0.02);border-radius:10px;border:1px solid rgba(255,255,255,0.04)">
@@ -2086,17 +2130,41 @@
               </div>
             </div>
             <div style="text-align:right">
-              <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase">Visibility Index</div>
+              <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase">Visibility / Fog Severity (DFRI)</div>
               <div id="activeZoneVis" style="font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:800;color:var(--red)">
                 18 m — SEVERE FOG
               </div>
             </div>
           </div>
 
+          <!-- DFRI 5-Tier Scale -->
+          <div class="dfri-tiers-bar" style="margin-top: 8px;">
+            <div class="dfri-tier-step tier-normal" id="ctrlDfriTier1">
+              <div class="t-lbl">&gt;100m</div>
+              <div class="t-name">NORMAL</div>
+            </div>
+            <div class="dfri-tier-step tier-caution" id="ctrlDfriTier2">
+              <div class="t-lbl">50-100m</div>
+              <div class="t-name">CAUTION</div>
+            </div>
+            <div class="dfri-tier-step tier-low" id="ctrlDfriTier3">
+              <div class="t-lbl">20-50m</div>
+              <div class="t-name">LOW VIS</div>
+            </div>
+            <div class="dfri-tier-step tier-severe" id="ctrlDfriTier4">
+              <div class="t-lbl">5-20m</div>
+              <div class="t-name">SEVERE</div>
+            </div>
+            <div class="dfri-tier-step tier-critical" id="ctrlDfriTier5">
+              <div class="t-lbl">&lt;5m</div>
+              <div class="t-name">CRITICAL</div>
+            </div>
+          </div>
+
           <div style="display:flex;align-items:center;justify-content:space-between;font-size:11px;padding:6px 2px">
-            <span style="color:var(--text-muted)">MAX PERMITTED SAFE SPEED:</span>
+            <span style="color:var(--text-muted)">DYNAMIC SAFE SPEED RECOMMENDATION:</span>
             <span id="activeSafeSpeedText" style="font-family:'Space Grotesk',sans-serif;font-weight:700;color:var(--teal)">
-              10 km/h
+              10.0 km/h (Fog Limit)
             </span>
           </div>
         </div>
@@ -2588,6 +2656,9 @@ function renderSidebar() {
     const isTruck1 = (v.id === 'TRUCK_01');
     const speed = isTruck1 ? 0.0 : (v.speed_kmh || 0.0);
     const risk = v.risk_score ? v.risk_score.total : null;
+    const dsr = v.dsr || {};
+    const safeSpeed = dsr.safe_speed_kmh !== undefined ? dsr.safe_speed_kmh : 18.0;
+    const isOverspeed = !isTruck1 && (speed > safeSpeed + 1.0);
 
     const isConnected = v.is_connected !== undefined ? v.is_connected : (isReal ? v.hardware_status === 'CONNECTED_LIVE' : simRunning);
     const isMoving = isTruck1 ? false : (v.is_moving !== undefined ? v.is_moving : (speed > 0.5 && v.action !== 'STOP'));
@@ -2616,6 +2687,7 @@ function renderSidebar() {
             </div>
           </div>
           <div style="display:flex;align-items:center;gap:6px">
+            ${isOverspeed ? `<span class="vcard-risk-pill critical" style="background:rgba(239,68,68,0.2);color:#fca5a5;border:1px solid var(--red)">⚠ REDUCE</span>` : ''}
             ${hasRiskPill ? `<span class="vcard-risk-pill ${riskClass}">RISK ${risk}</span>` : ''}
             <button class="vcard-del-btn" title="Deregister device" onclick="confirmDeleteVehicle('${v.id}', '${v.name.replace(/'/g, "\\'")}', event)">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -2637,20 +2709,24 @@ function renderSidebar() {
           </div>
         </div>
 
-        <div class="vcard-metrics">
+        <div class="vcard-metrics" style="grid-template-columns: repeat(4, 1fr);">
           <div>
             <div class="vcard-metric-val">${speed.toFixed(1)} <span style="font-size:9px;color:var(--text-muted)">km/h</span></div>
             <div class="vcard-metric-lbl">Speed</div>
+          </div>
+          <div>
+            <div class="vcard-metric-val" style="color:var(--teal)">${safeSpeed.toFixed(1)} <span style="font-size:9px;color:var(--text-muted)">km/h</span></div>
+            <div class="vcard-metric-lbl">Safe Rec</div>
           </div>
           <div>
             <div class="vcard-metric-val">${v.dist_front} <span style="font-size:9px;color:var(--text-muted)">cm</span></div>
             <div class="vcard-metric-lbl">Obstacle</div>
           </div>
           <div>
-            <div class="vcard-metric-val" style="color:${v.action === 'STOP' ? 'var(--red)' : v.action !== 'CLEAR' ? 'var(--amber)' : 'var(--green)'}">
-              ${v.action}
+            <div class="vcard-metric-val" style="color:${isOverspeed ? 'var(--red)' : (v.action === 'STOP' ? 'var(--red)' : v.action !== 'CLEAR' ? 'var(--amber)' : 'var(--green)')}">
+              ${isOverspeed ? 'REDUCE' : v.action}
             </div>
-            <div class="vcard-metric-lbl">Status</div>
+            <div class="vcard-metric-lbl">Action</div>
           </div>
         </div>
       </div>
@@ -2812,17 +2888,67 @@ function applyVehicleToUI(v) {
   const heroZoneTag = document.getElementById('heroZoneTag');
   if (heroZoneTag) heroZoneTag.textContent = zone.name || 'Real-Time Operational Area';
 
+  // DSR & DFRI Evaluation
+  const dsr = v.dsr || {};
+  const dfri = v.dfri || (zone.dfri || {});
+  const safeSpeedVal = dsr.safe_speed_kmh !== undefined ? dsr.safe_speed_kmh : (zone.max_safe_speed || 18.0);
+  const curSpeedVal = isTruck1 ? 0.0 : (dsr.current_speed_kmh !== undefined ? dsr.current_speed_kmh : speedVal);
+  const advisoryBadge = dsr.advisory_badge || '✓ MAINTAIN SAFE SPEED';
+  const bottleneck = dsr.primary_constraint || 'Normal Haul Speed';
+
+  // Hero Safe Speed & Hero DSR Pill
+  const heroSafeSpeed = document.getElementById('heroSafeSpeed');
+  if (heroSafeSpeed) heroSafeSpeed.innerHTML = `${safeSpeedVal.toFixed(1)} <span style="font-size:11px;color:var(--text-muted)">km/h</span>`;
+
+  const heroDsrPill = document.getElementById('heroDsrPill');
+  const heroDsrText = document.getElementById('heroDsrText');
+  if (heroDsrPill && heroDsrText) {
+    heroDsrText.textContent = advisoryBadge;
+    if (advisoryBadge.includes('CRITICAL')) {
+      heroDsrPill.style.background = 'rgba(220,38,38,0.22)';
+      heroDsrPill.style.borderColor = 'var(--red)';
+      heroDsrPill.style.color = '#fca5a5';
+    } else if (advisoryBadge.includes('REDUCE')) {
+      heroDsrPill.style.background = 'rgba(245,158,11,0.22)';
+      heroDsrPill.style.borderColor = 'var(--amber)';
+      heroDsrPill.style.color = 'var(--amber)';
+    } else {
+      heroDsrPill.style.background = 'rgba(16,185,129,0.14)';
+      heroDsrPill.style.borderColor = 'var(--green)';
+      heroDsrPill.style.color = 'var(--green)';
+    }
+  }
+
   const activeZoneTitle = document.getElementById('activeZoneTitle');
   if (activeZoneTitle) activeZoneTitle.textContent = zone.name || 'Real-Time Operational Area';
 
   const activeZoneVis = document.getElementById('activeZoneVis');
   if (activeZoneVis) {
-    activeZoneVis.textContent = `${zone.visibility_m || 50} m — ${zone.severity || 'NORMAL'}`;
-    activeZoneVis.style.color = zone.color || 'var(--green)';
+    const visDist = dfri.visibility_m !== undefined ? dfri.visibility_m : (zone.visibility_m || 50);
+    const visSeverity = dfri.severity || zone.severity || 'NORMAL';
+    activeZoneVis.textContent = `${visDist} m — ${visSeverity}`;
+    activeZoneVis.style.color = dfri.color || zone.color || 'var(--green)';
   }
 
   const activeSafeSpeedText = document.getElementById('activeSafeSpeedText');
-  if (activeSafeSpeedText) activeSafeSpeedText.textContent = `${zone.max_safe_speed || 35} km/h`;
+  if (activeSafeSpeedText) {
+    activeSafeSpeedText.textContent = `${safeSpeedVal.toFixed(1)} km/h (${bottleneck})`;
+  }
+
+  // Highlight 5-tier DFRI step
+  const tierIndex = dfri.tier || (
+    (zone.visibility_m || 50) > 100 ? 1 :
+    (zone.visibility_m || 50) >= 50 ? 2 :
+    (zone.visibility_m || 50) >= 20 ? 3 :
+    (zone.visibility_m || 50) >= 5 ? 4 : 5
+  );
+  for (let t = 1; t <= 5; t++) {
+    const el = document.getElementById(`ctrlDfriTier${t}`);
+    if (el) {
+      if (t === tierIndex) el.classList.add('active');
+      else el.classList.remove('active');
+    }
+  }
 
   // 10-Minute Fog Predictive Engine: REMOVED / HIDDEN SPECIFICALLY FOR VEHICLE 1 (TRUCK_01)
   const fogPredictivePanel = document.getElementById('fogPredictivePanel');

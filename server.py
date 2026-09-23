@@ -260,6 +260,94 @@ FOG_ZONES = {
 }
 
 
+# ==============================================================================
+# FOG DENSITY MEASUREMENT SYSTEM — DYNAMIC FOG RISK INDEX (DFRI)
+# Koschmieder's Atmospheric Extinction Law & 5-Tier Industrial Scale
+# ==============================================================================
+def compute_dynamic_fog_risk_index(visibility_m, humidity_pct=85.0, temp_c=18.0, dew_point_c=15.0):
+    """
+    Quantitative Fog Density Measurement System:
+    Calculates optical extinction coefficient beta via Koschmieder's Law:
+        beta = 3.912 / V
+    and maps meteorological sight distance (V in meters) into the 5 industrial severity tiers:
+        > 100 m  -> NORMAL         (DFRI: 0-20,   Color: #10b981, Max Safe Speed: 35 km/h)
+        50-100 m -> CAUTION        (DFRI: 21-40,  Color: #f59e0b, Max Safe Speed: 25 km/h)
+        20-50 m  -> LOW VISIBILITY (DFRI: 41-65,  Color: #f97316, Max Safe Speed: 18 km/h)
+        5-20 m   -> SEVERE FOG     (DFRI: 66-85,  Color: #ef4444, Max Safe Speed: 10 km/h)
+        < 5 m    -> CRITICAL       (DFRI: 86-100, Color: #991b1b, Max Safe Speed: 5 km/h)
+    """
+    v_m = max(1.0, float(visibility_m))
+    beta = round(3.912 / v_m, 4)
+
+    if v_m >= 100.0:
+        # Scale 100m - 300m to 20 - 0
+        dfri_score = max(0, min(20, int(round(20.0 * max(0.0, 1.0 - (v_m - 100.0) / 200.0)))))
+        tier = "NORMAL"
+        color = "#10b981"
+        behavior = "Nominal haul speeds permitted up to 35 km/h. Standard visual driving."
+        speed_cap = 35.0
+    elif v_m >= 50.0:
+        # Scale 50m - 100m to 40 - 21
+        dfri_score = int(round(21 + (1.0 - (v_m - 50.0) / 50.0) * 19))
+        tier = "CAUTION"
+        color = "#f59e0b"
+        behavior = "Speed governed to 25 km/h. Fog-Guard radar standby. Double haul headway."
+        speed_cap = 25.0
+    elif v_m >= 20.0:
+        # Scale 20m - 50m to 65 - 41
+        dfri_score = int(round(41 + (1.0 - (v_m - 20.0) / 30.0) * 24))
+        tier = "LOW VISIBILITY"
+        color = "#f97316"
+        behavior = "Speed governed to 18 km/h. Optical Fast-Pi de-weathering active. Hairpin speed cap 14 km/h."
+        speed_cap = 18.0
+    elif v_m >= 5.0:
+        # Scale 5m - 20m to 85 - 66
+        dfri_score = int(round(66 + (1.0 - (v_m - 5.0) / 15.0) * 19))
+        tier = "SEVERE FOG"
+        color = "#ef4444"
+        behavior = "Speed governed to 10 km/h. Mandatory radar-guided convoy. Passing strictly prohibited."
+        speed_cap = 10.0
+    else:
+        # Scale 1m - 5m to 100 - 86
+        dfri_score = min(100, int(round(86 + (1.0 - v_m / 5.0) * 14)))
+        tier = "CRITICAL"
+        color = "#991b1b"
+        behavior = "Emergency speed cap 5 km/h or mandatory bench halt. Cloud inversion pooling in pit bottom."
+        speed_cap = 5.0
+
+    dew_depression = max(0.0, float(temp_c) - float(dew_point_c))
+    condensing = (dew_depression <= 1.5 and humidity_pct >= 90.0)
+
+    tier_num = 1 if v_m >= 100.0 else (2 if v_m >= 50.0 else (3 if v_m >= 20.0 else (4 if v_m >= 5.0 else 5)))
+
+    return {
+        "tier": tier_num,
+        "severity": tier,
+        "severity_tier": tier,
+        "dfri_score": dfri_score,
+        "index_0_100": dfri_score,
+        "visibility_m": round(v_m, 1),
+        "extinction_coeff": beta,
+        "extinction_coeff_beta": beta,
+        "color": color,
+        "permitted_behavior": {
+            "policy": behavior,
+            "safe_speed_limit_kmh": speed_cap,
+        },
+        "behavior_desc": behavior,
+        "max_safe_speed_kmh": speed_cap,
+        "is_condensing": condensing,
+        "dew_point_depression_c": round(dew_depression, 1)
+    }
+
+
+# Initialize DFRI on all dynamic fog zones
+for _zid, _z in FOG_ZONES.items():
+    _z["dfri"] = compute_dynamic_fog_risk_index(
+        _z["visibility_m"], _z.get("humidity_pct", 80), _z.get("temperature_c", 18), _z.get("dew_point_c", 15)
+    )
+
+
 def point_in_polygon(lat, lng, poly):
     """Ray-casting algorithm to test point inside zone polygon."""
     inside = False
@@ -359,15 +447,17 @@ def get_zone_for_point(lat, lng):
 
     # Outside Bailadila -> Dynamically resolve the real-world operational area
     area_name = get_real_area_name(lat, lng)
+    real_vis = 150
     return {
         "id": "REAL_AREA",
         "name": area_name,
         "elevation_m": 580 if (17.0 <= lat <= 18.0) else 1040,
-        "visibility_m": 150,
+        "visibility_m": real_vis,
         "severity": "NORMAL",
         "color": "#38bdf8",
         "max_safe_speed": 35,
         "is_real_location": True,
+        "dfri": compute_dynamic_fog_risk_index(real_vis, 55.0, 24.0, 14.0),
         "prediction_10m": {
             "visibility_m": 150,
             "severity": "NORMAL",
@@ -626,6 +716,206 @@ def log_safety_event(vid, event_type, severity, lat, lng, message):
     return evt
 
 
+# ==============================================================================
+# DYNAMIC SPEED RECOMMENDATION ENGINE (DSR)
+# Evaluates 8 Multi-Physics Inputs to recommend exact instantaneous velocity
+# ==============================================================================
+def compute_dynamic_safe_speed(vehicle, zone=None, closest_truck_info=None, cur_wp_idx=None, **kwargs):
+    """
+    Dynamic Speed Recommendation Engine (DSR):
+    Answers: 'How fast should the dumper be travelling right now?'
+    
+    Evaluates 8 Real-time Inputs:
+      1. Fog density / Visibility: Koschmieder visibility + Stopping Sight Distance (SSD)
+      2. Obstacle distance: Ultrasonic radar front range (cm)
+      3. Road curvature: Deposit-14 hairpin switchbacks (waypoints 3, 5, 11, 13)
+      4. Vehicle speed: Current measured velocity (km/h)
+      5. Traffic density: Proximity to leading/closest haul truck (meters)
+      6. Location: Pit Floor vs Hairpin vs Crest vs Dispatch Yard
+      7. Weather: Humidity, temperature, dew point depression
+      8. Road condition: Friction coefficient mu (0.35 wet ore slurry vs 0.65 dry haul road)
+      
+    Outputs:
+      - safe_speed_kmh (e.g. 18.0)
+      - current_speed_kmh (e.g. 27.0)
+      - speed_delta_kmh
+      - advisory ("⚠ REDUCE SPEED", "🚨 CRITICAL BRAKING", "✓ MAINTAIN SAFE SPEED", "▲ NOMINAL")
+      - advisory_badge
+      - advisory_level ("REDUCE", "CRITICAL", "MAINTAIN", "NOMINAL")
+      - advisory_color
+      - bottleneck_type ("Fog Visibility", "Obstacle Ahead", etc.)
+      - bottleneck_factor (string describing the primary active constraint)
+      - primary_constraint
+      - haul_efficiency_pct (0-100%)
+      - stopping_sight_distance_m
+      - inputs breakdown dict
+      - factors breakdown dict
+    """
+    if zone is None:
+        zone = vehicle.get("current_zone") or {}
+
+    if closest_truck_info is None:
+        closest_truck_info = vehicle.get("closest_truck", {"distance_m": 999.0, "name": "None"})
+
+    cur_speed = float(vehicle.get("speed_kmh", 0.0))
+    vis_m = float(vehicle.get("fog_visibility_m") or zone.get("visibility_m", 100.0))
+    dist_front_cm = float(vehicle.get("dist_front", 180))
+    if cur_wp_idx is None:
+        cur_wp_idx = vehicle.get("wp_idx", 0)
+
+    # 1. Fog Severity (DFRI) limit
+    temp = float(zone.get("temperature_c", 18.0))
+    hum = float(zone.get("humidity_pct", 80.0))
+    dew = float(zone.get("dew_point_c", 15.0))
+    dfri = compute_dynamic_fog_risk_index(vis_m, hum, temp, dew)
+    speed_fog = float(dfri["max_safe_speed_kmh"])
+
+    # 8. Road Condition & Stopping Sight Distance (SSD)
+    # Iron ore haul road: wet slurry has friction mu ~0.35, dry ~0.65
+    if "surface_friction_mu" in zone:
+        mu = float(zone["surface_friction_mu"])
+        is_wet = (mu < 0.5)
+    else:
+        is_wet = hum >= 85.0 or vis_m < 50.0 or dfri["is_condensing"]
+        mu = 0.35 if is_wet else 0.65
+    g = 9.81
+    t_r = 1.5  # reaction time in seconds (300t dump truck pneumatic braking)
+    # SSD = v*t_r + v^2 / (2*g*mu) <= vis_m
+    discriminant = max(0.0, t_r**2 + (2.0 * vis_m) / (g * mu))
+    v_max_ms = (g * mu) * (math.sqrt(discriminant) - t_r)
+    speed_ssd = round(max(3.0, v_max_ms * 3.6), 1)
+
+    # 2. Obstacle Distance limit
+    if dist_front_cm < 30.0:
+        speed_obs = 0.0
+    elif dist_front_cm < 60.0:
+        speed_obs = 8.0
+    elif dist_front_cm < 100.0:
+        speed_obs = 14.0
+    elif dist_front_cm < 160.0:
+        speed_obs = 22.0
+    else:
+        speed_obs = 35.0
+
+    # 3. Road Curvature (Deposit-14 Hairpins)
+    # Waypoints 3, 5, 11, 13 are the East/West mountain switchbacks (R ~ 45m)
+    wp_mod = cur_wp_idx % 16
+    if zone.get("is_hairpin") or wp_mod in (3, 5, 11, 13):
+        speed_curve = 12.0
+    elif wp_mod in (2, 4, 10, 12):
+        speed_curve = 18.0
+    else:
+        speed_curve = 35.0
+
+    # 5. Traffic Density (Closest Truck Headway)
+    lead_dist = float(closest_truck_info.get("distance_m", 999.0))
+    lead_name = closest_truck_info.get("name", "Leading Dumper")
+    if lead_dist < 20.0:
+        speed_traffic = 5.0
+    elif lead_dist < 35.0:
+        speed_traffic = 12.0
+    elif lead_dist < 60.0:
+        speed_traffic = 20.0
+    else:
+        speed_traffic = 35.0
+
+    # 6. Location / Zone Maximum Safe Speed
+    speed_zone = float(zone.get("max_safe_speed", 30.0))
+
+    # 7. Weather / Condensation factor
+    if dfri["is_condensing"]:
+        speed_weather = round(speed_zone * 0.85, 1)
+    else:
+        speed_weather = 35.0
+
+    # Composite Safe Speed: Minimum of all physical & regulatory bounds
+    all_limits = [
+        (speed_obs, "Obstacle Proximity", f"Front Hazard ({int(dist_front_cm)} cm)"),
+        (speed_fog, "Fog Visibility", f"Fog Horizon ({int(vis_m)} m, DFRI {dfri['dfri_score']})"),
+        (speed_ssd, "Stopping Sight Distance", f"Stopping Sight Distance ({speed_ssd} km/h on {'Wet Ore Slurry' if is_wet else 'Dry Road'})"),
+        (speed_curve, "Hairpin Curvature", f"Deposit-14 Hairpin Turn (WP {cur_wp_idx})"),
+        (speed_traffic, "Traffic Proximity", f"Traffic Headway ({int(lead_dist)} m to {lead_name})"),
+        (speed_zone, "Mine Zone Governor", f"{zone.get('name', 'Mine Sector')} Limit"),
+        (speed_weather, "Atmospheric Inversion", "Dew Point Condensation Inversion"),
+    ]
+
+    min_speed, bottleneck_type, bottleneck_desc = min(all_limits, key=lambda x: x[0])
+    safe_speed = round(min_speed, 1)
+    speed_delta = round(cur_speed - safe_speed, 1)
+
+    # Determine Instantaneous Speed Advisory
+    if safe_speed == 0.0 or dist_front_cm < 30.0:
+        advisory = "🚨 CRITICAL BRAKING"
+        advisory_level = "CRITICAL"
+        advisory_color = "#ef4444"
+    elif speed_delta > 7.0:
+        advisory = "🚨 CRITICAL BRAKING"
+        advisory_level = "CRITICAL"
+        advisory_color = "#ef4444"
+    elif speed_delta > 2.0:
+        advisory = "⚠ REDUCE SPEED"
+        advisory_level = "REDUCE"
+        advisory_color = "#f59e0b"
+    elif abs(speed_delta) <= 2.0:
+        advisory = "✓ MAINTAIN SAFE SPEED"
+        advisory_level = "MAINTAIN"
+        advisory_color = "#10b981"
+    else:
+        advisory = "▲ NOMINAL (OPTIMAL HAUL)"
+        advisory_level = "NOMINAL"
+        advisory_color = "#38bdf8"
+
+    # Haul Cycle Efficiency Calculation
+    if safe_speed == 0.0:
+        haul_efficiency_pct = 100.0 if cur_speed < 1.0 else round(max(0.0, 100.0 - cur_speed * 10.0), 1)
+    else:
+        if cur_speed <= safe_speed:
+            haul_efficiency_pct = round(min(100.0, (cur_speed / safe_speed) * 100.0), 1)
+        else:
+            overspeed_penalty = ((cur_speed - safe_speed) / safe_speed) * 100.0
+            haul_efficiency_pct = round(max(15.0, 100.0 - overspeed_penalty), 1)
+
+    stopping_dist_m = round(cur_speed * (t_r / 3.6) + ((cur_speed / 3.6)**2) / (2.0 * g * mu), 1)
+
+    return {
+        "safe_speed_kmh": safe_speed,
+        "current_speed_kmh": round(cur_speed, 1),
+        "speed_delta_kmh": speed_delta,
+        "advisory": advisory,
+        "advisory_badge": advisory,
+        "advisory_level": advisory_level,
+        "advisory_color": advisory_color,
+        "bottleneck_type": bottleneck_type,
+        "bottleneck_factor": bottleneck_desc,
+        "primary_constraint": bottleneck_desc,
+        "haul_efficiency_pct": haul_efficiency_pct,
+        "haul_cycle_efficiency_pct": haul_efficiency_pct,
+        "stopping_sight_distance_m": stopping_dist_m,
+        "dfri": dfri,
+        "inputs": {
+            "fog_density": f"{vis_m} m ({dfri['severity_tier']})",
+            "obstacle_distance": f"{int(dist_front_cm)} cm",
+            "road_curvature": f"{'Hairpin Turn' if (zone.get('is_hairpin') or wp_mod in (3, 5, 11, 13)) else 'Normal Tangent'}",
+            "vehicle_speed": f"{round(cur_speed, 1)} km/h",
+            "traffic_density": f"{int(lead_dist)} m to {lead_name}",
+            "location": f"Waypoint {cur_wp_idx} ({zone.get('name', 'Mine Sector')})",
+            "weather": f"{temp}°C, {hum}% RH",
+            "road_condition": "Wet Iron Ore Slurry (mu=0.35)" if is_wet else "Compacted Dry Haul Road (mu=0.65)",
+        },
+        "factors": {
+            "fog_visibility_kmh": speed_fog,
+            "stopping_sight_distance_kmh": speed_ssd,
+            "obstacle_proximity_kmh": speed_obs,
+            "curvature_limit_kmh": speed_curve,
+            "traffic_headway_kmh": speed_traffic,
+            "zone_limit_kmh": speed_zone,
+            "weather_condensing_kmh": speed_weather,
+            "surface_friction_mu": mu,
+            "surface_condition": "Wet Ore Slurry" if is_wet else "Compacted Dry Haul Road",
+        }
+    }
+
+
 # Initialize canonical vehicle states on the Deposit-14 Loop
 num_canonical_wps = len(SIM_WAYPOINTS)
 for vdef in FLEET_DEFS:
@@ -665,6 +955,19 @@ for vdef in FLEET_DEFS:
     status = "CRITICAL" if action == "STOP" else ("CAUTION" if action != "CLEAR" else "NORMAL")
 
     lifecycle = determine_lifecycle_state(wp_idx, cur_wp.get("name", ""), action, speed_kmh)
+
+    init_closest = {
+        "id": "NONE",
+        "name": "None",
+        "distance_m": 999.0,
+    }
+
+    dsr = compute_dynamic_safe_speed(
+        {"speed_kmh": speed_kmh, "dist_front": dist_front, "fog_visibility_m": fog_vis, "wp_idx": wp_idx},
+        zone,
+        init_closest,
+        wp_idx
+    )
 
     risk_score = {
         "total": 18,
@@ -716,15 +1019,18 @@ for vdef in FLEET_DEFS:
             "severity": zone["severity"],
             "max_safe_speed": zone["max_safe_speed"],
             "color": zone["color"],
+            "dfri": zone.get("dfri"),
         },
+        "dsr": dsr,
+        "dfri": dsr["dfri"],
+        "safe_speed_kmh": dsr["safe_speed_kmh"],
+        "speed_advisory": dsr["advisory"],
+        "speed_bottleneck": dsr["bottleneck_factor"],
+        "haul_efficiency_pct": dsr["haul_efficiency_pct"],
         "risk_score": risk_score,
         "has_risk_data": True,
         "has_diagnostics": True,
-        "closest_truck": {
-            "id": "NONE",
-            "name": "None",
-            "distance_m": 999.0,
-        },
+        "closest_truck": init_closest,
         "log": [
             {
                 "time": datetime.now().strftime("%H:%M:%S"),
@@ -895,6 +1201,7 @@ def simulation_loop():
                     "severity": zone["severity"],
                     "max_safe_speed": zone["max_safe_speed"],
                     "color": zone["color"],
+                    "dfri": zone.get("dfri"),
                 }
 
                 # REAL_HARDWARE handling (ESP32 node / TRUCK_01 hardware mode)
@@ -913,12 +1220,26 @@ def simulation_loop():
 
                     # Authoritative surface elevation sampled from current GPS position
                     v["elevation_m"] = round(sample_mine_surface_elevation(v["lat"], v["lng"]), 1)
+                    dsr = compute_dynamic_safe_speed(v, zone, closest_info[vid], v.get("wp_idx", 0))
+                    v["dsr"] = dsr
+                    v["dfri"] = dsr["dfri"]
+                    v["safe_speed_kmh"] = dsr["safe_speed_kmh"]
+                    v["speed_advisory"] = dsr["advisory"]
+                    v["speed_bottleneck"] = dsr["bottleneck_factor"]
+                    v["haul_efficiency_pct"] = dsr["haul_efficiency_pct"]
                     v["risk_score"] = compute_risk_score(v, closest_info[vid]["distance_m"], zone)
                     continue
 
                 # SIMULATED VEHICLE LOGIC
                 if not simulation_config["running"]:
                     v["elevation_m"] = round(sample_mine_surface_elevation(v["lat"], v["lng"]), 1)
+                    dsr = compute_dynamic_safe_speed(v, zone, closest_info[vid], v.get("wp_idx", 0))
+                    v["dsr"] = dsr
+                    v["dfri"] = dsr["dfri"]
+                    v["safe_speed_kmh"] = dsr["safe_speed_kmh"]
+                    v["speed_advisory"] = dsr["advisory"]
+                    v["speed_bottleneck"] = dsr["bottleneck_factor"]
+                    v["haul_efficiency_pct"] = dsr["haul_efficiency_pct"]
                     v["risk_score"] = compute_risk_score(v, closest_info[vid]["distance_m"], zone)
                     continue
 
@@ -1040,6 +1361,15 @@ def simulation_loop():
 
                 # Authoritative surface elevation sampled from local mine/DEM surface
                 v["elevation_m"] = round(sample_mine_surface_elevation(v["lat"], v["lng"]), 1)
+
+                # Compute Dynamic Speed Recommendation (DSR) & Dynamic Fog Risk Index (DFRI)
+                dsr = compute_dynamic_safe_speed(v, zone, closest_info[vid], cur_wp_idx)
+                v["dsr"] = dsr
+                v["dfri"] = dsr["dfri"]
+                v["safe_speed_kmh"] = dsr["safe_speed_kmh"]
+                v["speed_advisory"] = dsr["advisory"]
+                v["speed_bottleneck"] = dsr["bottleneck_factor"]
+                v["haul_efficiency_pct"] = dsr["haul_efficiency_pct"]
 
                 # Update composite risk score
                 v["risk_score"] = compute_risk_score(v, closest_info[vid]["distance_m"], zone)
@@ -1709,6 +2039,14 @@ def apply_scenario():
                 message="SCENARIO OBSTACLE_AHEAD: Emergency stop triggered on TRUCK_04 (front obstacle 12cm)."
             )
         elif scen_id == "DENSE_FOG":
+            FOG_ZONES["ZONE_1"]["visibility_m"] = 14
+            FOG_ZONES["ZONE_2"]["visibility_m"] = 18
+            FOG_ZONES["ZONE_3"]["visibility_m"] = 30
+            FOG_ZONES["ZONE_4"]["visibility_m"] = 45
+            for _zid, _z in FOG_ZONES.items():
+                _z["dfri"] = compute_dynamic_fog_risk_index(
+                    _z["visibility_m"], _z.get("humidity_pct", 80), _z.get("temperature_c", 18), _z.get("dew_point_c", 15)
+                )
             for v in fleet_data.values():
                 v["fog_visibility_m"] = 18
                 v["dist_front"] = min(v["dist_front"], 65)
@@ -1748,6 +2086,14 @@ def apply_scenario():
                 message="SCENARIO HAIRPIN_CAUTION: Haulers approaching steep Deposit-14 switchback benches."
             )
         elif scen_id == "CLEAR_RUN":
+            FOG_ZONES["ZONE_1"]["visibility_m"] = 18
+            FOG_ZONES["ZONE_2"]["visibility_m"] = 42
+            FOG_ZONES["ZONE_3"]["visibility_m"] = 80
+            FOG_ZONES["ZONE_4"]["visibility_m"] = 145
+            for _zid, _z in FOG_ZONES.items():
+                _z["dfri"] = compute_dynamic_fog_risk_index(
+                    _z["visibility_m"], _z.get("humidity_pct", 80), _z.get("temperature_c", 18), _z.get("dew_point_c", 15)
+                )
             for v in fleet_data.values():
                 v["manual_obstacle_until"] = 0
                 v["fog_visibility_m"] = 140
@@ -1846,6 +2192,12 @@ def get_fleet():
                 "avatar_color": v["avatar_color"],
                 "current_zone": v["current_zone"],
                 "risk_score": v.get("risk_score"),
+                "dsr": v.get("dsr"),
+                "dfri": v.get("dfri"),
+                "safe_speed_kmh": v.get("safe_speed_kmh", v.get("target_speed", 20.0)),
+                "speed_advisory": v.get("speed_advisory", "✓ MAINTAIN SAFE SPEED"),
+                "speed_bottleneck": v.get("speed_bottleneck", "Nominal Haul Circuit"),
+                "haul_efficiency_pct": v.get("haul_efficiency_pct", 95.0),
                 "has_risk_data": True,
                 "has_diagnostics": True,
                 "closest_truck": v["closest_truck"],
@@ -1920,6 +2272,31 @@ def get_vehicle(vehicle_id):
         v["sequence"] = telemetry_sequence
 
         return jsonify(v)
+
+
+@app.route("/api/dynamic_speed/<vehicle_id>", methods=["GET"])
+def get_vehicle_dynamic_speed(vehicle_id):
+    """
+    Returns full 8-input Dynamic Speed Recommendation (DSR) & DFRI analysis
+    for the specified vehicle.
+    """
+    norm_vid = VEHICLE_ALIASES.get(vehicle_id.upper(), vehicle_id.upper())
+    with fleet_lock:
+        v = fleet_data.get(norm_vid)
+        if not v:
+            return jsonify({"status": "error", "msg": f"Vehicle {vehicle_id} not found"}), 404
+        zone = get_zone_for_point(v["lat"], v["lng"])
+        closest = v.get("closest_truck", {"distance_m": 999.0, "name": "None"})
+        dsr = compute_dynamic_safe_speed(v, zone, closest, v.get("wp_idx", 0))
+        return jsonify({
+            "status": "ok",
+            "success": True,
+            "vehicle_id": norm_vid,
+            "vehicle_name": v.get("name", norm_vid),
+            "dsr": dsr,
+            "dfri": dsr["dfri"],
+            "timestamp": datetime.now().strftime("%H:%M:%S")
+        })
 
 
 @app.route("/api/vehicle/add", methods=["POST"])
@@ -2219,10 +2596,18 @@ def update_telemetry():
             "severity": zone["severity"],
             "max_safe_speed": zone["max_safe_speed"],
             "color": zone["color"],
+            "dfri": zone.get("dfri"),
         }
 
         # Authoritative surface elevation sampled from Copernicus DEM & carved pit
         v["elevation_m"] = round(sample_mine_surface_elevation(v["lat"], v["lng"]), 1)
+        dsr = compute_dynamic_safe_speed(v, zone, v.get("closest_truck", {"distance_m": 999.0, "name": "None"}), v.get("wp_idx", 0))
+        v["dsr"] = dsr
+        v["dfri"] = dsr["dfri"]
+        v["safe_speed_kmh"] = dsr["safe_speed_kmh"]
+        v["speed_advisory"] = dsr["advisory"]
+        v["speed_bottleneck"] = dsr["bottleneck_factor"]
+        v["haul_efficiency_pct"] = dsr["haul_efficiency_pct"]
         v["risk_score"] = compute_risk_score(v, v["closest_truck"]["distance_m"], zone)
 
         if action != "CLEAR":

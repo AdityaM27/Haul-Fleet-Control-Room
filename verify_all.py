@@ -1,8 +1,12 @@
 import os
+import sys
 import json
 import math
 import re
 import server
+
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
 def test_everything():
     print("=============================================================")
@@ -184,7 +188,7 @@ def test_everything():
     assert len(events) >= 5, "Safety events should record scenario applications"
 
     # 10. Production Deployment & WSGI Compatibility Audit
-    print("\n[10/10] Verifying Deployment Compatibility & Relative URLs...")
+    print("\n[10/12] Verifying Deployment Compatibility & Relative URLs...")
     # Check Flask WSGI application object
     assert hasattr(server, "app"), "Flask application object 'app' missing in server.py"
 
@@ -221,6 +225,78 @@ def test_everything():
         req_content = f.read()
     assert "gunicorn" in req_content, "gunicorn missing from requirements.txt"
     print("  CONFIRMED: WSGI compatibility, relative API URLs, and deployment configs verified.")
+
+    # 11. Fog Density Measurement System (DFRI) Validation
+    print("\n[11/12] Verifying Fog Density Measurement System (DFRI 5-Tier Scale)...")
+    test_visibilities = [
+        (150.0, 1, "NORMAL", 35.0),
+        (75.0, 2, "CAUTION", 25.0),
+        (35.0, 3, "LOW VISIBILITY", 18.0),
+        (12.0, 4, "SEVERE FOG", 10.0),
+        (3.0, 5, "CRITICAL", 5.0)
+    ]
+    for vis, exp_tier, exp_sev, exp_lim in test_visibilities:
+        dfri = server.compute_dynamic_fog_risk_index(vis, temp_c=18.0, dew_point_c=18.0)
+        print(f"  Visibility {vis:5.1f}m -> Tier {dfri['tier']} ({dfri['severity']:14s}), DFRI={dfri['index_0_100']:2d}/100, Beta={dfri['extinction_coeff_beta']:.4f} 1/m, Safe Limit={dfri['permitted_behavior']['safe_speed_limit_kmh']} km/h")
+        assert dfri["tier"] == exp_tier, f"Expected tier {exp_tier} for {vis}m, got {dfri['tier']}"
+        assert dfri["severity"] == exp_sev, f"Expected severity {exp_sev} for {vis}m, got {dfri['severity']}"
+        assert dfri["permitted_behavior"]["safe_speed_limit_kmh"] == exp_lim, f"Expected limit {exp_lim}, got {dfri['permitted_behavior']['safe_speed_limit_kmh']}"
+        expected_beta = round(3.912 / vis, 4)
+        assert abs(dfri["extinction_coeff_beta"] - expected_beta) < 1e-3
+    print("  CONFIRMED: All 5 DFRI visibility tiers, Koschmieder's Law, and automated behavior policies verified.")
+
+    # 12. Dynamic Speed Recommendation (DSR) Engine Validation
+    print("\n[12/12] Verifying Dynamic Speed Recommendation (DSR) Engine & Endpoints...")
+    test_v = {
+        "id": "TRUCK_02",
+        "speed_kmh": 27.0,
+        "dist_front": 1800,
+        "heading": 90.0,
+        "current_zone": {
+            "name": "Zone 2: Hairpin Switchback",
+            "visibility_m": 45.0,
+            "road_condition": "WET_IRON_ORE_SLURRY",
+            "surface_friction_mu": 0.35,
+            "is_hairpin": True,
+            "curvature_radius_m": 25.0
+        },
+        "curvature": 0.05
+    }
+    dsr = server.compute_dynamic_safe_speed(test_v, fleet=[test_v], weather={"condition": "HEAVY_FOG_DRIZZLE"})
+    print(f"  DSR Evaluation for TRUCK_02 at 27.0 km/h in Hairpin + Wet Slurry:")
+    print(f"    Safe Speed: {dsr['safe_speed_kmh']} km/h")
+    print(f"    Current Speed: {dsr['current_speed_kmh']} km/h")
+    print(f"    Advisory Badge: {dsr['advisory_badge']}")
+    print(f"    Bottleneck Reason: {dsr['primary_constraint']}")
+    print(f"    Haul Cycle Efficiency: {dsr['haul_cycle_efficiency_pct']}%")
+    print(f"    Stopping Sight Distance: {dsr['stopping_sight_distance_m']} m")
+
+    assert dsr["current_speed_kmh"] == 27.0
+    assert dsr["safe_speed_kmh"] <= 12.0, "Hairpin switchback must cap speed at <= 12 km/h"
+    assert "REDUCE" in dsr["advisory_badge"] or "CRITICAL" in dsr["advisory_badge"], "Must alert overspeed"
+    assert "inputs" in dsr, "DSR must return evaluated inputs"
+    assert "fog_density" in dsr["inputs"]
+    assert "obstacle_distance" in dsr["inputs"]
+    assert "road_curvature" in dsr["inputs"]
+    assert "road_condition" in dsr["inputs"]
+
+    res_dsr = client.get("/api/dynamic_speed/TRUCK_02")
+    assert res_dsr.status_code == 200, f"/api/dynamic_speed/TRUCK_02 failed: {res_dsr.status_code}"
+    dsr_payload = res_dsr.get_json()
+    assert dsr_payload["success"] is True
+    assert "dsr" in dsr_payload
+    assert "safe_speed_kmh" in dsr_payload["dsr"]
+    assert dsr_payload["dsr"]["safe_speed_kmh"] >= 0.0
+
+    res_fleet = client.get("/api/fleet")
+    assert res_fleet.status_code == 200
+    fleet_json = res_fleet.get_json()
+    for truck in fleet_json["vehicles"]:
+        assert "dsr" in truck, f"Truck {truck['id']} missing DSR payload"
+        assert "dfri" in truck, f"Truck {truck['id']} missing DFRI payload"
+        assert "safe_speed_kmh" in truck["dsr"]
+        assert "tier" in truck["dfri"]
+    print("  CONFIRMED: Dynamic Speed Recommendation Engine & DFRI endpoints fully verified.")
 
     print("\n=============================================================")
     print("AUDIT RESULT: 100% PASSED — ALL AUDIT & DEPLOYMENT CHECKS MET!")

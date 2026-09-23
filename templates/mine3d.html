@@ -360,12 +360,16 @@
 </div>
 
 <!-- Telemetry Readouts -->
-<div class="hud panel corner" id="info-panel">
+<div class="hud panel corner" id="info-panel" style="width:230px">
   <div class="stat-row"><span>VIEW</span><span id="stat-mode">ORBIT</span></div>
   <div class="stat-row"><span>DEM ELEV.</span><span id="stat-elev">742 m ASL</span></div>
   <div class="stat-row"><span>HAUL CIRCUIT</span><span id="stat-road">18.4 km</span></div>
   <div class="stat-row"><span>SIM. TRUCKS</span><span id="stat-trucks" style="color:var(--ore-gold)">6 DUMPERS</span></div>
   <div class="stat-row"><span>V. SCALE</span><span id="stat-vscale" style="color:var(--teal)">1.00× (REAL)</span></div>
+  <div class="stat-row" style="border-top:1px solid var(--line);padding-top:4px;margin-top:4px">
+    <span>SAFE SPEED REC</span><span id="stat-safe-speed" style="color:var(--teal)">-- km/h</span>
+  </div>
+  <div class="stat-row"><span>FOG SEVERITY</span><span id="stat-fog-tier" style="color:var(--ore-gold)">--</span></div>
 </div>
 
 <div id="marker-tooltip"></div>
@@ -647,6 +651,17 @@
     if (elBackendLng) elBackendLng.textContent = `${vData.lng.toFixed(5)}°E`;
     if (elBackendElev) elBackendElev.textContent = `${vData.elevation_m.toFixed(1)} m`;
     if (elBackendHdg) elBackendHdg.textContent = `${Math.round(vData.heading)}°`;
+
+    const statSafeSpeed = document.getElementById('stat-safe-speed');
+    const statFogTier = document.getElementById('stat-fog-tier');
+    if (vData.dsr && statSafeSpeed) {
+      statSafeSpeed.textContent = `${vData.dsr.safe_speed_kmh.toFixed(1)} km/h`;
+      statSafeSpeed.style.color = (vData.speed_kmh > vData.dsr.safe_speed_kmh + 1.0) ? 'var(--red)' : 'var(--teal)';
+    }
+    if (vData.dfri && statFogTier) {
+      statFogTier.textContent = `${vData.dfri.severity} (${vData.dfri.visibility_m}m)`;
+      statFogTier.style.color = vData.dfri.color || 'var(--ore-gold)';
+    }
 
     if (elThreeLat) elThreeLat.textContent = `${threeState.lat.toFixed(5)}°N`;
     if (elThreeLng) elThreeLng.textContent = `${threeState.lng.toFixed(5)}°E`;

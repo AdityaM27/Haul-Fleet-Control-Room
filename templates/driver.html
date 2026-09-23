@@ -282,6 +282,113 @@
     }
     .btn-submit:hover { transform: translateY(-1px); box-shadow: 0 0 20px rgba(56, 189, 248, 0.4); }
 
+    /* DSR & DFRI STYLES */
+    .dsr-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin: 8px 0;
+    }
+    .dsr-speed-box {
+      background: rgba(255, 255, 255, 0.025);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      border-radius: 10px;
+      padding: 12px 14px;
+      text-align: center;
+      transition: all 0.25s;
+    }
+    .dsr-speed-box.highlight {
+      border-color: rgba(56, 189, 248, 0.4);
+      background: rgba(56, 189, 248, 0.05);
+    }
+    .dsr-speed-lbl {
+      font-size: 10px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+    .dsr-speed-val {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 32px;
+      font-weight: 800;
+      color: #fff;
+    }
+    .dsr-speed-unit { font-size: 12px; color: var(--text-muted); font-weight: 600; margin-left: 2px; }
+    
+    .dsr-advisory-badge {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 800;
+      font-size: 16px;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      transition: all 0.25s;
+      margin-top: 6px;
+    }
+    .dsr-advisory-badge.reduce {
+      background: rgba(245, 158, 11, 0.16);
+      border: 1px solid var(--amber);
+      color: var(--amber);
+      box-shadow: 0 0 20px rgba(245, 158, 11, 0.25);
+      animation: alertPulse 1.4s infinite;
+    }
+    .dsr-advisory-badge.critical {
+      background: rgba(239, 68, 68, 0.22);
+      border: 2px solid var(--red);
+      color: var(--red);
+      box-shadow: 0 0 30px rgba(239, 68, 68, 0.45);
+      animation: alertPulse 0.9s infinite;
+    }
+    .dsr-advisory-badge.maintain {
+      background: rgba(16, 185, 129, 0.16);
+      border: 1px solid var(--green);
+      color: var(--green);
+      box-shadow: 0 0 15px rgba(16, 185, 129, 0.2);
+    }
+    .dsr-advisory-badge.nominal {
+      background: rgba(56, 189, 248, 0.14);
+      border: 1px solid var(--teal);
+      color: var(--teal);
+    }
+
+    /* DFRI 5-Tier Segment Bar */
+    .dfri-tiers-bar {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 5px;
+      margin: 10px 0;
+    }
+    .dfri-tier-step {
+      padding: 7px 4px;
+      border-radius: 6px;
+      text-align: center;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      transition: all 0.2s;
+    }
+    .dfri-tier-step .t-lbl { font-size: 7.5px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+    .dfri-tier-step .t-name { font-size: 8.5px; font-weight: 700; margin-top: 2px; }
+    .dfri-tier-step.active {
+      border-width: 1.5px;
+      background: rgba(255, 255, 255, 0.08);
+    }
+    .dfri-tier-step.tier-normal { color: #10b981; }
+    .dfri-tier-step.tier-caution { color: #f59e0b; }
+    .dfri-tier-step.tier-low { color: #f97316; }
+    .dfri-tier-step.tier-severe { color: #ef4444; }
+    .dfri-tier-step.tier-critical { color: #dc2626; }
+    .dfri-tier-step.active.tier-normal { border-color: #10b981; box-shadow: 0 0 12px rgba(16, 185, 129, 0.35); }
+    .dfri-tier-step.active.tier-caution { border-color: #f59e0b; box-shadow: 0 0 12px rgba(245, 158, 11, 0.35); }
+    .dfri-tier-step.active.tier-low { border-color: #f97316; box-shadow: 0 0 12px rgba(249, 115, 22, 0.35); }
+    .dfri-tier-step.active.tier-severe { border-color: #ef4444; box-shadow: 0 0 12px rgba(239, 68, 68, 0.35); }
+    .dfri-tier-step.active.tier-critical { border-color: #dc2626; box-shadow: 0 0 14px rgba(220, 38, 38, 0.5); }
+
     @media (max-width: 1024px) {
       .cockpit-container { grid-template-columns: 1fr; }
       .camera-dual-container { grid-template-columns: 1fr; }
@@ -452,27 +559,132 @@
         </div>
       </div>
 
-      <!-- 2. CURRENT MINE ZONE & SPEED GOVERNOR -->
-      <div class="hud-card" style="border-color:rgba(56,189,248,0.3)">
+      <!-- 2. DYNAMIC SPEED RECOMMENDATION ENGINE (DSR) -->
+      <div class="hud-card" style="border-color:rgba(56,189,248,0.4)">
         <div class="card-hdr">
-          <div class="card-title"><span>🌫️</span><span>Active Mine Sector & Safe Speed Governor</span></div>
+          <div class="card-title">
+            <span>⚡</span>
+            <span>Dynamic Speed Recommendation (DSR)</span>
+          </div>
+          <div style="font-size:10px;color:var(--teal);font-weight:700">MULTI-PHYSICS OPTIMIZER</div>
         </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0">
+
+        <div style="font-size:11px;color:var(--text-muted);line-height:1.4">
+          Answers: <em>“How fast should the dumper be travelling right now?”</em> — Instantaneously evaluating fog horizon, ultrasonic hazards, mountain hairpins, traffic proximity, and wet slurry friction.
+        </div>
+
+        <!-- DSR SPEED COMPARISON METERS -->
+        <div class="dsr-container">
+          <div class="dsr-speed-box">
+            <div class="dsr-speed-lbl">Current Speed</div>
+            <div class="dsr-speed-val">
+              <span id="dsrCurSpeed">27.0</span>
+              <span class="dsr-speed-unit">km/h</span>
+            </div>
+            <div style="font-size:9.5px;color:var(--text-muted);margin-top:2px" id="dsrCurSpeedSub">Measured Telemetry</div>
+          </div>
+
+          <div class="dsr-speed-box highlight">
+            <div class="dsr-speed-lbl" style="color:var(--teal)">Recommended Safe Speed</div>
+            <div class="dsr-speed-val" style="color:var(--teal)">
+              <span id="dsrSafeSpeed">18.0</span>
+              <span class="dsr-speed-unit" style="color:var(--teal)">km/h</span>
+            </div>
+            <div style="font-size:9.5px;color:var(--teal);margin-top:2px" id="dsrSafeSpeedSub">Max Safe Bound</div>
+          </div>
+        </div>
+
+        <!-- INSTANTANEOUS SPEED ADVISORY BANNER -->
+        <div id="dsrAdvisoryBanner" class="dsr-advisory-badge reduce">
+          <span id="dsrAdvisoryIcon">⚠</span>
+          <span id="dsrAdvisoryText">REDUCE SPEED</span>
+        </div>
+
+        <!-- DSR CONSTRAINT & EFFICIENCY FOOTER -->
+        <div style="margin-top:6px;padding:10px 12px;background:rgba(255,255,255,0.02);border-radius:8px;font-size:10.5px;display:flex;flex-direction:column;gap:5px">
+          <div style="display:flex;justify-content:space-between">
+            <span style="color:var(--text-muted)">Active Bottleneck Constraint:</span>
+            <span id="dsrBottleneck" style="font-weight:700;color:var(--amber)">Fog Visibility & East Hairpin 1</span>
+          </div>
+          <div style="display:flex;justify-content:space-between">
+            <span style="color:var(--text-muted)">Stopping Sight Distance (SSD):</span>
+            <span id="dsrSSD" style="font-weight:700;color:var(--teal)">24.5 m (Slurry μ=0.35)</span>
+          </div>
+          <div style="display:flex;justify-content:space-between">
+            <span style="color:var(--text-muted)">Haul-Cycle Efficiency Rating:</span>
+            <span id="dsrEfficiency" style="font-weight:700;color:var(--green)">91.5%</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. FOG DENSITY MEASUREMENT SYSTEM (DFRI) -->
+      <div class="hud-card" style="border-color:rgba(245,158,11,0.3)">
+        <div class="card-hdr">
+          <div class="card-title">
+            <span>🌫️</span>
+            <span>Fog Density Measurement System (DFRI)</span>
+          </div>
+          <div style="font-size:10px;color:var(--amber);font-weight:700">KOSCHMIEDER EXTINCTION</div>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0">
           <div>
-            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase">Operating Zone</div>
-            <div id="valZoneName" style="font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:700;color:#fff;margin-top:2px">
-              Zone 1: Deposit 5 Pit Bottom Bench
+            <div style="font-size:9.5px;color:var(--text-muted);text-transform:uppercase">Operating Sector</div>
+            <div id="valZoneName" style="font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:700;color:#fff;margin-top:2px">
+              Zone 1: Deposit 14 Pit Floor & Loading Bay
             </div>
           </div>
           <div style="text-align:right">
-            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase">Max Safe Speed</div>
-            <div id="valSafeSpeed" style="font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:800;color:var(--amber)">
-              10 km/h
+            <div style="font-size:9.5px;color:var(--text-muted);text-transform:uppercase">Optical Severity</div>
+            <div id="valSeverityTier" style="font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:800;color:var(--amber)">
+              LOW VISIBILITY
             </div>
           </div>
         </div>
-        <div style="padding:8px 12px;background:rgba(255,182,46,0.08);border-left:3px solid var(--amber);border-radius:4px;font-size:11px;color:var(--text-muted)" id="zoneAdvisory">
-          Dense valley cloud inversion rising into pit. Safe speed governor enforced.
+
+        <!-- 5-TIER QUANTITATIVE SEVERITY METER -->
+        <div class="dfri-tiers-bar">
+          <div class="dfri-tier-step tier-normal" id="dfriTier1">
+            <div class="t-lbl">&gt;100m</div>
+            <div class="t-name">NORMAL</div>
+          </div>
+          <div class="dfri-tier-step tier-caution" id="dfriTier2">
+            <div class="t-lbl">50–100m</div>
+            <div class="t-name">CAUTION</div>
+          </div>
+          <div class="dfri-tier-step tier-low active" id="dfriTier3">
+            <div class="t-lbl">20–50m</div>
+            <div class="t-name">LOW VIS</div>
+          </div>
+          <div class="dfri-tier-step tier-severe" id="dfriTier4">
+            <div class="t-lbl">5–20m</div>
+            <div class="t-name">SEVERE</div>
+          </div>
+          <div class="dfri-tier-step tier-critical" id="dfriTier5">
+            <div class="t-lbl">&lt;5m</div>
+            <div class="t-name">CRITICAL</div>
+          </div>
+        </div>
+
+        <!-- FOG SEVERITY METRICS CHIPS -->
+        <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:6px;font-size:10px;margin-top:4px">
+          <div style="background:rgba(255,255,255,0.02);padding:6px;border-radius:6px;text-align:center">
+            <span style="font-size:8.5px;color:var(--text-muted);display:block">Visibility Sight</span>
+            <span id="dfriVisMeters" style="font-weight:700;color:#fff">38 m</span>
+          </div>
+          <div style="background:rgba(255,255,255,0.02);padding:6px;border-radius:6px;text-align:center">
+            <span style="font-size:8.5px;color:var(--text-muted);display:block">DFRI Index</span>
+            <span id="dfriIndexScore" style="font-weight:700;color:var(--amber)">51 / 100</span>
+          </div>
+          <div style="background:rgba(255,255,255,0.02);padding:6px;border-radius:6px;text-align:center">
+            <span style="font-size:8.5px;color:var(--text-muted);display:block">Extinction β</span>
+            <span id="dfriBetaCoeff" style="font-weight:700;color:var(--teal)">0.1030 m⁻¹</span>
+          </div>
+        </div>
+
+        <!-- PERMITTED OPERATING BEHAVIOR POLICY -->
+        <div style="padding:8px 12px;background:rgba(245,158,11,0.08);border-left:3px solid var(--amber);border-radius:4px;font-size:10.5px;color:var(--text);margin-top:6px;line-height:1.4" id="zoneAdvisory">
+          Speed governed to 18 km/h. Optical Fast-Pi de-weathering active. Hairpin speed cap 14 km/h.
         </div>
       </div>
 
@@ -985,10 +1197,104 @@
       currentSpeedKmh = v.speed_kmh || 0;
       updateCockpit3DRadar(v.dist_front, v.action);
 
-      // Zone & Speed Governor
-      if (v.current_zone) {
-        document.getElementById('valZoneName').textContent = v.current_zone.name;
-        document.getElementById('valSafeSpeed').textContent = `${v.current_zone.max_safe_speed} km/h`;
+      // 1. Dynamic Speed Recommendation (DSR) Update
+      const curSpeed = parseFloat(v.speed_kmh) || 0.0;
+      const safeSpeed = v.safe_speed_kmh !== undefined ? parseFloat(v.safe_speed_kmh) : (v.dsr ? v.dsr.safe_speed_kmh : 18.0);
+      const dsr = v.dsr || {};
+      const advisory = v.speed_advisory || dsr.advisory || (curSpeed > safeSpeed + 2 ? '⚠ REDUCE SPEED' : '✓ MAINTAIN SAFE SPEED');
+      const bottleneck = v.speed_bottleneck || dsr.bottleneck_factor || 'Nominal Haul Circuit';
+      const efficiency = v.haul_efficiency_pct !== undefined ? v.haul_efficiency_pct : (dsr.haul_efficiency_pct || 92);
+
+      const elCurSpeed = document.getElementById('dsrCurSpeed');
+      if (elCurSpeed) elCurSpeed.textContent = curSpeed.toFixed(1);
+
+      const elSafeSpeed = document.getElementById('dsrSafeSpeed');
+      if (elSafeSpeed) elSafeSpeed.textContent = safeSpeed.toFixed(1);
+
+      const elAdvBadge = document.getElementById('dsrAdvisoryBanner');
+      const elAdvText = document.getElementById('dsrAdvisoryText');
+      const elAdvIcon = document.getElementById('dsrAdvisoryIcon');
+      if (elAdvBadge && elAdvText) {
+        elAdvText.textContent = advisory.replace(/^[🚨⚠✓▲]\s*/, '');
+        elAdvBadge.className = 'dsr-advisory-badge';
+        if (advisory.includes('CRITICAL') || advisory.includes('🚨')) {
+          elAdvBadge.classList.add('critical');
+          if (elAdvIcon) elAdvIcon.textContent = '🚨';
+        } else if (advisory.includes('REDUCE') || advisory.includes('⚠')) {
+          elAdvBadge.classList.add('reduce');
+          if (elAdvIcon) elAdvIcon.textContent = '⚠';
+        } else if (advisory.includes('MAINTAIN') || advisory.includes('✓')) {
+          elAdvBadge.classList.add('maintain');
+          if (elAdvIcon) elAdvIcon.textContent = '✓';
+        } else {
+          elAdvBadge.classList.add('nominal');
+          if (elAdvIcon) elAdvIcon.textContent = '▲';
+        }
+      }
+
+      const elBottleneck = document.getElementById('dsrBottleneck');
+      if (elBottleneck) elBottleneck.textContent = bottleneck;
+
+      const elSSD = document.getElementById('dsrSSD');
+      if (elSSD && dsr.factors) {
+        elSSD.textContent = `${dsr.factors.stopping_sight_distance_kmh || 24} km/h max (${dsr.factors.surface_condition || 'Slurry μ=0.35'})`;
+      }
+
+      const elEfficiency = document.getElementById('dsrEfficiency');
+      if (elEfficiency) {
+        elEfficiency.textContent = `${Math.round(efficiency)}%`;
+        elEfficiency.style.color = efficiency >= 80 ? 'var(--green)' : (efficiency >= 50 ? 'var(--amber)' : 'var(--red)');
+      }
+
+      // 2. Fog Density Measurement System (DFRI) Update
+      const zone = v.current_zone || {};
+      const dfri = v.dfri || zone.dfri || (dsr ? dsr.dfri : null) || {};
+      const vis = v.fog_visibility_m || zone.visibility_m || 50;
+      const tier = dfri.severity_tier || zone.severity || 'NORMAL';
+      const score = dfri.dfri_score !== undefined ? dfri.dfri_score : 40;
+      const beta = dfri.extinction_coeff || (vis > 0 ? (3.912 / vis).toFixed(4) : '0.0782');
+
+      const elZoneName = document.getElementById('valZoneName');
+      if (elZoneName) elZoneName.textContent = zone.name || 'Deposit 14 Haul Circuit';
+
+      const elSevTier = document.getElementById('valSeverityTier');
+      if (elSevTier) {
+        elSevTier.textContent = tier;
+        elSevTier.style.color = dfri.color || zone.color || 'var(--amber)';
+      }
+
+      const elVis = document.getElementById('dfriVisMeters');
+      if (elVis) elVis.textContent = `${Math.round(vis)} m`;
+
+      const elScore = document.getElementById('dfriIndexScore');
+      if (elScore) {
+        elScore.textContent = `${score} / 100`;
+        elScore.style.color = dfri.color || 'var(--amber)';
+      }
+
+      const elBeta = document.getElementById('dfriBetaCoeff');
+      if (elBeta) elBeta.textContent = `${beta} m⁻¹`;
+
+      const elAdvisory = document.getElementById('zoneAdvisory');
+      if (elAdvisory) {
+        elAdvisory.textContent = dfri.permitted_behavior || `${tier}: Max permitted speed ${zone.max_safe_speed || 20} km/h. Optical Fast-Pi de-weathering active.`;
+      }
+
+      // Update 5-Tier segment highlights
+      [1, 2, 3, 4, 5].forEach(i => {
+        const step = document.getElementById(`dfriTier${i}`);
+        if (step) step.classList.remove('active');
+      });
+      if (vis > 100) {
+        const s = document.getElementById('dfriTier1'); if (s) s.classList.add('active');
+      } else if (vis >= 50) {
+        const s = document.getElementById('dfriTier2'); if (s) s.classList.add('active');
+      } else if (vis >= 20) {
+        const s = document.getElementById('dfriTier3'); if (s) s.classList.add('active');
+      } else if (vis >= 5) {
+        const s = document.getElementById('dfriTier4'); if (s) s.classList.add('active');
+      } else {
+        const s = document.getElementById('dfriTier5'); if (s) s.classList.add('active');
       }
 
       // Telemetry Gauges
