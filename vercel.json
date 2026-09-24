@@ -1,0 +1,27 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "server.py",
+      "use": "@vercel/python"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/bailadila_terrain_256.png",
+      "dest": "static/bailadila_terrain_256.png"
+    },
+    {
+      "src": "/bailadila_terrain_meta.json",
+      "dest": "static/bailadila_terrain_meta.json"
+    },
+    {
+      "src": "/static/(.*)",
+      "dest": "static/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "server.py"
+    }
+  ]
+}
