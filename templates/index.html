@@ -218,6 +218,7 @@
       grid-template-columns: var(--rail-w) 1fr var(--ops-w);
       flex: 1;
       height: calc(100vh - var(--header-h) - var(--strip-h));
+      min-height: 0;
       overflow: hidden;
     }
 
@@ -537,7 +538,9 @@
       display: flex;
       flex-direction: column;
       height: 100%;
-      background: #06090e;
+      min-height: 0;
+      min-width: 0;
+      background: #0a0d12;
       position: relative;
       overflow: hidden;
     }
@@ -551,6 +554,7 @@
       align-items: center;
       justify-content: space-between;
       padding: 0 12px;
+      gap: 12px;
       z-index: 20;
       user-select: none;
       flex-shrink: 0;
@@ -560,6 +564,8 @@
       display: flex;
       align-items: center;
       gap: 8px;
+      min-width: 0;
+      flex: 1;
     }
 
     .twin-badge-live {
@@ -574,6 +580,7 @@
       display: flex;
       align-items: center;
       gap: 4px;
+      flex-shrink: 0;
     }
 
     .twin-title-text {
@@ -581,12 +588,16 @@
       font-weight: 700;
       font-size: 12px;
       color: var(--text-main);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .twin-tools-group {
       display: flex;
       align-items: center;
       gap: 8px;
+      flex-shrink: 0;
     }
 
     .cam-mode-buttons {
@@ -700,14 +711,21 @@
       position: relative;
       overflow: hidden;
       display: flex;
+      flex-direction: column;
+      min-height: 0;
+      min-width: 0;
+      height: 100%;
     }
 
     #mine3DCard {
       flex: 1;
+      width: 100%;
       height: 100%;
       position: relative;
       display: flex;
       flex-direction: column;
+      min-height: 0;
+      min-width: 0;
     }
 
     #threeCanvasWrap {
@@ -721,10 +739,13 @@
     #fleetMapCard {
       display: none;
       flex: 1;
+      width: 100%;
       height: 100%;
       position: relative;
       flex-direction: column;
       border-top: 1px solid var(--border-subtle);
+      min-height: 0;
+      min-width: 0;
     }
 
     #fleetMap {
@@ -1280,22 +1301,33 @@
     .hero-del-btn { background: none; border: 1px solid rgba(239,68,68,0.3); color: #fca5a5; font-size: 9px; padding: 2px 6px; border-radius: 2px; cursor: pointer; display: flex; align-items: center; gap: 4px; }
     .hero-del-btn:hover { background: var(--red-dim); }
 
+    /* Mobile Drawer Backdrop (Base Style) */
+    .rail-drawer-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.75);
+      z-index: 1400;
+      display: none;
+      backdrop-filter: blur(2px);
+    }
+    .rail-drawer-backdrop.open { display: block; }
+
     /* ==========================================================================
-       RESPONSIVE BREAKPOINTS (1200px, 992px, 768px, 576px, 400px)
+       RESPONSIVE BREAKPOINTS (1200px, 860px, 768px, 576px, 400px)
        ========================================================================== */
     @media (max-width: 1200px) {
       :root {
-        --rail-w: 240px;
-        --ops-w: 310px;
+        --rail-w: 230px;
+        --ops-w: 300px;
       }
     }
 
-    @media (max-width: 992px) {
+    @media (max-width: 860px) {
       .workspace-grid {
-        grid-template-columns: 220px 1fr;
+        grid-template-columns: 210px 1fr;
       }
       .operations-panel {
-        display: none; /* Can be opened or toggled */
+        display: none;
       }
     }
 
@@ -1333,14 +1365,6 @@
       .fleet-rail.drawer-open {
         transform: translateX(0);
       }
-      .rail-drawer-backdrop {
-        position: fixed;
-        inset: 0;
-        background: rgba(0,0,0,0.7);
-        z-index: 1400;
-        display: none;
-      }
-      .rail-drawer-backdrop.open { display: block; }
 
       /* 3D Digital Twin as Top Primary Screen */
       .digital-twin-zone {
@@ -1469,9 +1493,6 @@
         </button>
       </div>
     </aside>
-
-    <!-- Mobile Drawer Backdrop -->
-    <div class="rail-drawer-backdrop" id="railDrawerBackdrop" onclick="toggleMobileDrawer()"></div>
 
     <!-- ====================================================================
          ZONE 2: CENTER DIGITAL TWIN (DOMINANT CENTERPIECE)
@@ -2000,6 +2021,9 @@
       <span>ALERTS</span>
     </div>
   </nav>
+
+  <!-- Mobile Drawer Backdrop -->
+  <div class="rail-drawer-backdrop" id="railDrawerBackdrop" onclick="toggleMobileDrawer()"></div>
 
 </div>
 
@@ -3317,7 +3341,7 @@ function onDashVscaleChange(val) {
 function onDashboardFogSliderChange(val) {
   var v = parseFloat(val);
   if (scene3D && scene3D.fog) {
-    scene3D.fog.density = (v / 100) * 0.0012;
+    scene3D.fog.density = 0.00005 + (v / 100) * 0.00040;
   }
   var labelEl = document.getElementById('dashboardFogLabel');
   if (labelEl) {
@@ -3415,8 +3439,8 @@ async function initMine3DViewer() {
   const h = container.clientHeight || 500;
 
   scene3D = new THREE.Scene();
-  scene3D.background = new THREE.Color(0x06090e);
-  scene3D.fog = new THREE.FogExp2(0x06090e, 0.0003);
+  scene3D.background = new THREE.Color(0x0a0d12);
+  scene3D.fog = new THREE.FogExp2(0x0a0d12, 0.00010);
 
   camera3D = new THREE.PerspectiveCamera(50, w / h, 10, 100000);
 
@@ -3424,7 +3448,7 @@ async function initMine3DViewer() {
   renderer3D.setSize(w, h);
   renderer3D.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer3D.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer3D.toneMappingExposure = 1.1;
+  renderer3D.toneMappingExposure = 1.15;
   container.appendChild(renderer3D.domElement);
 
   controls3D = new THREE.OrbitControls(camera3D, renderer3D.domElement);
@@ -3435,16 +3459,16 @@ async function initMine3DViewer() {
   controls3D.maxDistance = 45000;
   controls3D.maxPolarAngle = Math.PI * 0.495;
 
-  // Lighting
-  const hemiLight = new THREE.HemisphereLight(0xcfd8dc, 0x141c24, 1.25);
+  // Lighting matching mine3d.html
+  const hemiLight = new THREE.HemisphereLight(0xdde3ea, 0x1a2128, 1.35);
   scene3D.add(hemiLight);
 
-  const sunLight = new THREE.DirectionalLight(0xfff7ed, 1.6);
-  sunLight.position.set(-6000, 9500, 5000);
+  const sunLight = new THREE.DirectionalLight(0xfff7ed, 1.85);
+  sunLight.position.set(-4500, 8000, 3500);
   scene3D.add(sunLight);
 
-  const fillLight = new THREE.DirectionalLight(0x7dd3fc, 0.45);
-  fillLight.position.set(5000, 6000, -7000);
+  const fillLight = new THREE.DirectionalLight(0x7dd3fc, 0.50);
+  fillLight.position.set(4500, 5000, -6000);
   scene3D.add(fillLight);
 
   dashBailadilaEngine = new BailadilaTerrainEngine();
@@ -3531,8 +3555,16 @@ async function initMine3DViewer() {
   animate3D();
 
   window.addEventListener('resize', onMine3DResize);
+  if (typeof ResizeObserver !== 'undefined' && container) {
+    const ro = new ResizeObserver(() => {
+      onMine3DResize();
+    });
+    ro.observe(container);
+  }
   mine3DInit = true;
   update3DMine(fleetList);
+  setTimeout(onMine3DResize, 50);
+  setTimeout(onMine3DResize, 300);
 }
 
 function onMine3DResize() {
