@@ -543,10 +543,10 @@
      * Conforms directly to the carved terrain surface (no floating tubes).
      */
     /**
-     * BUILD TERRAIN-CONFORMING MINING HAUL ROAD SYSTEM & MULTI-LAYER ROUTE INFRASTRUCTURE
-     * Conforms directly to the carved open-cast mine terrain with multi-vertex cross-sections,
-     * realistic gravel/ironstone shoulders, dashed amber centerline, direction chevrons,
-     * dynamic active vehicle route highlight, and travelled trail visualization.
+     * BUILD TERRAIN-CONFORMING BLACK MINE HAUL ROAD
+     * Physical, high-contrast, dark charcoal / black mine haul road surface
+     * that follows the exact 16 canonical Deposit-14 waypoints used by the simulation.
+     * Drapes tightly over the carved open-cast terrain benches with per-vertex elevation sampling.
      */
     buildHaulRoads(scene, vscale = 1.0, waypoints = null) {
       if (this.roadGroup && scene) {
@@ -556,120 +556,84 @@
       this.roadGroup.name = 'BailadilaHaulRoads';
 
       const wpList = waypoints || this.canonicalWaypoints || CANONICAL_DEPOSIT_14_WAYPOINTS;
-      const rawWaypoints = wpList.map(wp => {
+      const worldWaypoints = wpList.map(wp => {
         const pos = this.lonLatToWorld(wp.lng, wp.lat, 0);
         return new THREE.Vector3(pos.x, 0, pos.z);
       });
+      const numWp = worldWaypoints.length;
 
-      // Assign terrain elevation to control waypoints
-      rawWaypoints.forEach(pt => {
-        const h = this.sampleCarvedElevationXZ(pt.x, pt.z);
-        pt.y = (h - this.yMin) * vscale + 0.75;
-      });
+      // 1. Generate dense stations along the exact waypoint segments (~5m spacing)
+      // This guarantees ROAD PATH == VEHICLE ROUTE with zero deviation.
+      const stations = [];
+      for (let i = 0; i < numWp; i++) {
+        const p1 = worldWaypoints[i];
+        const p2 = worldWaypoints[(i + 1) % numWp];
+        const segDist = Math.hypot(p2.x - p1.x, p2.z - p1.z);
+        const nSteps = Math.max(8, Math.round(segDist / 5.0));
+        for (let s = 0; s < nSteps; s++) {
+          const t = s / nSteps;
+          const sx = p1.x + (p2.x - p1.x) * t;
+          const sz = p1.z + (p2.z - p1.z) * t;
+          const h = this.sampleCarvedElevationXZ(sx, sz);
+          const sy = (h - this.yMin) * vscale;
+          stations.push(new THREE.Vector3(sx, sy, sz));
+        }
+      }
+      this.sampledRoad = stations;
+      const numStations = stations.length;
 
-      const isLoop = true;
-      this.roadCurve = new THREE.CatmullRomCurve3(rawWaypoints, isLoop, 'catmullrom', 0.28);
-
-      const ROAD_SAMPLES = 420;
-      this.sampledRoad = this.roadCurve.getPoints(ROAD_SAMPLES);
+      // 2. Compute smooth tangents and normals along the route stations
       this.sampledNormals = [];
       this.sampledTangents = [];
-      this.sampledWidths = [];
-
-      const numStations = this.sampledRoad.length;
-
-      // 1. Calculate tangent, normal, curvature, and variable width for each station
       for (let i = 0; i < numStations; i++) {
-        const prevIdx = (i > 0) ? i - 1 : (isLoop ? numStations - 2 : 0);
-        const nextIdx = (i < numStations - 1) ? i + 1 : (isLoop ? 1 : i);
-
-        const prev = this.sampledRoad[prevIdx];
-        const next = this.sampledRoad[nextIdx];
-        const curr = this.sampledRoad[i];
-
-        const tang = new THREE.Vector3().subVectors(next, prev);
+        const pPrev = stations[(i - 1 + numStations) % numStations];
+        const pNext = stations[(i + 1) % numStations];
+        const tang = new THREE.Vector3().subVectors(pNext, pPrev);
         tang.y = 0;
         tang.normalize();
         this.sampledTangents.push(tang);
-
         const norm = new THREE.Vector3(-tang.z, 0, tang.x).normalize();
         this.sampledNormals.push(norm);
-
-        // Curvature factor: measure angle between incoming and outgoing directions
-        const inDir = new THREE.Vector3().subVectors(curr, prev).normalize();
-        const outDir = new THREE.Vector3().subVectors(next, curr).normalize();
-        const dot = Math.max(-1, Math.min(1, inDir.dot(outDir)));
-        const curveFactor = 1.0 - dot;
-
-        // Base width: 36m on straightaways, widened up to 48m around sharp switchbacks
-        const w = 36.0 + Math.min(12.0, curveFactor * 30.0);
-        this.sampledWidths.push(w);
-
-        // Ensure center point is exactly resting on carved terrain surface
-        const exactCenterH = this.sampleCarvedElevationXZ(curr.x, curr.z);
-        curr.y = (exactCenterH - this.yMin) * vscale + 0.75;
       }
 
-      // =========================================================================
-      // A. BASE HAUL ROAD MESH (Conforming 6-Vertex Cross-Section with Berm Edges)
-      // =========================================================================
+      // 3. Construct 5-column conforming black haul road mesh
+      // Width: 28m total (14m left, 14m right) — slightly wider than the 22m truck (~2.5x vehicle width)
       const basePositions = [];
       const baseColors = [];
       const baseIndices = [];
 
-      // Muted industrial mine road palette:
-      // Shoulders: Natural ironstone gravel / overburden (#4a3e33)
-      // Road edges: Dark compacted verge (#362f27)
-      // Drive lanes: Tire-compacted dark iron-ore haul asphalt (#26211d)
-      const cShoulder = new THREE.Color(0.29, 0.24, 0.20);
-      const cEdge = new THREE.Color(0.21, 0.18, 0.15);
-      const cLane = new THREE.Color(0.15, 0.13, 0.11);
+      // Dark charcoal / black palette (contrasting with lighter mine terrain):
+      // Outer edges: dusty dark charcoal (#242220)
+      // Mid lanes: deep tire-compacted black (#161618)
+      // Center: matte black haul asphalt (#121214)
+      const cEdge = new THREE.Color(0.14, 0.13, 0.12);
+      const cMid = new THREE.Color(0.08, 0.08, 0.09);
+      const cCenter = new THREE.Color(0.06, 0.06, 0.07);
+
+      const halfW = 14.0;
+      const offsets = [-halfW, -halfW * 0.5, 0.0, halfW * 0.5, halfW];
+      const crowns = [0.00, 0.04, 0.06, 0.04, 0.00];
+      const colColors = [cEdge, cMid, cCenter, cMid, cEdge];
 
       for (let i = 0; i < numStations; i++) {
-        const p = this.sampledRoad[i];
+        const p = stations[i];
         const norm = this.sampledNormals[i];
-        const w = this.sampledWidths[i];
-        const hw = w * 0.5;
-        const sw = 3.8; // shoulder extra width
 
-        // 6 cross-section points:
-        const x0 = p.x - norm.x * (hw + sw), z0 = p.z - norm.z * (hw + sw);
-        const x1 = p.x - norm.x * hw,        z1 = p.z - norm.z * hw;
-        const x2 = p.x - norm.x * (hw * 0.35), z2 = p.z - norm.z * (hw * 0.35);
-        const x3 = p.x + norm.x * (hw * 0.35), z3 = p.z + norm.z * (hw * 0.35);
-        const x4 = p.x + norm.x * hw,        z4 = p.z + norm.z * hw;
-        const x5 = p.x + norm.x * (hw + sw), z5 = p.z + norm.z * (hw + sw);
+        for (let c = 0; c < 5; c++) {
+          const vx = p.x + norm.x * offsets[c];
+          const vz = p.z + norm.z * offsets[c];
+          // Sample exact carved terrain elevation at each individual vertex
+          const elev = (this.sampleCarvedElevationXZ(vx, vz) - this.yMin) * vscale;
+          const vy = elev + 0.35 + crowns[c]; // 0.35m above terrain to prevent z-fighting
 
-        // Sample exact carved terrain elevation at each individual vertex
-        const y0 = (this.sampleCarvedElevationXZ(x0, z0) - this.yMin) * vscale + 0.35;
-        const y1 = (this.sampleCarvedElevationXZ(x1, z1) - this.yMin) * vscale + 0.70;
-        const y2 = (this.sampleCarvedElevationXZ(x2, z2) - this.yMin) * vscale + 0.76;
-        const y3 = (this.sampleCarvedElevationXZ(x3, z3) - this.yMin) * vscale + 0.76;
-        const y4 = (this.sampleCarvedElevationXZ(x4, z4) - this.yMin) * vscale + 0.70;
-        const y5 = (this.sampleCarvedElevationXZ(x5, z5) - this.yMin) * vscale + 0.35;
-
-        basePositions.push(
-          x0, y0, z0,
-          x1, y1, z1,
-          x2, y2, z2,
-          x3, y3, z3,
-          x4, y4, z4,
-          x5, y5, z5
-        );
-
-        baseColors.push(
-          cShoulder.r, cShoulder.g, cShoulder.b,
-          cEdge.r, cEdge.g, cEdge.b,
-          cLane.r, cLane.g, cLane.b,
-          cLane.r, cLane.g, cLane.b,
-          cEdge.r, cEdge.g, cEdge.b,
-          cShoulder.r, cShoulder.g, cShoulder.b
-        );
+          basePositions.push(vx, vy, vz);
+          baseColors.push(colColors[c].r, colColors[c].g, colColors[c].b);
+        }
 
         if (i > 0) {
-          const curBase = i * 6;
-          const prevBase = (i - 1) * 6;
-          for (let q = 0; q < 5; q++) {
+          const curBase = i * 5;
+          const prevBase = (i - 1) * 5;
+          for (let q = 0; q < 4; q++) {
             const pA = prevBase + q;
             const pB = prevBase + q + 1;
             const cA = curBase + q;
@@ -679,11 +643,11 @@
         }
       }
 
-      // Connect loop end to start
-      if (isLoop && numStations > 2) {
+      // Connect seamless closed loop
+      if (numStations > 2) {
         const curBase = 0;
-        const prevBase = (numStations - 1) * 6;
-        for (let q = 0; q < 5; q++) {
+        const prevBase = (numStations - 1) * 5;
+        for (let q = 0; q < 4; q++) {
           const pA = prevBase + q;
           const pB = prevBase + q + 1;
           const cA = curBase + q;
@@ -700,30 +664,27 @@
 
       const roadMat = new THREE.MeshStandardMaterial({
         vertexColors: true,
-        roughness: 0.90,
-        metalness: 0.08,
+        roughness: 0.94,
+        metalness: 0.06,
+        side: THREE.DoubleSide,
         polygonOffset: true,
-        polygonOffsetFactor: -1.0,
-        polygonOffsetUnits: -2.0
+        polygonOffsetFactor: -2.0,
+        polygonOffsetUnits: -4.0
       });
       this.roadBaseMesh = new THREE.Mesh(roadGeo, roadMat);
       this.roadBaseMesh.name = 'HaulRoadBase';
       this.roadBaseMesh.receiveShadow = true;
       this.roadGroup.add(this.roadBaseMesh);
 
-      // =========================================================================
-      // B. SAFETY BERM ROCK POSTS ALONG SWITCHBACKS
-      // =========================================================================
-      const bermMat = new THREE.MeshStandardMaterial({ color: 0x6e5845, roughness: 0.95 });
-      for (let s = 4; s < numStations; s += 8) {
-        const p = this.sampledRoad[s];
+      // Industrial rock safety berm boulders along switchbacks (muted dark boulders)
+      const bermMat = new THREE.MeshStandardMaterial({ color: 0x383028, roughness: 0.96 });
+      const bermGeo = new THREE.BoxGeometry(2.6, 2.0, 4.2);
+      for (let s = 4; s < numStations; s += 10) {
+        const p = stations[s];
         const norm = this.sampledNormals[s];
-        const hw = this.sampledWidths[s] * 0.5;
-        const bx = p.x + norm.x * (hw + 1.8);
-        const bz = p.z + norm.z * (hw + 1.8);
-        const by = (this.sampleCarvedElevationXZ(bx, bz) - this.yMin) * vscale + 1.4;
-
-        const bermGeo = new THREE.BoxGeometry(3.0, 2.2, 5.0);
+        const bx = p.x + norm.x * (halfW + 1.2);
+        const bz = p.z + norm.z * (halfW + 1.2);
+        const by = (this.sampleCarvedElevationXZ(bx, bz) - this.yMin) * vscale + 1.0;
         const berm = new THREE.Mesh(bermGeo, bermMat);
         berm.position.set(bx, by, bz);
         const tang = this.sampledTangents[s];
@@ -731,180 +692,12 @@
         this.roadGroup.add(berm);
       }
 
-      // =========================================================================
-      // C. ROUTE CENTERLINE (Subtle Amber Dashed Line)
-      // =========================================================================
-      const clPositions = [];
-      const clIndices = [];
-      const dashLength = 12.0; // meters
-      const gapLength = 7.0;   // meters
-      const period = dashLength + gapLength;
-      let distAccum = 0;
-
-      for (let i = 0; i < numStations - 1; i++) {
-        const p0 = this.sampledRoad[i];
-        const p1 = this.sampledRoad[i + 1];
-        const segDist = p0.distanceTo(p1);
-        const norm = this.sampledNormals[i];
-        const halfClW = 0.65; // 1.3m wide dashed line
-
-        // Check if inside dash phase
-        const phase = distAccum % period;
-        if (phase < dashLength) {
-          const y0 = p0.y + 0.08;
-          const y1 = p1.y + 0.08;
-
-          const idx = clPositions.length / 3;
-          clPositions.push(
-            p0.x - norm.x * halfClW, y0, p0.z - norm.z * halfClW,
-            p0.x + norm.x * halfClW, y0, p0.z + norm.z * halfClW,
-            p1.x - norm.x * halfClW, y1, p1.z - norm.z * halfClW,
-            p1.x + norm.x * halfClW, y1, p1.z + norm.z * halfClW
-          );
-          clIndices.push(idx, idx + 2, idx + 1, idx + 1, idx + 2, idx + 3);
-        }
-        distAccum += segDist;
-      }
-
-      const clGeo = new THREE.BufferGeometry();
-      clGeo.setAttribute('position', new THREE.Float32BufferAttribute(clPositions, 3));
-      clGeo.setIndex(clIndices);
-      clGeo.computeVertexNormals();
-
-      const clMat = new THREE.MeshBasicMaterial({
-        color: 0xf59e0b,
-        transparent: true,
-        opacity: 0.82,
-        side: THREE.DoubleSide,
-        depthWrite: false,
-        polygonOffset: true,
-        polygonOffsetFactor: -2.0,
-        polygonOffsetUnits: -3.0
-      });
-      this.roadCenterlineMesh = new THREE.Mesh(clGeo, clMat);
-      this.roadCenterlineMesh.name = 'HaulRoadCenterline';
-      this.roadGroup.add(this.roadCenterlineMesh);
-
-      // =========================================================================
-      // D. DIRECTION CHEVRONS / ARROWS (Traffic Flow Indicators)
-      // =========================================================================
-      const arrPositions = [];
-      const arrIndices = [];
-      const arrowStep = 6; // Place chevron every ~65m
-
-      for (let i = 4; i < numStations; i += arrowStep) {
-        const p = this.sampledRoad[i];
-        const tang = this.sampledTangents[i];
-        const norm = this.sampledNormals[i];
-        const y = p.y + 0.09;
-
-        // Chevron geometry:
-        // Tip forward, two swept-back wings, notched center
-        const tipX = p.x + tang.x * 3.5, tipZ = p.z + tang.z * 3.5;
-        const lX = p.x - tang.x * 2.2 - norm.x * 2.2, lZ = p.z - tang.z * 2.2 - norm.z * 2.2;
-        const notchX = p.x - tang.x * 0.8, notchZ = p.z - tang.z * 0.8;
-        const rX = p.x - tang.x * 2.2 + norm.x * 2.2, rZ = p.z - tang.z * 2.2 + norm.z * 2.2;
-
-        const idx = arrPositions.length / 3;
-        arrPositions.push(
-          tipX, y, tipZ,
-          lX, y, lZ,
-          notchX, y, notchZ,
-          rX, y, rZ
-        );
-        arrIndices.push(idx, idx + 1, idx + 2, idx, idx + 2, idx + 3);
-      }
-
-      const arrGeo = new THREE.BufferGeometry();
-      arrGeo.setAttribute('position', new THREE.Float32BufferAttribute(arrPositions, 3));
-      arrGeo.setIndex(arrIndices);
-      arrGeo.computeVertexNormals();
-
-      const arrMat = new THREE.MeshBasicMaterial({
-        color: 0xeab308,
-        transparent: true,
-        opacity: 0.78,
-        side: THREE.DoubleSide,
-        depthWrite: false,
-        polygonOffset: true,
-        polygonOffsetFactor: -2.0,
-        polygonOffsetUnits: -3.0
-      });
-      this.directionArrowsMesh = new THREE.Mesh(arrGeo, arrMat);
-      this.directionArrowsMesh.name = 'HaulRoadDirectionArrows';
-      this.roadGroup.add(this.directionArrowsMesh);
-
-      // =========================================================================
-      // E. ACTIVE VEHICLE ROUTE FORWARD GUIDE RIBBON
-      // =========================================================================
-      const actGeo = new THREE.BufferGeometry();
-      const ACT_STATIONS = 35;
-      const actPos = new Float32Array(ACT_STATIONS * 2 * 3);
-      const actIdx = [];
-      for (let s = 0; s < ACT_STATIONS - 1; s++) {
-        const a = s * 2, b = a + 1, c = (s + 1) * 2, d = c + 1;
-        actIdx.push(a, c, b, b, c, d);
-      }
-      actGeo.setAttribute('position', new THREE.BufferAttribute(actPos, 3));
-      actGeo.setIndex(actIdx);
-
-      const actMat = new THREE.MeshBasicMaterial({
-        color: 0xfbbf24,
-        transparent: true,
-        opacity: 0.45,
-        side: THREE.DoubleSide,
-        depthWrite: false,
-        polygonOffset: true,
-        polygonOffsetFactor: -3.0,
-        polygonOffsetUnits: -4.0
-      });
-      this.activeRouteMesh = new THREE.Mesh(actGeo, actMat);
-      this.activeRouteMesh.name = 'ActiveRouteForwardGuide';
-      this.activeRouteMesh.visible = false;
-      this.roadGroup.add(this.activeRouteMesh);
-
-      // =========================================================================
-      // F. DYNAMIC HAZARD ROAD SEGMENT OVERLAY
-      // =========================================================================
-      const hazGeo = new THREE.BufferGeometry();
-      const HAZ_STATIONS = 16; // ~150m span
-      const hazPos = new Float32Array(HAZ_STATIONS * 2 * 3);
-      const hazIdx = [];
-      for (let s = 0; s < HAZ_STATIONS - 1; s++) {
-        const a = s * 2, b = a + 1, c = (s + 1) * 2, d = c + 1;
-        hazIdx.push(a, c, b, b, c, d);
-      }
-      hazGeo.setAttribute('position', new THREE.BufferAttribute(hazPos, 3));
-      hazGeo.setIndex(hazIdx);
-
-      this.hazardRoadMat = new THREE.MeshBasicMaterial({
-        color: 0xef4444,
-        transparent: true,
-        opacity: 0.65,
-        side: THREE.DoubleSide,
-        depthWrite: false,
-        polygonOffset: true,
-        polygonOffsetFactor: -4.0,
-        polygonOffsetUnits: -5.0
-      });
-      this.hazardRoadMesh = new THREE.Mesh(hazGeo, this.hazardRoadMat);
-      this.hazardRoadMesh.name = 'HazardRoadSegment';
-      this.hazardRoadMesh.visible = false;
-      this.roadGroup.add(this.hazardRoadMesh);
-
-      // =========================================================================
-      // G. VEHICLE TRAVELLED TRAILS GROUP
-      // =========================================================================
-      this.trailsGroup = new THREE.Group();
-      this.trailsGroup.name = 'BailadilaVehicleTrails';
-      this.roadGroup.add(this.trailsGroup);
-
       if (scene) scene.add(this.roadGroup);
       return this.roadGroup;
     }
 
     /**
-     * SELECT ACTIVE VEHICLE FOR FOCUSED ROUTE HIGHLIGHT & TRAIL VISIBILITY
+     * SELECT ACTIVE VEHICLE
      */
     setSelectedVehicle(vId) {
       if (!vId) return;
@@ -918,273 +711,22 @@
         }
       }
       this.selectedVehicleId = matchedKey;
-      this.trailsDirty = true;
-      this.updateActiveRouteHighlight();
-      this.updateVehicleTrailsVisual();
     }
 
-    /**
-     * RECORD TRAVELLED VEHICLE PATH FOR HISTORICAL TRAIL
-     */
     recordVehicleTrail(vId, currentPos) {
-      if (!vId || !currentPos) return;
-      if (!this.trailHistory[vId]) {
-        this.trailHistory[vId] = [];
-      }
-      const history = this.trailHistory[vId];
-      if (history.length === 0) {
-        history.unshift(currentPos.clone());
-        this.trailsDirty = true;
-      } else {
-        const last = history[0];
-        const dist = Math.hypot(currentPos.x - last.x, currentPos.z - last.z);
-        if (dist > 250) {
-          // Large teleport or loop wrap - clear trail
-          history.length = 0;
-          history.unshift(currentPos.clone());
-          this.trailsDirty = true;
-        } else if (dist >= 3.0) {
-          history.unshift(currentPos.clone());
-          if (history.length > 55) {
-            history.pop();
-          }
-          this.trailsDirty = true;
-        }
-      }
+      // Clean physical road representation
     }
 
-    /**
-     * UPDATE ACTIVE VEHICLE FORWARD ROUTE HIGHLIGHT
-     */
     updateActiveRouteHighlight() {
-      if (!this.activeRouteMesh || !this.sampledRoad || this.sampledRoad.length < 10) return;
-      let truck = this.truckObjects[this.selectedVehicleId];
-      if (!truck) {
-        for (const k in this.truckObjects) {
-          if (this.truckObjects[k].idText === this.selectedVehicleId || (this.truckObjects[k].mesh && this.truckObjects[k].mesh.name === this.selectedVehicleId)) {
-            truck = this.truckObjects[k];
-            break;
-          }
-        }
-      }
-      if (!truck || !truck.mesh) {
-        this.activeRouteMesh.visible = false;
-        return;
-      }
-
-      const tPos = truck.mesh.position;
-      let closestIdx = 0;
-      let closestDist = Infinity;
-      const numStations = this.sampledRoad.length;
-
-      for (let i = 0; i < numStations; i++) {
-        const d = Math.hypot(this.sampledRoad[i].x - tPos.x, this.sampledRoad[i].z - tPos.z);
-        if (d < closestDist) {
-          closestDist = d;
-          closestIdx = i;
-        }
-      }
-
-      if (closestDist > 120) {
-        this.activeRouteMesh.visible = false;
-        return;
-      }
-
-      const ACT_STATIONS = 35;
-      const posAttr = this.activeRouteMesh.geometry.attributes.position;
-      const posArray = posAttr.array;
-      const halfW = 7.0;
-
-      for (let s = 0; s < ACT_STATIONS; s++) {
-        const stationIdx = (closestIdx + s) % numStations;
-        const p = this.sampledRoad[stationIdx];
-        const norm = this.sampledNormals[stationIdx];
-        const y = p.y + 0.11;
-
-        const base = s * 6;
-        posArray[base]     = p.x - norm.x * halfW;
-        posArray[base + 1] = y;
-        posArray[base + 2] = p.z - norm.z * halfW;
-
-        posArray[base + 3] = p.x + norm.x * halfW;
-        posArray[base + 4] = y;
-        posArray[base + 5] = p.z + norm.z * halfW;
-      }
-
-      posAttr.needsUpdate = true;
-      this.activeRouteMesh.visible = true;
+      // Clean physical road representation
     }
 
-    /**
-     * UPDATE DYNAMIC HAZARD ROAD SEGMENT
-     */
     updateHazardRoadSegment(fleet) {
-      if (!this.hazardRoadMesh || !this.sampledRoad || !fleet) return;
-
-      let hazardTruck = null;
-      let isCritical = false;
-
-      for (let i = 0; i < fleet.length; i++) {
-        const v = fleet[i];
-        const riskTotal = (v.risk_score && v.risk_score.total !== undefined) ? v.risk_score.total : 0;
-        if (v.action === 'STOP' || riskTotal >= 70 || (v.dist_front !== undefined && v.dist_front < 100)) {
-          hazardTruck = v;
-          isCritical = true;
-          break;
-        } else if (v.action === 'SLOW DOWN' || riskTotal >= 40) {
-          if (!hazardTruck) {
-            hazardTruck = v;
-            isCritical = false;
-          }
-        }
-      }
-
-      if (!hazardTruck) {
-        this.hazardRoadMesh.visible = false;
-        return;
-      }
-
-      const item = this.truckObjects[hazardTruck.id];
-      const hPos = (item && item.mesh) ? item.mesh.position : this.lonLatToWorld(hazardTruck.lng, hazardTruck.lat, 0);
-
-      let closestIdx = 0;
-      let closestDist = Infinity;
-      const numStations = this.sampledRoad.length;
-      for (let i = 0; i < numStations; i++) {
-        const d = Math.hypot(this.sampledRoad[i].x - hPos.x, this.sampledRoad[i].z - hPos.z);
-        if (d < closestDist) {
-          closestDist = d;
-          closestIdx = i;
-        }
-      }
-
-      const HAZ_STATIONS = 16;
-      const startIdx = (closestIdx - 4 + numStations) % numStations;
-      const posAttr = this.hazardRoadMesh.geometry.attributes.position;
-      const posArray = posAttr.array;
-
-      for (let s = 0; s < HAZ_STATIONS; s++) {
-        const stationIdx = (startIdx + s) % numStations;
-        const p = this.sampledRoad[stationIdx];
-        const norm = this.sampledNormals[stationIdx];
-        const w = (this.sampledWidths[stationIdx] || 38.0) * 0.5 + 0.5;
-        const y = p.y + 0.13;
-
-        const base = s * 6;
-        posArray[base]     = p.x - norm.x * w;
-        posArray[base + 1] = y;
-        posArray[base + 2] = p.z - norm.z * w;
-
-        posArray[base + 3] = p.x + norm.x * w;
-        posArray[base + 4] = y;
-        posArray[base + 5] = p.z + norm.z * w;
-      }
-
-      posAttr.needsUpdate = true;
-      if (isCritical) {
-        this.hazardRoadMat.color.setHex(0xef4444); // Critical RED
-        this.hazardRoadMat.opacity = 0.70;
-      } else {
-        this.hazardRoadMat.color.setHex(0xf59e0b); // Warning AMBER
-        this.hazardRoadMat.opacity = 0.55;
-      }
-      this.hazardRoadMesh.visible = true;
+      // Clean physical road representation
     }
 
-    /**
-     * UPDATE VISIBLE VEHICLE TRAILS (ACTUAL TRAVELLED PATH)
-     */
     updateVehicleTrailsVisual() {
-      if (!this.trailsGroup || !this.trailsDirty) return;
-
-      const vIds = Object.keys(this.truckObjects);
-      for (let vi = 0; vi < vIds.length; vi++) {
-        const vId = vIds[vi];
-        const history = this.trailHistory[vId];
-        if (!history || history.length < 2) continue;
-
-        let trailMesh = this.trailMeshes[vId];
-        const isSelected = (vId === this.selectedVehicleId);
-        const trailWidth = isSelected ? 4.5 : 2.0;
-
-        const numPts = history.length;
-        const positions = [];
-        const colors = [];
-        const indices = [];
-
-        // Selected: Restrained cyan (#38bdf8), Non-selected: Muted slate (#94a3b8)
-        const baseColor = isSelected ? new THREE.Color(0.22, 0.74, 0.97) : new THREE.Color(0.58, 0.64, 0.72);
-
-        for (let j = 0; j < numPts; j++) {
-          const pt = history[j];
-          const nextPt = (j < numPts - 1) ? history[j + 1] : history[j];
-          const prevPt = (j > 0) ? history[j - 1] : history[j];
-
-          const dir = new THREE.Vector3().subVectors(prevPt, nextPt);
-          dir.y = 0;
-          if (dir.lengthSq() < 1e-4) {
-            dir.set(0, 0, 1);
-          } else {
-            dir.normalize();
-          }
-          const norm = new THREE.Vector3(-dir.z, 0, dir.x).normalize();
-          const halfW = trailWidth * 0.5;
-
-          const alphaFade = Math.pow(1.0 - (j / numPts), 1.2);
-          const y = pt.y + 0.14;
-
-          positions.push(
-            pt.x - norm.x * halfW, y, pt.z - norm.z * halfW,
-            pt.x + norm.x * halfW, y, pt.z + norm.z * halfW
-          );
-
-          const cR = baseColor.r * alphaFade;
-          const cG = baseColor.g * alphaFade;
-          const cB = baseColor.b * alphaFade;
-          colors.push(cR, cG, cB, cR, cG, cB);
-
-          if (j > 0) {
-            const cA = j * 2;
-            const cB = cA + 1;
-            const pA = (j - 1) * 2;
-            const pB = pA + 1;
-            indices.push(pA, cA, pB, pB, cA, cB);
-          }
-        }
-
-        if (!trailMesh) {
-          const tGeo = new THREE.BufferGeometry();
-          tGeo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-          tGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-          tGeo.setIndex(indices);
-
-          const tMat = new THREE.MeshBasicMaterial({
-            vertexColors: true,
-            transparent: true,
-            opacity: isSelected ? 0.85 : 0.22,
-            side: THREE.DoubleSide,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false,
-            polygonOffset: true,
-            polygonOffsetFactor: -5.0,
-            polygonOffsetUnits: -6.0
-          });
-          trailMesh = new THREE.Mesh(tGeo, tMat);
-          trailMesh.name = `Trail_${vId}`;
-          this.trailMeshes[vId] = trailMesh;
-          this.trailsGroup.add(trailMesh);
-        } else {
-          trailMesh.geometry.dispose();
-          const tGeo = new THREE.BufferGeometry();
-          tGeo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-          tGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-          tGeo.setIndex(indices);
-          trailMesh.geometry = tGeo;
-          trailMesh.material.opacity = isSelected ? 0.85 : 0.22;
-        }
-      }
-
-      this.trailsDirty = false;
+      // Clean physical road representation
     }
 
     /**
@@ -1426,11 +968,6 @@
         // Record historical travelled trail point
         this.recordVehicleTrail(v.id, item.mesh.position);
       });
-
-      // Update dynamic road overlays (hazards, active forward guidance, trails)
-      this.updateHazardRoadSegment(fleet);
-      this.updateActiveRouteHighlight();
-      this.updateVehicleTrailsVisual();
     }
 
     /**
@@ -1443,25 +980,31 @@
         const item = this.truckObjects[vId];
         if (!item || !item.mesh || !item.initialized) continue;
 
-        // Position Lerp
-        item.mesh.position.lerp(item.targetPos, alpha);
+        // Smoothly interpolate horizontal position (X, Z) towards backend target
+        item.mesh.position.x += (item.targetPos.x - item.mesh.position.x) * alpha;
+        item.mesh.position.z += (item.targetPos.z - item.mesh.position.z) * alpha;
+
+        // CRITICAL: Calculate current visual elevation from the road/terrain at its CURRENT visual (x, z) position!
+        // This ensures the truck NEVER sinks into cliffs, benches, or underground during movement.
+        const curSurfaceH = this.sampleCarvedElevationXZ(item.mesh.position.x, item.mesh.position.z);
+        item.mesh.position.y = (curSurfaceH - this.yMin) * this.vscale + 0.50;
 
         // Shortest arc yaw rotation lerp
         let dyaw = item.targetYaw - item.mesh.rotation.y;
         while (dyaw < -Math.PI) dyaw += Math.PI * 2;
         while (dyaw > Math.PI) dyaw -= Math.PI * 2;
         item.mesh.rotation.y += dyaw * alpha;
-      }
 
-      // Keep active vehicle guidance and trails synchronized during smooth animation frame
-      if (this.selectedVehicleId && this.truckObjects[this.selectedVehicleId]) {
-        const selItem = this.truckObjects[this.selectedVehicleId];
-        if (selItem && selItem.mesh) {
-          this.recordVehicleTrail(this.selectedVehicleId, selItem.mesh.position);
-        }
+        // Follow road slopes (pitch along travel direction)
+        const fwdX = -Math.sin(item.mesh.rotation.y);
+        const fwdZ = -Math.cos(item.mesh.rotation.y);
+        const probeDist = 5.0;
+        const hFront = this.sampleCarvedElevationXZ(item.mesh.position.x + fwdX * probeDist, item.mesh.position.z + fwdZ * probeDist);
+        const hRear  = this.sampleCarvedElevationXZ(item.mesh.position.x - fwdX * probeDist, item.mesh.position.z - fwdZ * probeDist);
+        const targetPitch = Math.atan2((hFront - hRear) * this.vscale, probeDist * 2.0);
+        const clampedPitch = Math.max(-0.25, Math.min(0.25, targetPitch));
+        item.mesh.rotation.x += (clampedPitch - item.mesh.rotation.x) * alpha;
       }
-      this.updateActiveRouteHighlight();
-      this.updateVehicleTrailsVisual();
     }
 
     /**
