@@ -2424,9 +2424,14 @@ function selectVehicle(id) {
     updateCameraFeedUrls();
   }
 
-  // Smoothly center Three.js OrbitControls on selected vehicle
-  if (dashBailadilaEngine && controls3D) {
-    dashBailadilaEngine.focusVehicle(id, controls3D);
+  // Smoothly center Three.js OrbitControls on selected vehicle & update active route visual
+  if (dashBailadilaEngine) {
+    if (dashBailadilaEngine.setSelectedVehicle) {
+      dashBailadilaEngine.setSelectedVehicle(id);
+    }
+    if (controls3D) {
+      dashBailadilaEngine.focusVehicle(id, controls3D);
+    }
   }
 
   centerOnSelected();

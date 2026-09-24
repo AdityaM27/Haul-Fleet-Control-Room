@@ -517,6 +517,9 @@
   if (selTargetTruck) {
     selTargetTruck.addEventListener('change', (e) => {
       selectedVehicleId = e.target.value;
+      if (engine && engine.setSelectedVehicle) {
+        engine.setSelectedVehicle(selectedVehicleId);
+      }
       if (currentMode === 'orbit') {
         engine.focusVehicle(selectedVehicleId, controls);
       }
@@ -526,6 +529,9 @@
   // Raycast interaction: Clicking truck in 3D selects target
   engine.setupInteraction(camera, renderer.domElement, (clickedVid) => {
     selectedVehicleId = clickedVid;
+    if (engine && engine.setSelectedVehicle) {
+      engine.setSelectedVehicle(clickedVid);
+    }
     if (selTargetTruck) selTargetTruck.value = clickedVid;
     if (currentMode === 'orbit') {
       engine.focusVehicle(clickedVid, controls);
