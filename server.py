@@ -1143,30 +1143,260 @@ def compute_risk_score(v, closest_dist, zone):
 
 
 # ==============================================================================
-# AUTONOMOUS SIMULATION THREAD (Deposit-14 Canonical Haul Loop)
+# DETERMINISTIC STATELESS SIMULATION ENGINE (Deposit-14 Canonical Haul Loop)
+# Multi-worker & serverless synchronized via global wall-clock time
 # ==============================================================================
+BASE_SIM_EPOCH = 1710500000.0
 last_sim_tick = time.time()
 
+CIRCUIT_NUM_WP = len(SIM_WAYPOINTS)
+CIRCUIT_SEG_DISTANCES = []
+CIRCUIT_CUM_DISTANCES = [0.0]
+for i in range(CIRCUIT_NUM_WP):
+    w1 = SIM_WAYPOINTS[i]
+    w2 = SIM_WAYPOINTS[(i + 1) % CIRCUIT_NUM_WP]
+    d = max(10.0, haversine_distance_m(w1["lat"], w1["lng"], w2["lat"], w2["lng"]))
+    CIRCUIT_SEG_DISTANCES.append(d)
+    CIRCUIT_CUM_DISTANCES.append(CIRCUIT_CUM_DISTANCES[-1] + d)
 
-def simulation_step(dt=1.0):
+CIRCUIT_TOTAL_DIST = CIRCUIT_CUM_DISTANCES[-1]
+
+INITIAL_LOOP_OFFSETS = {}
+for vid, prof in SIMULATION_PROFILES.items():
+    idx = prof["wp_idx"]
+    t = prof["wp_t"]
+    INITIAL_LOOP_OFFSETS[vid] = CIRCUIT_CUM_DISTANCES[idx] + t * CIRCUIT_SEG_DISTANCES[idx]
+
+
+def update_fleet_state(now_ts=None):
     global telemetry_sequence, last_sim_tick
-    last_sim_tick = time.time()
-    num_wp = len(SIM_WAYPOINTS)
+    if now_ts is None:
+        now_ts = time.time()
+    last_sim_tick = now_ts
+    telemetry_sequence = int(now_ts * 2)
+    now_str = datetime.fromtimestamp(now_ts).strftime("%H:%M:%S")
+    multiplier = simulation_config.get("speed_multiplier", 1.0)
+    is_running = simulation_config.get("running", True)
+    scen_id = active_scenario.get("id", "CLEAR_RUN")
 
-    # Precalculate metric segment distances along the canonical Deposit-14 loop
-    seg_distances = []
-    for i in range(num_wp):
-        w1 = SIM_WAYPOINTS[i]
-        w2 = SIM_WAYPOINTS[(i + 1) % num_wp]
-        d = haversine_distance_m(w1["lat"], w1["lng"], w2["lat"], w2["lng"])
-        seg_distances.append(max(10.0, d))
+    # Global continuous displacement in meters along canonical Deposit-14 circuit
+    base_fleet_speed_mps = 13.5 * 1000.0 / 3600.0  # 3.75 m/s (~13.5 km/h nominal corridor pace)
+    if is_running:
+        elapsed = (now_ts - BASE_SIM_EPOCH) * multiplier
+        global_dist = elapsed * base_fleet_speed_mps
+    else:
+        global_dist = 0.0
 
-    telemetry_sequence += 1
-    now_ts = time.time()
-    now_str = datetime.now().strftime("%H:%M:%S")
-    multiplier = simulation_config["speed_multiplier"]
+    for vid, v in fleet_data.items():
+        v["last_update_ts"] = now_ts
+        v["sequence"] = telemetry_sequence
+        prof = SIMULATION_PROFILES.get(vid)
 
-    # Calculate pairwise inter-truck distances for traffic proximity
+        # REAL_HARDWARE handling (ESP32 node / TRUCK_01 hardware mode)
+        if v["source_type"] == "REAL_HARDWARE":
+            if v.get("last_hardware_packet"):
+                elapsed_hw = now_ts - v["last_hardware_packet"]
+                if elapsed_hw > 12.0:
+                    v["hardware_status"] = "LINK_TIMEOUT"
+                    v["is_connected"] = False
+                else:
+                    v["hardware_status"] = "CONNECTED_LIVE"
+                    v["is_connected"] = True
+            else:
+                v["hardware_status"] = "WAITING_TELEMETRY"
+                v["is_connected"] = False
+
+            v["elevation_m"] = round(sample_mine_surface_elevation(v["lat"], v["lng"]), 1)
+            zone = get_zone_for_point(v["lat"], v["lng"])
+            v["current_zone"] = {
+                "id": zone["id"],
+                "name": zone["name"],
+                "visibility_m": zone["visibility_m"],
+                "severity": zone["severity"],
+                "max_safe_speed": zone["max_safe_speed"],
+                "color": zone["color"],
+                "dfri": zone.get("dfri"),
+            }
+            continue
+
+        # SIMULATED TRUCKS
+        # Calculate current position along the canonical loop
+        init_offset = INITIAL_LOOP_OFFSETS.get(vid, 0.0)
+        curr_dist = (init_offset + global_dist) % CIRCUIT_TOTAL_DIST
+
+        # Locate segment
+        seg_idx = 0
+        for i in range(CIRCUIT_NUM_WP):
+            if CIRCUIT_CUM_DISTANCES[i] <= curr_dist < CIRCUIT_CUM_DISTANCES[i + 1]:
+                seg_idx = i
+                break
+        else:
+            seg_idx = CIRCUIT_NUM_WP - 1
+
+        seg_len = CIRCUIT_SEG_DISTANCES[seg_idx]
+        wp_t = (curr_dist - CIRCUIT_CUM_DISTANCES[seg_idx]) / seg_len
+        w1 = SIM_WAYPOINTS[seg_idx]
+        w2 = SIM_WAYPOINTS[(seg_idx + 1) % CIRCUIT_NUM_WP]
+
+        lat = round(w1["lat"] + (w2["lat"] - w1["lat"]) * wp_t, 6)
+        lng = round(w1["lng"] + (w2["lng"] - w1["lng"]) * wp_t, 6)
+        d_lng = w2["lng"] - w1["lng"]
+        d_lat = w2["lat"] - w1["lat"]
+        heading = round((math.degrees(math.atan2(d_lng, d_lat)) + 360.0) % 360.0, 1)
+        elevation_m = round(sample_mine_surface_elevation(lat, lng), 1)
+
+        v["wp_idx"] = seg_idx
+        v["wp_t"] = round(wp_t, 4)
+        v["lat"] = lat
+        v["lng"] = lng
+        v["heading"] = heading
+        v["elevation_m"] = elevation_m
+
+        zone = get_zone_for_point(lat, lng)
+        v["current_zone"] = {
+            "id": zone["id"],
+            "name": zone["name"],
+            "visibility_m": zone["visibility_m"],
+            "severity": zone["severity"],
+            "max_safe_speed": zone["max_safe_speed"],
+            "color": zone["color"],
+            "dfri": zone.get("dfri"),
+        }
+
+        # Corridor speed determined by segment & profile
+        if seg_idx in (3, 5, 11, 13):
+            # Hairpin switchbacks: safe climb / descent
+            base_target = 10.5
+        elif seg_idx == 0:
+            # Stockpile yard
+            base_target = 8.0
+        elif seg_idx in (8, 9):
+            # Pit floor loading bay
+            base_target = 8.0
+        else:
+            base_target = prof.get("target_speed", 15.0) if prof else 15.0
+
+        target_speed = min(base_target, zone["max_safe_speed"])
+
+        # Sensor readings computation based on active scenario and profiles
+        if now_ts < v.get("manual_obstacle_until", 0):
+            front = v.get("dist_front", 150)
+            left = v.get("dist_left", 100)
+            right = v.get("dist_right", 100)
+            vis = v.get("fog_visibility_m", zone["visibility_m"])
+            action = decide_action(front, left, right)
+            status = "CRITICAL" if action == "STOP" else ("CAUTION" if action != "CLEAR" else "NORMAL")
+            speed_kmh = 0.0 if action == "STOP" else (round(target_speed * 0.7, 1) if action != "CLEAR" else target_speed)
+            gear = "N" if action == "STOP" else "D1"
+        elif scen_id == "OBSTACLE_AHEAD" and vid == "TRUCK_04":
+            front = 12
+            left = 65
+            right = 50
+            vis = 45
+            action = "STOP"
+            status = "CRITICAL"
+            speed_kmh = 0.0
+            gear = "N"
+        elif scen_id == "DENSE_FOG":
+            vis = 18
+            front = 55
+            left = 80
+            right = 80
+            action = "SLOW DOWN"
+            status = "CAUTION"
+            speed_kmh = 10.0
+            gear = "D1"
+        elif scen_id == "HAIRPIN_CAUTION" and seg_idx in (3, 5, 11, 13):
+            vis = 38
+            front = 40
+            left = 45
+            right = 85
+            action = "SLOW DOWN"
+            status = "CAUTION"
+            speed_kmh = 9.0
+            gear = "D1"
+        elif scen_id == "TRAFFIC_CLOSE" and vid == "TRUCK_02":
+            front = 28
+            left = 60
+            right = 65
+            vis = 60
+            action = "SLOW DOWN"
+            status = "CAUTION"
+            speed_kmh = 8.5
+            gear = "D1"
+        else:
+            if prof:
+                front_min, front_max = prof["dist_front_range"]
+                front = front_min + int(abs(math.sin(now_ts * 0.15 + hash(vid) % 17)) * (front_max - front_min))
+                left = 110
+                right = 110
+                vis = zone["visibility_m"]
+            else:
+                front = 160
+                left = 110
+                right = 110
+                vis = zone["visibility_m"]
+
+            action = decide_action(front, left, right)
+            status = "NORMAL"
+            speed_kmh = round(target_speed + 0.4 * math.sin(now_ts * 0.25 + hash(vid) % 11), 1)
+            gear = prof["gear"] if prof else "D2"
+
+        v["dist_front"] = front
+        v["dist_left"] = left
+        v["dist_right"] = right
+        v["fog_visibility_m"] = vis
+        v["action"] = action
+        v["status"] = status
+        v["speed_kmh"] = speed_kmh
+        v["target_speed"] = target_speed
+        v["gear"] = gear
+        v["last_update"] = now_str
+        v["is_connected"] = is_running
+        v["is_moving"] = (speed_kmh > 0.5 and action != "STOP" and is_running)
+
+        lifecycle = determine_lifecycle_state(seg_idx, w1.get("name", ""), action, speed_kmh)
+        v["lifecycle_state"] = lifecycle
+
+        # Dynamic Payload State Machine
+        if lifecycle == "UNLOADING":
+            v["payload_tons"] = 0.0
+        elif lifecycle in ("LOADING", "LOADED"):
+            target_payload = round(v["max_payload"] * prof.get("payload_pct", 0.88), 1) if prof else round(v["max_payload"] * 0.85, 1)
+            v["payload_tons"] = max(target_payload, 150.0)
+        elif lifecycle == "HAULING":
+            if v.get("payload_tons", 0.0) <= 0.0:
+                v["payload_tons"] = round(v["max_payload"] * 0.85, 1)
+        elif lifecycle == "EMPTY_RETURN":
+            v["payload_tons"] = 0.0
+
+        # Telemetry trails
+        trail = v.setdefault("trail", [])
+        last_pt = trail[-1] if trail else None
+        if not last_pt or (abs(last_pt[0] - lat) > 0.00003 or abs(last_pt[1] - lng) > 0.00003):
+            trail.append([lat, lng])
+            if len(trail) > MAX_TRAIL_LEN:
+                trail.pop(0)
+
+        # Vehicle log record
+        if not v.get("log"):
+            v["log"] = []
+        if len(v["log"]) == 0 or (now_ts - v.get("_last_log_ts", 0)) >= 10.0:
+            v["_last_log_ts"] = now_ts
+            v["log"].insert(0, {
+                "time": now_str,
+                "action": action,
+                "dist_front": front,
+                "note": f"{vid} status: {status} | WP {seg_idx} | Speed: {speed_kmh}km/h | Elev: {elevation_m}m",
+            })
+            del v["log"][MAX_VEHICLE_LOG:]
+
+        # Engine temp and tire pressure
+        base_temp = prof["engine_temp"] if prof else 88.0
+        v["engine_temp_c"] = round(base_temp + 2.5 * math.sin(now_ts * 0.05 + hash(vid) % 13), 1)
+        v["tire_pressure_psi"] = round(prof.get("tire_pressure", 104.0) + 1.2 * math.cos(now_ts * 0.05 + hash(vid) % 13), 1)
+
+    # Inter-truck proximity
     truck_ids = list(fleet_data.keys())
     closest_info = {}
     for i, vid1 in enumerate(truck_ids):
@@ -1187,269 +1417,28 @@ def simulation_step(dt=1.0):
             "distance_m": round(min_d, 1),
         }
 
-    scen_id = active_scenario.get("id", "CLEAR_RUN")
-
     for vid, v in fleet_data.items():
         v["closest_truck"] = closest_info[vid]
-        v["last_update_ts"] = now_ts
-        v["sequence"] = telemetry_sequence
-
-        zone = get_zone_for_point(v["lat"], v["lng"])
-        v["current_zone"] = {
-            "id": zone["id"],
-            "name": zone["name"],
-            "visibility_m": zone["visibility_m"],
-            "severity": zone["severity"],
-            "max_safe_speed": zone["max_safe_speed"],
-            "color": zone["color"],
-            "dfri": zone.get("dfri"),
-        }
-
-        # REAL_HARDWARE handling (ESP32 node / TRUCK_01 hardware mode)
-        if v["source_type"] == "REAL_HARDWARE":
-            if v.get("last_hardware_packet"):
-                elapsed = now_ts - v["last_hardware_packet"]
-                if elapsed > 12.0:
-                    v["hardware_status"] = "LINK_TIMEOUT"
-                    v["is_connected"] = False
-                else:
-                    v["hardware_status"] = "CONNECTED_LIVE"
-                    v["is_connected"] = True
-            else:
-                v["hardware_status"] = "WAITING_TELEMETRY"
-                v["is_connected"] = False
-
-            # Authoritative surface elevation sampled from current GPS position
-            v["elevation_m"] = round(sample_mine_surface_elevation(v["lat"], v["lng"]), 1)
-            dsr = compute_dynamic_safe_speed(v, zone, closest_info[vid], v.get("wp_idx", 0))
-            v["dsr"] = dsr
-            v["dfri"] = dsr["dfri"]
-            v["safe_speed_kmh"] = dsr["safe_speed_kmh"]
-            v["speed_advisory"] = dsr["advisory"]
-            v["speed_bottleneck"] = dsr["bottleneck_factor"]
-            v["haul_efficiency_pct"] = dsr["haul_efficiency_pct"]
-            v["risk_score"] = compute_risk_score(v, closest_info[vid]["distance_m"], zone)
-            continue
-
-        # SIMULATED VEHICLE LOGIC
-        if not simulation_config["running"]:
-            v["elevation_m"] = round(sample_mine_surface_elevation(v["lat"], v["lng"]), 1)
-            dsr = compute_dynamic_safe_speed(v, zone, closest_info[vid], v.get("wp_idx", 0))
-            v["dsr"] = dsr
-            v["dfri"] = dsr["dfri"]
-            v["safe_speed_kmh"] = dsr["safe_speed_kmh"]
-            v["speed_advisory"] = dsr["advisory"]
-            v["speed_bottleneck"] = dsr["bottleneck_factor"]
-            v["haul_efficiency_pct"] = dsr["haul_efficiency_pct"]
-            v["risk_score"] = compute_risk_score(v, closest_info[vid]["distance_m"], zone)
-            continue
-
-        cur_wp_idx = v["wp_idx"] % num_wp
-        cur_wp = SIM_WAYPOINTS[cur_wp_idx]
-        next_wp_idx = (cur_wp_idx + 1) % num_wp
-        next_wp = SIM_WAYPOINTS[next_wp_idx]
-
-        prof = SIMULATION_PROFILES.get(vid)
-
-        # Sensor readings computation based on active scenario and profiles
-        if now_ts < v.get("manual_obstacle_until", 0):
-            front = v["dist_front"]
-            left = v["dist_left"]
-            right = v["dist_right"]
-            vis = v.get("fog_visibility_m", zone["visibility_m"])
-        elif scen_id == "OBSTACLE_AHEAD" and vid == "TRUCK_04":
-            front = 12  # Critical front obstacle <30cm
-            left = 65
-            right = 50
-            vis = 45
-        elif scen_id == "DENSE_FOG":
-            vis = 18  # Heavy pit-floor fog
-            front = random.randint(45, 75)
-            left = random.randint(70, 95)
-            right = random.randint(70, 95)
-        elif scen_id == "HAIRPIN_CAUTION" and cur_wp_idx in (3, 5, 11, 13):
-            front = random.randint(35, 48)
-            left = random.randint(35, 55)
-            right = random.randint(70, 100)
-            vis = 38
-        elif scen_id == "TRAFFIC_CLOSE" and closest_info[vid]["distance_m"] < 35.0:
-            front = 28
-            left = 60
-            right = 65
-            vis = 60
-        else:
-            if prof:
-                front = random.randint(*prof["dist_front_range"])
-                left = random.randint(*prof["dist_left_range"])
-                right = random.randint(*prof["dist_right_range"])
-                vis = zone["visibility_m"]
-            else:
-                front = random.randint(140, 220)
-                left = random.randint(110, 180)
-                right = random.randint(110, 180)
-                vis = zone["visibility_m"]
-
-        action = decide_action(front, left, right)
-        prev_action = v.get("action", "CLEAR")
-
-        v["dist_front"] = front
-        v["dist_left"] = left
-        v["dist_right"] = right
-        v["fog_visibility_m"] = vis
-        v["action"] = action
-        v["last_update"] = now_str
-
-        # Speed adaptation governed by profile, speed limit & zone max safe speed
-        base_target = prof["target_speed"] if prof else cur_wp.get("speed_limit_kmh", 20)
-        target_speed = min(base_target, zone["max_safe_speed"])
-        if cur_wp_idx in (3, 5, 11, 13):
-            # Hairpin switchbacks: controlled climbing/descending speed
-            target_speed = min(target_speed, 11.0)
-        elif cur_wp_idx == 0:
-            # Deposition center: controlled approach & dumping speed
-            target_speed = min(target_speed, 8.0)
-        if scen_id == "DENSE_FOG":
-            target_speed = min(target_speed, 10.0)
-        elif scen_id == "HAIRPIN_CAUTION" and cur_wp_idx in (3, 5, 11, 13):
-            target_speed = min(target_speed, 9.0)
-        v["target_speed"] = target_speed
-
-        if action == "STOP":
-            v["status"] = "CRITICAL"
-            v["speed_kmh"] = 0.0
-            v["gear"] = "N"
-        elif action in ("SLOW DOWN", "TURN LEFT", "TURN RIGHT"):
-            v["status"] = "CAUTION"
-            v["speed_kmh"] = round(max(5.0, v["speed_kmh"] * 0.70), 1)
-            v["gear"] = "D1"
-        else:
-            v["status"] = "NORMAL"
-            if v["speed_kmh"] < target_speed:
-                v["speed_kmh"] = round(min(target_speed, v["speed_kmh"] + random.uniform(1.2, 2.5)), 1)
-            elif v["speed_kmh"] > target_speed:
-                v["speed_kmh"] = round(max(target_speed, v["speed_kmh"] - random.uniform(1.2, 2.5)), 1)
-            v["gear"] = prof["gear"] if prof else "D2"
-
-        v["lifecycle_state"] = determine_lifecycle_state(cur_wp_idx, cur_wp.get("name", ""), action, v["speed_kmh"])
-
-        # Dynamic Payload State Machine (Stockpile Yard dump vs Pit Floor loading)
-        if v["lifecycle_state"] == "UNLOADING":
-            v["payload_tons"] = 0.0
-        elif v["lifecycle_state"] in ("LOADING", "LOADED"):
-            target_payload = round(v["max_payload"] * prof.get("payload_pct", 0.88), 1) if prof else round(v["max_payload"] * 0.85, 1)
-            v["payload_tons"] = max(target_payload, 150.0)
-        elif v["lifecycle_state"] == "HAULING":
-            if v.get("payload_tons", 0.0) <= 0.0:
-                v["payload_tons"] = round(v["max_payload"] * 0.85, 1)
-        elif v["lifecycle_state"] == "EMPTY_RETURN":
-            v["payload_tons"] = 0.0
-
-        # Move vehicle smoothly along waypoint segment
-        if v["speed_kmh"] > 0:
-            seg_len = seg_distances[cur_wp_idx]
-            dist_moved = (v["speed_kmh"] * 1000.0 / 3600.0) * dt * multiplier
-            step = dist_moved / seg_len
-            v["wp_t"] += step
-
-            while v["wp_t"] >= 1.0:
-                v["wp_t"] -= 1.0
-                v["wp_idx"] = (v["wp_idx"] + 1) % num_wp
-                cur_wp_idx = v["wp_idx"]
-                cur_wp = SIM_WAYPOINTS[cur_wp_idx]
-                next_wp_idx = (cur_wp_idx + 1) % num_wp
-                next_wp = SIM_WAYPOINTS[next_wp_idx]
-
-            t = v["wp_t"]
-            lat = cur_wp["lat"] + (next_wp["lat"] - cur_wp["lat"]) * t
-            lng = cur_wp["lng"] + (next_wp["lng"] - cur_wp["lng"]) * t
-
-            d_lng = next_wp["lng"] - cur_wp["lng"]
-            d_lat = next_wp["lat"] - cur_wp["lat"]
-            heading = (math.degrees(math.atan2(d_lng, d_lat)) + 360.0) % 360.0
-
-            v["lat"] = round(lat, 6)
-            v["lng"] = round(lng, 6)
-            v["heading"] = round(heading, 1)
-
-            trail = v["trail"]
-            last_pt = trail[-1] if trail else None
-            if not last_pt or (abs(last_pt[0] - v["lat"]) > 0.00003 or abs(last_pt[1] - v["lng"]) > 0.00003):
-                trail.append([v["lat"], v["lng"]])
-                if len(trail) > MAX_TRAIL_LEN:
-                    trail.pop(0)
-
-        # Authoritative surface elevation sampled from local mine/DEM surface
-        v["elevation_m"] = round(sample_mine_surface_elevation(v["lat"], v["lng"]), 1)
-
-        # Compute Dynamic Speed Recommendation (DSR) & Dynamic Fog Risk Index (DFRI)
-        dsr = compute_dynamic_safe_speed(v, zone, closest_info[vid], cur_wp_idx)
+        zone = v["current_zone"]
+        dsr = compute_dynamic_safe_speed(v, zone, closest_info[vid], v.get("wp_idx", 0))
         v["dsr"] = dsr
         v["dfri"] = dsr["dfri"]
         v["safe_speed_kmh"] = dsr["safe_speed_kmh"]
         v["speed_advisory"] = dsr["advisory"]
         v["speed_bottleneck"] = dsr["bottleneck_factor"]
         v["haul_efficiency_pct"] = dsr["haul_efficiency_pct"]
-
-        # Update composite risk score
         v["risk_score"] = compute_risk_score(v, closest_info[vid]["distance_m"], zone)
 
-        # Safety event logging on state triggers
-        if action == "STOP" and prev_action != "STOP":
-            log_safety_event(
-                vid=vid,
-                event_type="OBSTACLE_DETECTED",
-                severity="CRITICAL",
-                lat=v["lat"],
-                lng=v["lng"],
-                message=f"{vid} triggered EMERGENCY STOP: obstacle {front}cm ahead in {zone['name']}."
-            )
-        elif vis < 25 and (now_ts - v.get("last_fog_alert_ts", 0)) > 30.0:
-            v["last_fog_alert_ts"] = now_ts
-            log_safety_event(
-                vid=vid,
-                event_type="LOW_VISIBILITY",
-                severity="HIGH",
-                lat=v["lat"],
-                lng=v["lng"],
-                message=f"Severe fog inversion in {zone['name']}: visibility {vis}m."
-            )
-        elif closest_info[vid]["distance_m"] < 25.0 and (now_ts - v.get("last_prox_alert_ts", 0)) > 20.0:
-            v["last_prox_alert_ts"] = now_ts
-            log_safety_event(
-                vid=vid,
-                event_type="COLLISION_RISK",
-                severity="HIGH",
-                lat=v["lat"],
-                lng=v["lng"],
-                message=f"{vid} traffic proximity alert: {closest_info[vid]['name']} is {closest_info[vid]['distance_m']}m away."
-            )
 
-        if action != prev_action or (action != "CLEAR" and random.random() < 0.25):
-            v["log"].insert(
-                0,
-                {
-                    "time": now_str,
-                    "action": action,
-                    "dist_front": front,
-                    "note": f"Trigger: Front {front}cm (L:{left}cm R:{right}cm) | Elev: {v['elevation_m']}m | Risk: {v['risk_score']['total']}",
-                },
-            )
-            del v["log"][MAX_VEHICLE_LOG:]
-
-        v["battery_pct"] = round(max(5.0, v["battery_pct"] - 0.005 * multiplier * dt), 1)
-        base_temp = prof["engine_temp"] if prof else 88.0
-        temp_delta = 0.20 if v["speed_kmh"] > 14 else -0.10
-        v["engine_temp_c"] = round(
-            max(base_temp - 3.0, min(base_temp + 6.0, v["engine_temp_c"] + temp_delta * random.uniform(0.4, 1.1))),
-            1,
-        )
+def simulation_step(dt=1.0):
+    update_fleet_state()
 
 
 def simulation_loop():
     while True:
         time.sleep(1.0)
         with fleet_lock:
-            simulation_step(1.0)
+            update_fleet_state()
 
 
 sim_thread = threading.Thread(target=simulation_loop, daemon=True)
@@ -2135,6 +2124,8 @@ def apply_scenario():
                 message="SCENARIO CLEAR_RUN: Nominal operating conditions restored across Deposit-14 haul loop."
             )
 
+        update_fleet_state(time.time())
+
     return jsonify({
         "status": "ok",
         "scenario_id": scen_id,
@@ -2157,9 +2148,7 @@ def get_safety_events():
 def get_fleet():
     with fleet_lock:
         now_ts = time.time()
-        elapsed = now_ts - last_sim_tick
-        if elapsed >= 1.2 and simulation_config.get("running", True):
-            simulation_step(min(4.0, elapsed))
+        update_fleet_state(now_ts)
 
         current_role = session.get("role")
         current_vid = session.get("vehicle_id")

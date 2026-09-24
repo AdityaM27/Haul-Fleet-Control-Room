@@ -1341,7 +1341,17 @@
         const item = this.truckObjects[v.id];
         if (!item || !item.mesh) return;
 
+        // Out-of-order sequence guard: discard stale packets from slower/colder serverless responses
+        if (v.sequence !== undefined && item.lastSequence !== undefined && v.sequence < item.lastSequence) {
+          return;
+        }
+        if (v.sequence !== undefined) {
+          item.lastSequence = v.sequence;
+        }
+
         item.backendData = v;
+        item.speedMps = (v.speed_kmh || 0) * (1000 / 3600);
+        item.isMoving = (v.is_moving !== false) && (v.action !== 'STOP') && (item.speedMps > 0.1);
 
         // Authoritative positioning from backend
         const elev = (v.elevation_m !== undefined && v.elevation_m !== null)
@@ -1364,6 +1374,12 @@
           item.targetYaw = targetYaw;
           item.initialized = true;
         } else {
+          // If difference is large (> 45m, e.g. initial load or scenario change), snap immediately
+          const distToTarget = Math.hypot(targetWorld.x - item.mesh.position.x, targetWorld.z - item.mesh.position.z);
+          if (distToTarget > 45.0) {
+            item.mesh.position.set(targetWorld.x, targetWorld.y, targetWorld.z);
+            item.mesh.rotation.y = targetYaw;
+          }
           item.targetPos.set(targetWorld.x, targetWorld.y, targetWorld.z);
           item.targetYaw = targetYaw;
         }
@@ -1393,12 +1409,21 @@
      * longitudinal slope pitching, lateral roll, and switchback steering smoothing.
      */
     stepInterpolation(dt = 0.016) {
-      const alpha = Math.min(1.0, dt * 5.0);
       for (const vId in this.truckObjects) {
         const item = this.truckObjects[vId];
         if (!item || !item.mesh || !item.initialized) continue;
 
+        // Smooth continuous dead-reckoning extrapolation between 1-second server polls:
+        // Continues advancing targetPos forward along its current heading so the truck NEVER freezes or stutters
+        if (item.isMoving && item.speedMps > 0.1) {
+          const fwdX = -Math.sin(item.targetYaw);
+          const fwdZ = -Math.cos(item.targetYaw);
+          item.targetPos.x += fwdX * item.speedMps * dt;
+          item.targetPos.z += fwdZ * item.speedMps * dt;
+        }
+
         // Smoothly interpolate horizontal position (X, Z) towards backend target
+        const alpha = Math.min(1.0, dt * 6.0);
         item.mesh.position.x += (item.targetPos.x - item.mesh.position.x) * alpha;
         item.mesh.position.z += (item.targetPos.z - item.mesh.position.z) * alpha;
 

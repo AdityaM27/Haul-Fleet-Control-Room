@@ -717,7 +717,7 @@
   let latestFleet = null;
   async function fetchFleet() {
     try {
-      const res = await fetch('/api/fleet');
+      const res = await fetch('/api/fleet', { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         latestFleet = data.vehicles || [];
