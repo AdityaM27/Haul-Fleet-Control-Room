@@ -687,14 +687,14 @@ def determine_lifecycle_state(wp_idx, wp_name, action, speed_kmh):
     """Calculates haul cycle stage based on Deposit-14 loop position."""
     if action == "STOP":
         return "STOPPED"
-    if action in ("SLOW DOWN", "TURN LEFT", "TURN RIGHT"):
-        return "CAUTION"
+    if wp_idx == 0:  # KIRANDUL_YARD / Stockpile Yard (CHP Hopper Unloading Zone)
+        return "UNLOADING"
     if wp_idx in (8, 9):  # PIT_FLOOR or LOADING_BAY
         return "LOADING" if speed_kmh < 9.0 else "LOADED"
     if 10 <= wp_idx <= 15:  # WEST_LOWER ascending towards RAMP_NORTH
         return "HAULING"
-    if wp_idx == 0:  # KIRANDUL_YARD dispatch/dump terminal
-        return "DUMPING"
+    if action in ("SLOW DOWN", "TURN LEFT", "TURN RIGHT"):
+        return "CAUTION"
     return "EMPTY_RETURN"
 
 
@@ -1301,10 +1301,16 @@ def simulation_loop():
                 # Speed adaptation governed by profile, speed limit & zone max safe speed
                 base_target = prof["target_speed"] if prof else cur_wp.get("speed_limit_kmh", 20)
                 target_speed = min(base_target, zone["max_safe_speed"])
+                if cur_wp_idx in (3, 5, 11, 13):
+                    # Hairpin switchbacks: controlled climbing/descending speed
+                    target_speed = min(target_speed, 11.0)
+                elif cur_wp_idx == 0:
+                    # Deposition center: controlled approach & dumping speed
+                    target_speed = min(target_speed, 8.0)
                 if scen_id == "DENSE_FOG":
                     target_speed = min(target_speed, 10.0)
                 elif scen_id == "HAIRPIN_CAUTION" and cur_wp_idx in (3, 5, 11, 13):
-                    target_speed = min(target_speed, 11.0)
+                    target_speed = min(target_speed, 9.0)
                 v["target_speed"] = target_speed
 
                 if action == "STOP":
@@ -1324,6 +1330,18 @@ def simulation_loop():
                     v["gear"] = prof["gear"] if prof else "D2"
 
                 v["lifecycle_state"] = determine_lifecycle_state(cur_wp_idx, cur_wp.get("name", ""), action, v["speed_kmh"])
+
+                # Dynamic Payload State Machine (Stockpile Yard dump vs Pit Floor loading)
+                if v["lifecycle_state"] == "UNLOADING":
+                    v["payload_tons"] = 0.0
+                elif v["lifecycle_state"] in ("LOADING", "LOADED"):
+                    target_payload = round(v["max_payload"] * prof.get("payload_pct", 0.88), 1) if prof else round(v["max_payload"] * 0.85, 1)
+                    v["payload_tons"] = max(target_payload, 150.0)
+                elif v["lifecycle_state"] == "HAULING":
+                    if v.get("payload_tons", 0.0) <= 0.0:
+                        v["payload_tons"] = round(v["max_payload"] * 0.85, 1)
+                elif v["lifecycle_state"] == "EMPTY_RETURN":
+                    v["payload_tons"] = 0.0
 
                 # Move vehicle smoothly along waypoint segment
                 if v["speed_kmh"] > 0:
