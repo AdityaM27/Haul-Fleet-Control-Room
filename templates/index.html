@@ -3478,7 +3478,11 @@ async function initMine3DViewer() {
 
   dashBailadilaEngine = new BailadilaTerrainEngine();
   window.dashBailadilaEngine = dashBailadilaEngine;
-  await dashBailadilaEngine.load('/static/bailadila_terrain_meta.json', '/static/bailadila_terrain_256.png');
+  try {
+    await dashBailadilaEngine.load('/static/bailadila_terrain_meta.json', '/static/bailadila_terrain_256.png');
+  } catch (err) {
+    console.warn('Dash terrain load warning:', err);
+  }
 
   dashBailadilaEngine.buildTerrain(scene3D, 1.0);
   dashBailadilaEngine.buildHaulRoads(scene3D, 1.0);

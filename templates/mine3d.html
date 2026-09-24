@@ -423,7 +423,11 @@
 
   // Load Copernicus GLO-30 DEM Heightmap & Metadata
   const engine = window.bailadilaEngine;
-  await engine.load('/static/bailadila_terrain_meta.json', '/static/bailadila_terrain_256.png');
+  try {
+    await engine.load('/static/bailadila_terrain_meta.json', '/static/bailadila_terrain_256.png');
+  } catch (err) {
+    console.warn('Terrain load warning:', err);
+  }
 
   // Build 3D Terrain & Elements
   let currentVScale = 1.0;
@@ -443,7 +447,8 @@
   applyOverviewCamera();
 
   // Hide loading banner
-  document.getElementById('loading').style.display = 'none';
+  const loadEl = document.getElementById('loading');
+  if (loadEl) loadEl.style.display = 'none';
 
   // UI Elements
   const btnCamOrbit = document.getElementById('btn-cam-orbit');
