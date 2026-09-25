@@ -17,7 +17,7 @@
   <!-- Three.js & OrbitControls for 3D Open-Cast Mine Digital Twin -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-  <script src="/static/js/bailadila_dem_terrain.js?v=2.1"></script>
+  <script src="/static/js/bailadila_dem_terrain.js?v=2.5"></script>
 
   <style>
     /* ==========================================================================
@@ -1562,13 +1562,13 @@
             <label><input type="checkbox" id="dashChkHazards" checked onchange="window.dashBailadilaEngine && window.dashBailadilaEngine.setHazardsVisible(this.checked)" style="accent-color:#38bdf8"> Hazards</label>
             <div style="display:flex;align-items:center;gap:4px;margin-left:4px">
               <span style="font-size:8.5px;color:var(--text-dim)">V.Scale:</span>
-              <input type="range" id="dashVscaleSlider" min="70" max="220" step="5" value="100" style="width:55px;cursor:pointer" oninput="onDashVscaleChange(this.value)">
-              <span id="dashVscaleLabel" style="font-size:8.5px;color:var(--cyan)">1.00×</span>
+              <input type="range" id="dashVscaleSlider" min="70" max="220" step="5" value="150" style="width:55px;cursor:pointer" oninput="onDashVscaleChange(this.value)">
+              <span id="dashVscaleLabel" style="font-size:8.5px;color:var(--cyan)">1.50×</span>
             </div>
             <div style="display:flex;align-items:center;gap:4px">
               <span style="font-size:8.5px;color:var(--text-dim)">Fog:</span>
-              <input type="range" id="dashboardFogSlider" min="0" max="100" value="20" style="width:55px;cursor:pointer" oninput="onDashboardFogSliderChange(this.value)">
-              <span id="dashboardFogLabel" style="font-size:8.5px;color:var(--amber)">Light</span>
+              <input type="range" id="dashboardFogSlider" min="0" max="100" value="0" style="width:55px;cursor:pointer" oninput="onDashboardFogSliderChange(this.value)">
+              <span id="dashboardFogLabel" style="font-size:8.5px;color:var(--cyan)">Clear</span>
             </div>
           </div>
 
@@ -2184,6 +2184,7 @@
 // =============================================================================
 let selectedVehicleId = "TRUCK_01";
 let fleetList = [];
+let currentFleetObstacles = [];
 let fogZones = [];
 let sourceFilter = "ALL";
 let simRunning = true;
@@ -2553,6 +2554,7 @@ async function fetchFleet() {
     const res = await fetch('/api/fleet', { cache: 'no-store' });
     const data = await res.json();
     fleetList = data.vehicles || [];
+    currentFleetObstacles = data.obstacles || [];
 
     const stats = data.fleet_stats || {};
     const elTot = document.getElementById('fstatTotal');
@@ -2972,7 +2974,7 @@ async function triggerTestObstacle() {
       body: JSON.stringify({
         vehicle_id: selectedVehicleId,
         distance: 10,
-        duration: 8
+        duration: 2
       })
     });
 
@@ -3331,7 +3333,7 @@ async function applyScenario(scenarioName) {
 }
 
 var dashBailadilaEngine = null;
-var dashCurrentVscale = 1.0;
+var dashCurrentVscale = 1.5;
 
 function onDashVscaleChange(val) {
   var v = parseFloat(val) / 100.0;
@@ -3346,13 +3348,14 @@ function onDashVscaleChange(val) {
 function onDashboardFogSliderChange(val) {
   var v = parseFloat(val);
   if (scene3D && scene3D.fog) {
-    scene3D.fog.density = 0.00005 + (v / 100) * 0.00040;
+    scene3D.fog.density = 0.000025 + (v / 100) * 0.00040;
   }
   var labelEl = document.getElementById('dashboardFogLabel');
   if (labelEl) {
-    if (v > 70) labelEl.textContent = 'Dense';
-    else if (v > 35) labelEl.textContent = 'Moderate';
-    else labelEl.textContent = 'Light';
+    if (v > 70) { labelEl.textContent = 'Dense'; labelEl.style.color = '#ef4444'; }
+    else if (v > 35) { labelEl.textContent = 'Moderate'; labelEl.style.color = '#f97316'; }
+    else if (v > 5) { labelEl.textContent = 'Light'; labelEl.style.color = 'var(--amber)'; }
+    else { labelEl.textContent = 'Clear'; labelEl.style.color = 'var(--cyan)'; }
   }
 }
 
@@ -3445,7 +3448,7 @@ async function initMine3DViewer() {
 
   scene3D = new THREE.Scene();
   scene3D.background = new THREE.Color(0x0a0d12);
-  scene3D.fog = new THREE.FogExp2(0x0a0d12, 0.00010);
+  scene3D.fog = new THREE.FogExp2(0x0a0d12, 0.000028);
 
   camera3D = new THREE.PerspectiveCamera(50, w / h, 10, 100000);
 
@@ -3484,11 +3487,11 @@ async function initMine3DViewer() {
     console.warn('Dash terrain load warning:', err);
   }
 
-  dashBailadilaEngine.buildTerrain(scene3D, 1.0);
-  dashBailadilaEngine.buildHaulRoads(scene3D, 1.0);
+  dashBailadilaEngine.buildTerrain(scene3D, 1.5);
+  dashBailadilaEngine.buildHaulRoads(scene3D, 1.5);
   dashBailadilaEngine.buildFleet(scene3D, fleetList);
-  dashBailadilaEngine.buildHazardZones(scene3D, 1.0);
-  dashBailadilaEngine.buildLandmarks(scene3D, 1.0);
+  dashBailadilaEngine.buildHazardZones(scene3D, 1.5);
+  dashBailadilaEngine.buildLandmarks(scene3D, 1.5);
 
   dashBailadilaEngine.setupInteraction(camera3D, renderer3D.domElement, (clickedVid) => {
     selectVehicle(clickedVid);
@@ -3592,6 +3595,9 @@ function onMine3DResize() {
 function update3DMine(fleet) {
   if (!scene3D || !dashBailadilaEngine) return;
   dashBailadilaEngine.updateFleetTelemetry(fleet);
+  if (dashBailadilaEngine.updateObstacles && currentFleetObstacles) {
+    dashBailadilaEngine.updateObstacles(currentFleetObstacles);
+  }
 
   const targetLbl = document.getElementById('threeDTargetLabel');
   if (targetLbl) targetLbl.textContent = selectedVehicleId;

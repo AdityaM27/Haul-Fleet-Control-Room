@@ -176,17 +176,17 @@
 
 <div id="scene"></div>
 
-<!-- Title & Geodetic Header -->
-<div class="hud panel corner" id="title-panel">
-  <h1>🏔️ Bailadila Mine Digital Twin</h1>
-  <p>Copernicus GLO-30 DEM 3D terrain twin & Kirandul / Deposit-14 haulway simulation.</p>
-  <div style="display:flex;gap:6px;margin:8px 0 4px">
+<!-- Title & Geodetic Header (Compact Industrial HUD) -->
+<div class="hud panel corner" id="title-panel" style="padding:10px 14px;width:300px">
+  <h1 style="font-size:15px;margin-bottom:2px">🏔️ Bailadila Mine Digital Twin</h1>
+  <p style="font-size:10px;margin-bottom:6px">Copernicus GLO-30 DEM 3D terrain twin & Kirandul / Deposit-14 haulway simulation.</p>
+  <div style="display:flex;gap:5px;margin-bottom:6px">
     <span class="badge badge-real">GLO-30 DEM (30m)</span>
     <span class="badge badge-concept">CONCEPTUAL PIT GEOMETRY</span>
   </div>
-  <div class="coords">18.50°–18.75°N · 81.15°–81.27°E · DEM: 219.97m → 1,272.35m</div>
-  <div>
-    <a href="/" class="nav-btn">🎛️ Return to Control Room</a>
+  <div class="coords" style="margin-top:4px;padding-top:4px;font-size:9.5px">18.50°–18.75°N · 81.15°–81.27°E · DEM: 219.97m → 1,272.35m</div>
+  <div style="margin-top:6px">
+    <a href="/" class="nav-btn" style="padding:4px 8px;font-size:10px">🎛️ Return to Control Room</a>
   </div>
 </div>
 
@@ -284,79 +284,102 @@
   <div class="section-lbl">ENVIRONMENT & RELIEF CONTROLS</div>
 
   <div class="field">
-    <label><span>FOG DENSITY</span><span id="lbl-fog">0.0003</span></label>
-    <input type="range" id="fog-slider" min="0" max="100" value="22">
+    <label><span>FOG DENSITY</span><span id="lbl-fog">0.00003</span></label>
+    <input type="range" id="fog-slider" min="0" max="100" value="2">
   </div>
 
   <div class="field">
-    <label><span>VERTICAL SCALE</span><span id="lbl-vscale">1.00×</span></label>
-    <input type="range" id="vscale-slider" min="70" max="240" step="5" value="100">
+    <label><span>VERTICAL SCALE</span><span id="lbl-vscale">1.50×</span></label>
+    <input type="range" id="vscale-slider" min="70" max="240" step="5" value="150">
   </div>
 
   <div class="hint"><b>Left-click</b> orbit · <b>Scroll</b> zoom · <b>Right-click</b> pan.</div>
 </div>
 
-<!-- Data Disclaimer Panel -->
-<div class="hud panel corner" id="disclaimer-panel">
-  <div class="disclaimer-title">DATA SOURCE & SPECIFICATION</div>
-  <div>• <b>Terrain:</b> Copernicus GLO-30 DEM (30m resolution)</div>
-  <div>• <b>Haul Route:</b> Conceptual Deposit-14 simulation route</div>
-  <div>• <b>Mine Geometry:</b> Conceptual coordinate-based approximation</div>
-  <div>• <b>Vehicles:</b> Authoritative digital-twin simulation (DMP-101..106)</div>
-  <div class="disclaimer-note">Conceptual Deposit-14 simulation route created for Digital Twin & Fog-Guard prototype testing. Not official NMDC mine plan.</div>
+<!-- Data Disclaimer Panel (Collapsible) -->
+<div class="hud panel corner" id="disclaimer-panel" style="width:280px;padding:8px 12px">
+  <div class="disclaimer-title" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer" id="btn-toggle-disclaimer">
+    <span>DATA SOURCE & SPECIFICATION</span>
+    <span id="disclaimer-toggle-icon" style="font-size:9px;color:var(--ore-gold)">[▴]</span>
+  </div>
+  <div id="disclaimer-body" style="margin-top:4px">
+    <div>• <b>Terrain:</b> Copernicus GLO-30 DEM (30m resolution)</div>
+    <div>• <b>Haul Route:</b> Conceptual Deposit-14 simulation route</div>
+    <div>• <b>Mine Geometry:</b> Conceptual coordinate-based approximation</div>
+    <div>• <b>Vehicles:</b> Authoritative digital-twin simulation (DMP-101..106)</div>
+    <div class="disclaimer-note" style="margin-top:4px;font-size:8.5px">Conceptual Deposit-14 simulation route created for Digital Twin & Fog-Guard prototype testing. Not official NMDC mine plan.</div>
+  </div>
 </div>
 
-<!-- Digital-Twin Sync Validator Panel -->
-<div class="hud panel corner" id="sync-debug-panel" style="width:315px">
-  <div class="sync-debug-title">
+<!-- Digital-Twin Sync Validator Panel (Collapsible to keep 3D mine unobstructed) -->
+<div class="hud panel corner" id="sync-debug-panel" style="width:280px;padding:8px 12px">
+  <div class="sync-debug-title" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;margin-bottom:0" id="btn-toggle-sync-debug">
     <span>DIGITAL-TWIN SYNC VALIDATOR</span>
-    <span id="syncOverallStatus3D" style="color:#10b981;font-weight:700">DIGITAL TWIN SYNCED</span>
+    <div style="display:flex;align-items:center;gap:6px">
+      <span id="syncOverallStatus3D" style="color:#10b981;font-weight:700;font-size:9px">DIGITAL TWIN SYNCED</span>
+      <span id="sync-toggle-icon" style="font-size:9px;color:var(--teal)">[▾]</span>
+    </div>
   </div>
-  <div class="stat-row"><span>Vehicle ID:</span><span id="sync-vid-val" style="color:var(--ore-gold);font-weight:700">TRUCK_01</span></div>
+  <div id="sync-debug-body" style="display:none;margin-top:6px">
+    <div class="stat-row"><span>Vehicle ID:</span><span id="sync-vid-val" style="color:var(--ore-gold);font-weight:700">TRUCK_01</span></div>
 
-  <div style="border-top:1px solid var(--line);padding-top:3px;margin-top:2px">
-    <div style="color:var(--teal);font-weight:600;font-size:9.5px">Backend:</div>
-    <div class="stat-row"><span>Lat:</span><span id="sync-backend-lat" style="font-family:monospace">--</span></div>
-    <div class="stat-row"><span>Lng:</span><span id="sync-backend-lng" style="font-family:monospace">--</span></div>
-    <div class="stat-row"><span>Elevation:</span><span id="sync-backend-elev" style="font-family:monospace">--</span></div>
-    <div class="stat-row"><span>Heading:</span><span id="sync-backend-heading" style="font-family:monospace">--</span></div>
-  </div>
+    <div style="border-top:1px solid var(--line);padding-top:3px;margin-top:2px">
+      <div style="color:var(--teal);font-weight:600;font-size:9.5px">Backend:</div>
+      <div class="stat-row"><span>Lat:</span><span id="sync-backend-lat" style="font-family:monospace">--</span></div>
+      <div class="stat-row"><span>Lng:</span><span id="sync-backend-lng" style="font-family:monospace">--</span></div>
+      <div class="stat-row"><span>Elevation:</span><span id="sync-backend-elev" style="font-family:monospace">--</span></div>
+      <div class="stat-row"><span>Heading:</span><span id="sync-backend-heading" style="font-family:monospace">--</span></div>
+    </div>
 
-  <div style="border-top:1px solid var(--line);padding-top:3px;margin-top:2px">
-    <div style="color:var(--teal);font-weight:600;font-size:9.5px">Three.js:</div>
-    <div class="stat-row"><span>Lat:</span><span id="sync-three-lat" style="font-family:monospace">--</span></div>
-    <div class="stat-row"><span>Lng:</span><span id="sync-three-lng" style="font-family:monospace">--</span></div>
-    <div class="stat-row"><span>Surface Elevation:</span><span id="sync-three-elev" style="font-family:monospace">--</span></div>
-    <div class="stat-row"><span>Heading:</span><span id="sync-three-heading" style="font-family:monospace">--</span></div>
-  </div>
+    <div style="border-top:1px solid var(--line);padding-top:3px;margin-top:2px">
+      <div style="color:var(--teal);font-weight:600;font-size:9.5px">Three.js:</div>
+      <div class="stat-row"><span>Lat:</span><span id="sync-three-lat" style="font-family:monospace">--</span></div>
+      <div class="stat-row"><span>Lng:</span><span id="sync-three-lng" style="font-family:monospace">--</span></div>
+      <div class="stat-row"><span>Surface Elevation:</span><span id="sync-three-elev" style="font-family:monospace">--</span></div>
+      <div class="stat-row"><span>Heading:</span><span id="sync-three-heading" style="font-family:monospace">--</span></div>
+    </div>
 
-  <div style="border-top:1px solid var(--line);padding-top:3px;margin-top:2px">
-    <div style="color:var(--teal);font-weight:600;font-size:9.5px">Differences:</div>
-    <div class="stat-row"><span>Position difference:</span><span id="sync-pos-diff" style="font-family:monospace">0.00 m</span></div>
-    <div class="stat-row"><span>Elevation difference:</span><span id="sync-elev-diff" style="font-family:monospace">0.0 m</span></div>
-    <div class="stat-row"><span>Heading difference:</span><span id="sync-heading-diff" style="font-family:monospace">0.0°</span></div>
-  </div>
+    <div style="border-top:1px solid var(--line);padding-top:3px;margin-top:2px">
+      <div style="color:var(--teal);font-weight:600;font-size:9.5px">Differences:</div>
+      <div class="stat-row"><span>Position difference:</span><span id="sync-pos-diff" style="font-family:monospace">0.00 m</span></div>
+      <div class="stat-row"><span>Elevation difference:</span><span id="sync-elev-diff" style="font-family:monospace">0.0 m</span></div>
+      <div class="stat-row"><span>Heading difference:</span><span id="sync-heading-diff" style="font-family:monospace">0.0°</span></div>
+    </div>
 
-  <div style="border-top:1px solid var(--line);padding-top:3px;margin-top:2px">
-    <div style="color:var(--teal);font-weight:600;font-size:9.5px">Status:</div>
-    <div style="display:flex;justify-content:space-between;font-size:9px;font-weight:700">
-      <span id="sync-pos-status" style="color:#10b981">POSITION: SYNCED</span>
-      <span id="sync-elev-status" style="color:#10b981">ELEVATION: SYNCED</span>
-      <span id="sync-heading-status" style="color:#10b981">HEADING: SYNCED</span>
+    <div style="border-top:1px solid var(--line);padding-top:3px;margin-top:2px">
+      <div style="color:var(--teal);font-weight:600;font-size:9.5px">Digital Twin Hazards:</div>
+      <div class="stat-row"><span>Active Obstacles:</span><span id="sync-obs-count" style="font-family:monospace">0 Active</span></div>
+      <div class="stat-row"><span>Nearest Hazard:</span><span id="sync-obs-nearest" style="font-family:monospace">NONE</span></div>
+    </div>
+
+    <div style="border-top:1px solid var(--line);padding-top:3px;margin-top:2px">
+      <div style="color:var(--teal);font-weight:600;font-size:9.5px">Status:</div>
+      <div style="display:flex;justify-content:space-between;font-size:9px;font-weight:700">
+        <span id="sync-pos-status" style="color:#10b981">POSITION: SYNCED</span>
+        <span id="sync-elev-status" style="color:#10b981">ELEVATION: SYNCED</span>
+        <span id="sync-heading-status" style="color:#10b981">HEADING: SYNCED</span>
+      </div>
     </div>
   </div>
 </div>
 
-<!-- Color Legend -->
-<div class="hud panel corner" id="legend-panel">
-  <div class="legend-title">MINE PALETTE</div>
-  <div class="legend-row"><div class="swatch" style="background:#56605a"></div>High Peak Slate / Quartzite</div>
-  <div class="legend-row"><div class="swatch" style="background:#6b3f30"></div>Ridge Ironstone (Natural)</div>
-  <div class="legend-row"><div class="swatch" style="background:#7A2E1D"></div>Exposed Ore / Bench Face</div>
-  <div class="legend-row"><div class="swatch" style="background:#8C5632"></div>Working Bench Floor</div>
-  <div class="legend-row"><div class="swatch" style="background:#3e3935"></div>Haul Road Ribbon</div>
-  <div class="legend-row"><div class="swatch" style="background:#e5a93c"></div>Simulated Dump Truck</div>
-  <div class="legend-row"><div class="swatch" style="background:#ef4444; border-radius:50%"></div>Pit Wall Hazard Zone</div>
+<!-- Color Legend (Collapsible) -->
+<div class="hud panel corner" id="legend-panel" style="width:230px;padding:8px 12px">
+  <div class="legend-title" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;margin-bottom:0" id="btn-toggle-legend">
+    <span>MINE PALETTE</span>
+    <span id="legend-toggle-icon" style="font-size:9px;color:var(--ore-gold)">[▾]</span>
+  </div>
+  <div id="legend-body" style="display:none;margin-top:6px">
+    <div class="legend-row"><div class="swatch" style="background:#2d682e"></div>Lush Forest Canopy (Bastar Green)</div>
+    <div class="legend-row"><div class="swatch" style="background:#387e39"></div>Mountain Ridge Foliage</div>
+    <div class="legend-row"><div class="swatch" style="background:#2d2722"></div>Working Bench Floor</div>
+    <div class="legend-row"><div class="swatch" style="background:#181412"></div>Excavated Quarry Face</div>
+    <div class="legend-row"><div class="swatch" style="background:#6a2517"></div>Iron Ore Seam (Hematite ~15%)</div>
+    <div class="legend-row"><div class="swatch" style="background:#1a1613"></div>Compacted Haul Road</div>
+    <div class="legend-row"><div class="swatch" style="background:#d49b28"></div>Mining Dump Truck (CAT)</div>
+    <div class="legend-row"><div class="swatch" style="background:#36291e"></div>Deposition Spoil Mounds</div>
+    <div class="legend-row"><div class="swatch" style="background:#ef4444; border-radius:50%"></div>Pit Wall Hazard Zone</div>
+  </div>
 </div>
 
 <!-- Telemetry Readouts -->
@@ -365,7 +388,7 @@
   <div class="stat-row"><span>DEM ELEV.</span><span id="stat-elev">742 m ASL</span></div>
   <div class="stat-row"><span>HAUL CIRCUIT</span><span id="stat-road">18.4 km</span></div>
   <div class="stat-row"><span>SIM. TRUCKS</span><span id="stat-trucks" style="color:var(--ore-gold)">6 DUMPERS</span></div>
-  <div class="stat-row"><span>V. SCALE</span><span id="stat-vscale" style="color:var(--teal)">1.00× (REAL)</span></div>
+  <div class="stat-row"><span>V. SCALE</span><span id="stat-vscale" style="color:var(--teal)">1.50×</span></div>
   <div class="stat-row" style="border-top:1px solid var(--line);padding-top:4px;margin-top:4px">
     <span>SAFE SPEED REC</span><span id="stat-safe-speed" style="color:var(--teal)">-- km/h</span>
   </div>
@@ -379,7 +402,7 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 
 <!-- Core 3D DEM Terrain & Conceptual Pit Engine -->
-<script src="/static/js/bailadila_dem_terrain.js?v=2.1"></script>
+<script src="/static/js/bailadila_dem_terrain.js?v=2.5"></script>
 
 <script>
 (async function() {
@@ -390,7 +413,7 @@
   scene.background = new THREE.Color(0x0a0d12);
   
   // Fog-Guard Atmospheric Fog (Clear regional baseline, distant mountains in haze)
-  scene.fog = new THREE.FogExp2(0x0a0d12, 0.00010);
+  scene.fog = new THREE.FogExp2(0x0a0d12, 0.000028);
 
   const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 10, 100000);
   const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -430,7 +453,7 @@
   }
 
   // Build 3D Terrain & Elements
-  let currentVScale = 1.0;
+  let currentVScale = 1.5;
   engine.buildTerrain(scene, currentVScale);
   engine.buildHaulRoads(scene, currentVScale);
   engine.buildFleet(scene);
@@ -566,6 +589,26 @@
     statVScale.textContent = (v === 1.0) ? '1.00× (REAL)' : v.toFixed(2) + '×';
     engine.setVerticalScale(scene, v);
   });
+
+  // Collapsible HUD Panels (Minimizes visual obstruction over 3D terrain)
+  function setupCollapsible(btnId, bodyId, iconId, defaultOpen = false) {
+    const btn = document.getElementById(btnId);
+    const body = document.getElementById(bodyId);
+    const icon = document.getElementById(iconId);
+    if (!btn || !body) return;
+    let open = defaultOpen;
+    body.style.display = open ? 'block' : 'none';
+    if (icon) icon.textContent = open ? '[▴]' : '[▾]';
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      open = !open;
+      body.style.display = open ? 'block' : 'none';
+      if (icon) icon.textContent = open ? '[▴]' : '[▾]';
+    });
+  }
+  setupCollapsible('btn-toggle-disclaimer', 'disclaimer-body', 'disclaimer-toggle-icon', true);
+  setupCollapsible('btn-toggle-sync-debug', 'sync-debug-body', 'sync-toggle-icon', false);
+  setupCollapsible('btn-toggle-legend', 'legend-body', 'legend-toggle-icon', false);
 
   // Cinematic Route Flythrough Controls (Independent path inspection camera)
   progressSlider.addEventListener('input', () => {
@@ -711,17 +754,39 @@
       elOverall.textContent = allSynced ? 'DIGITAL TWIN SYNCED' : 'DIGITAL TWIN MISMATCH';
       elOverall.style.color = allSynced ? '#10b981' : '#ef4444';
     }
+
+    const elObsCount = document.getElementById('sync-obs-count');
+    const elObsNearest = document.getElementById('sync-obs-nearest');
+    if (elObsCount) {
+      const obsList = (latestFleetPayload && latestFleetPayload.obstacles) ? latestFleetPayload.obstacles : [];
+      elObsCount.textContent = `${obsList.length} Active in World`;
+      elObsCount.style.color = obsList.length > 0 ? '#ef4444' : '#10b981';
+    }
+    if (elObsNearest) {
+      if (vData.nearest_obstacle) {
+        elObsNearest.textContent = `${vData.nearest_obstacle.id} (${vData.nearest_obstacle.distance_m}m ${vData.nearest_obstacle.sector})`;
+        elObsNearest.style.color = '#ef4444';
+      } else {
+        elObsNearest.textContent = 'NONE (CLEAR)';
+        elObsNearest.style.color = '#10b981';
+      }
+    }
   }
 
   // Telemetry Polling (Authoritative Digital Twin Fleet)
   let latestFleet = null;
+  let latestFleetPayload = null;
   async function fetchFleet() {
     try {
       const res = await fetch('/api/fleet', { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
+        latestFleetPayload = data;
         latestFleet = data.vehicles || [];
         engine.updateFleetTelemetry(latestFleet);
+        if (engine.updateObstacles) {
+          engine.updateObstacles(data.obstacles || []);
+        }
         updateDebugSyncDisplay();
       }
     } catch (err) {

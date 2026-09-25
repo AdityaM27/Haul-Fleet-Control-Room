@@ -67,7 +67,7 @@
       this.meta = Object.assign({}, DEFAULT_META);
       this.rawElev = null; // Float32Array(256 * 256)
       this.isLoaded = false;
-      this.vscale = 1.0;
+      this.vscale = 1.5;
       this.showPit = true;
       this.showTerrain = true;
       this.showRoads = true;
@@ -97,6 +97,8 @@
       this.stockpileGroup = null;
       this.truckGroup = null;
       this.hazardGroup = null;
+      this.obstacleGroup = null;
+      this.obstacleObjects = {};
       this.landmarkGroup = null;
       this.roadCurvePoints = [];
       this.sampledRoad = [];
@@ -502,9 +504,9 @@
 
     /**
      * BUILD REAL 3D TERRAIN MESH
-     * 256x256 dense vertex grid with engineering mining palette.
+     * 256x256 dense vertex grid with distinct Surrounding Natural Landscape vs Active Open-Cast Iron Ore Mine.
      */
-    buildTerrain(scene, vscale = 1.0) {
+    buildTerrain(scene, vscale = 1.5) {
       this.vscale = vscale;
       if (this.terrainMesh && scene) {
         scene.remove(this.terrainMesh);
@@ -516,96 +518,254 @@
       if (!this.terrainGridHeights || this.terrainGridHeights.length !== W * H) {
         this.terrainGridHeights = new Float32Array(W * H);
       }
-      const geo = new THREE.BufferGeometry();
 
+      // PASS 1: Sample elevations for entire grid
+      for (let j = 0; j < H; j++) {
+        const lat = this.meta.north - (j / (H - 1)) * (this.meta.north - this.meta.south);
+        for (let i = 0; i < W; i++) {
+          const lon = this.meta.west + (i / (W - 1)) * (this.meta.east - this.meta.west);
+          const finalH = this.sampleCarvedElevation(lon, lat);
+          this.terrainGridHeights[j * W + i] = finalH;
+        }
+      }
+
+      const geo = new THREE.BufferGeometry();
       const positions = [];
       const colors = [];
       const indices = [];
 
-      // Realistic Open-Cast Iron Ore Mining Color Hierarchy
-      const cLowPlain   = new THREE.Color(0x867764);   // Natural alluvial valley floor (muted dusty brown/tan)
-      const cMidScrub   = new THREE.Color(0x978673);   // Natural Bastar hillside scrub (warm dusty tan)
-      const cRidgeIron  = new THREE.Color(0xa89785);   // Mountain ridge slopes (weathered ironstone tan)
-      const cPeakSlate  = new THREE.Color(0x726a5e);   // High quartzite mountain peaks
-      const cBenchFloor = new THREE.Color(0x4a3f37);   // Active terraced working bench floor (dark quarry dust)
-      const cRockFace   = new THREE.Color(0x2a231e);   // Steep excavated rock face / quarry wall (dark gray/brown)
-      const cHematite   = new THREE.Color(0x822919);   // High-grade red hematite iron ore seams (subtle reddish/brown)
-      const cIronbloom  = new THREE.Color(0xa13c23);   // Oxidized ironbloom bench terrace (rich rust-red ore)
-      const cPitFloor   = new THREE.Color(0x361e14);   // Deep loading bay pit floor (rich ore slurry)
-      const cDepotDark  = new THREE.Color(0x241d18);   // Deposition center coal fines & dark spoil
-      const cDepotRust  = new THREE.Color(0x523620);   // Deposition center oxidized waste rock
+      // COLOR PALETTE HIERARCHY — REALISTIC OPEN-CAST IRON ORE DIGITAL TWIN
+      // 1. Surrounding Natural Terrain (Lush Forest of Green — Dense Sal & Teak Mountain Canopy)
+      const cNatValley      = new THREE.Color(0x1c441e); // Deep emerald valley forest canopy & river basin
+      const cNatLowScrub    = new THREE.Color(0x255627); // Rich lush forest low slopes & foothills
+      const cNatMidCanopy   = new THREE.Color(0x2d682e); // Dense mountain forest green
+      const cNatRidgeScrub  = new THREE.Color(0x387e39); // Vibrant upland canopy green
+      const cNatPeakStone   = new THREE.Color(0x2f6631); // High mountain ridge forest & lush plateau foliage
+
+      // 2. Active Mine Disturbed Ground & Perimeter Margin (Stripped topsoil & bulldozed clay dirt)
+      const cDisturbedClay  = new THREE.Color(0x4c3c31); // Stripped laterite clay margin
+      const cDisturbedDust  = new THREE.Color(0x5c4b3d); // Bulldozed bench perimeter apron
+      const cDisturbedRock  = new THREE.Color(0x3a3028); // Broken perimeter spoil rock
+
+      // 3. Active Open-Cast Pit & Stepped Benches (Predominantly dark exposed rock, weathered quarry stone)
+      const cBenchFloor     = new THREE.Color(0x2d2722); // Working horizontal bench floor (weathered dark rock)
+      const cRockFaceDark   = new THREE.Color(0x181412); // Steep excavated rock cut face (deep dark shadow rock)
+      const cHematiteRich   = new THREE.Color(0x6a2517); // Banded hematite ore seam (rust-red, 10-20% coverage)
+      const cIronbloomOre   = new THREE.Color(0x7a2f1b); // Oxidized earthy dark red iron ore lens
+      const cPitSumpFloor   = new THREE.Color(0x161311); // Deep central pit loading sump floor
+
+      // 4. Deposition Center & Spoil Pad (Waypoint 0 footprint — Muted brown / orange-gray overburden)
+      const cDepotDark      = new THREE.Color(0x241e1a); // Compacted dark spoil pad & fine coal fines
+      const cDepotRust      = new THREE.Color(0x453528); // Muted brown / orange-gray waste rock
 
       const minE = this.meta.minElevationMeters;
       const maxE = this.meta.maxElevationMeters;
       const eSpan = maxE - minE;
 
-      // Deposition Center coordinate for surface material staining
+      // Deposition Center coordinate (Kirandul Yard: 81.2215°E, 18.5928°N)
       const yardGeoPos = this.lonLatToWorld(81.2215, 18.5928, 0);
 
+      // Grid spacing in meters for accurate slope/gradient calculation
+      const dxMeter = ((this.meta.east - this.meta.west) / (W - 1)) * this.M_LON;
+      const dzMeter = ((this.meta.north - this.meta.south) / (H - 1)) * this.M_LAT;
+
+      // Road waypoints for haul road incision staining
+      const roadWaypoints = CANONICAL_DEPOSIT_14_WAYPOINTS.map(wp => {
+        const p = this.lonLatToWorld(wp.lng, wp.lat, 0);
+        return { x: p.x, z: p.z };
+      });
+      const numRoadWp = roadWaypoints.length;
+
+      // PASS 2: Compute 3D geometry positions, slope gradient, and terrain strata colors
       for (let j = 0; j < H; j++) {
         const lat = this.meta.north - (j / (H - 1)) * (this.meta.north - this.meta.south);
+        const jPrev = Math.max(0, j - 1);
+        const jNext = Math.min(H - 1, j + 1);
+
         for (let i = 0; i < W; i++) {
           const lon = this.meta.west + (i / (W - 1)) * (this.meta.east - this.meta.west);
-          const rawH = this.sampleRawElevation(lon, lat);
-          const finalH = this.sampleCarvedElevation(lon, lat);
-          this.terrainGridHeights[j * W + i] = finalH;
-          const worldPos = this.lonLatToWorld(lon, lat, finalH, vscale);
+          const iPrev = Math.max(0, i - 1);
+          const iNext = Math.min(W - 1, i + 1);
 
+          const finalH = this.terrainGridHeights[j * W + i];
+          const worldPos = this.lonLatToWorld(lon, lat, finalH, vscale);
           positions.push(worldPos.x, worldPos.y, worldPos.z);
+
+          // Local slope calculation: dz and dx differences
+          const hL = this.terrainGridHeights[j * W + iPrev];
+          const hR = this.terrainGridHeights[j * W + iNext];
+          const hU = this.terrainGridHeights[jPrev * W + i];
+          const hD = this.terrainGridHeights[jNext * W + i];
+
+          const slopeX = (hR - hL) / ((iNext - iPrev) * dxMeter || 1.0);
+          const slopeZ = (hD - hU) / ((jNext - jPrev) * dzMeter || 1.0);
+          const slopeMag = Math.hypot(slopeX, slopeZ); // Tangent of surface slope angle
 
           // Pit influence calculation
           const dx = worldPos.x - this.pitPos.x;
           const dz = worldPos.z - this.pitPos.z;
           const theta = Math.atan2(dz, dx);
-          const rOrg = 1.0 + 0.12 * Math.cos(3 * theta + 0.5) + 0.08 * Math.sin(5 * theta - 0.7);
+          const rOrg = 1.0 + 0.12 * Math.cos(3 * theta + 0.5) + 0.08 * Math.sin(5 * theta - 0.7) + 0.04 * Math.cos(2 * theta);
           const uDist = Math.hypot(dx / this.pitRX, dz / this.pitRZ) / rOrg;
 
-          const isInsidePit = (uDist < 0.96) && (this.showPit);
-          const elevNorm = Math.max(0, Math.min(1, (finalH - minE) / eSpan));
-
-          // Deposition Center footprint calculation
+          // Deposition Center distance
           const distToYard = Math.hypot(worldPos.x - yardGeoPos.x, worldPos.z - yardGeoPos.z);
-          const inDepotZone = distToYard < 150.0;
+          const inDepotZone = distToYard < 220.0;
+
+          // Road proximity check (within 18m of canonical haul circuit)
+          let distToRoadMin = 9999.0;
+          for (let rw = 0; rw < numRoadWp; rw++) {
+            const p1 = roadWaypoints[rw];
+            const p2 = roadWaypoints[(rw + 1) % numRoadWp];
+            const l2 = (p2.x - p1.x) ** 2 + (p2.z - p1.z) ** 2;
+            let t = l2 > 0 ? ((worldPos.x - p1.x) * (p2.x - p1.x) + (worldPos.z - p1.z) * (p2.z - p1.z)) / l2 : 0;
+            t = Math.max(0, Math.min(1, t));
+            const projX = p1.x + t * (p2.x - p1.x);
+            const projZ = p1.z + t * (p2.z - p1.z);
+            const d = Math.hypot(worldPos.x - projX, worldPos.z - projZ);
+            if (d < distToRoadMin) distToRoadMin = d;
+          }
 
           const col = new THREE.Color();
-          if (isInsidePit) {
-            // Distinct Open-Cast Pit Terraces & Exposed Ore Hierarchy
-            if (uDist < 0.16) {
-              col.copy(cPitFloor); // Pit bottom loading floor
+          const elevNorm = Math.max(0, Math.min(1, (finalH - minE) / eSpan));
+
+          if (this.showPit && uDist < 0.88) {
+            // ==============================================================
+            // ZONE B: ACTIVE OPEN-CAST MINE PIT & STEPPED BENCHES
+            // ==============================================================
+            if (uDist < 0.15) {
+              // Deepest Pit Floor (Excavation Sump Floor ~519m ASL)
+              col.copy(cPitSumpFloor);
+              const sumpVar = Math.sin(worldPos.x * 0.04 + worldPos.z * 0.04) * 0.02;
+              col.offsetHSL(0, 0, sumpVar);
             } else {
-              const benchVal = (0.88 - uDist) / 0.72 * this.pitBenches;
-              const frac = benchVal - Math.floor(benchVal);
-              if (frac < 0.72) {
-                // Working bench floor with rich hematite and ironbloom mineral veins
-                const oreVein = Math.sin(benchVal * 3.14159) * 0.40;
-                col.copy(cBenchFloor).lerp(cIronbloom, Math.max(0, oreVein));
+              // Stepped Terraces (10 Benches with Working Floors and Steep Cuts)
+              const benchVal = (0.88 - uDist) / 0.73 * this.pitBenches;
+              const benchIdx = Math.floor(benchVal);
+              const benchFrac = benchVal - benchIdx; // 0.0 -> 1.0 within bench step
+
+              // Is this point on the steep rock cut face or on the horizontal bench floor?
+              const isSteepCut = (slopeMag > 0.35) || (benchFrac >= 0.70);
+
+              if (isSteepCut) {
+                // Steep Rock Face Cut: Predominantly dark exposed quarry rock
+                col.copy(cRockFaceDark);
+
+                // Strata Layering (horizontal banded iron formation)
+                const strataBand = Math.sin(finalH * 0.32) * 0.5 + 0.5;
+
+                // CRITICAL REQUIREMENT: Iron ore coloration covers only 10% to 20% of the mine's visible surface!
+                // Concentrated strictly along exposed East reef walls and selective lower cuts.
+                const isEastOreZone = (worldPos.x > this.pitPos.x - 30) && (worldPos.z > this.pitPos.z - 320) && (worldPos.z < this.pitPos.z + 260);
+                const isOreSeam = isEastOreZone && (strataBand > 0.62);
+
+                if (isOreSeam) {
+                  // High-grade hematite and oxidized rust-red ore seam (approx 12-15% of pit face area)
+                  const oreMix = (strataBand - 0.62) / 0.38;
+                  const oreColor = cHematiteRich.clone().lerp(cIronbloomOre, strataBand);
+                  col.lerp(oreColor, oreMix * 0.85);
+                } else {
+                  // Weathered dark quarry stone cut with subtle strata grain
+                  col.lerp(new THREE.Color(0x26211c), strataBand * 0.35);
+                }
+
+                // Slope-based shading / contact shadows on steep cuts to make depth visually pop
+                col.multiplyScalar(0.70);
               } else {
-                // Steep rock face quarry cut: dark rock face interspersed with deep hematite seams
-                const faceMix = Math.sin(worldPos.x * 0.03 + worldPos.z * 0.03) * 0.5 + 0.5;
-                col.copy(cRockFace).lerp(cHematite, faceMix * 0.85);
+                // Horizontal Working Bench Floor: Dark crushed quarry aggregate & equipment tracks
+                col.copy(cBenchFloor);
+
+                // Subtle quarry dust variation along bench floor
+                const benchVein = Math.sin(benchVal * 3.14159) * 0.5 + 0.5;
+                if (benchVein > 0.75) {
+                  col.lerp(cDisturbedDust, (benchVein - 0.75) * 0.4);
+                }
+                // Bench floor rock grain
+                const grain = (Math.sin(worldPos.x * 0.05 + worldPos.z * 0.05) * 0.5) * 0.02;
+                col.offsetHSL(0, 0, grain);
               }
             }
-            // Subtle mineral grain variation
-            const speck = (Math.sin(worldPos.x * 0.06 + worldPos.z * 0.06) * 0.5) * 0.04;
-            col.offsetHSL(0, 0, speck);
-          } else if (inDepotZone) {
-            // Deposition Center / Stockpile Yard: distinct dark & orange-brown spoil zone
-            const depotBlend = 1.0 - Math.min(1.0, distToYard / 150.0);
-            col.copy(cDepotDark).lerp(cDepotRust, depotBlend * 0.6);
-          } else {
-            // Natural Surrounding Terrain: muted dusty brown / tan landscape
-            if (elevNorm < 0.30) {
-              col.copy(cLowPlain).lerp(cMidScrub, elevNorm / 0.30);
-            } else if (elevNorm < 0.70) {
-              const q = (elevNorm - 0.30) / 0.40;
-              col.copy(cMidScrub).lerp(cRidgeIron, q);
-            } else {
-              const q = (elevNorm - 0.70) / 0.30;
-              col.copy(cRidgeIron).lerp(cPeakSlate, q);
+
+            // Haul Road bed cut staining (if directly beneath or adjacent to haul road)
+            if (distToRoadMin < 18.0) {
+              const roadStain = 1.0 - (distToRoadMin / 18.0);
+              col.lerp(new THREE.Color(0x14110f), roadStain * 0.82);
             }
-            // Gentle natural rock variation
-            const grain = (Math.sin(worldPos.x * 0.02) * Math.cos(worldPos.z * 0.02)) * 0.025;
-            col.offsetHSL(0, 0, grain);
+
+          } else if (inDepotZone) {
+            // ==============================================================
+            // ZONE D: DEPOSITION / DUMP AREA (Kirandul Stockpile Yard)
+            // ==============================================================
+            const depotBlend = 1.0 - Math.min(1.0, distToYard / 220.0);
+            col.copy(cDepotDark).lerp(cDepotRust, depotBlend * 0.75);
+
+            // Layered spoil mounds texture in muted brown/dark rock tones
+            const moundNoise = Math.sin(worldPos.x * 0.03) * Math.cos(worldPos.z * 0.03);
+            if (moundNoise > 0.35) {
+              col.lerp(cDisturbedRock, (moundNoise - 0.35) * 0.5);
+            }
+
+            if (distToRoadMin < 18.0) {
+              const roadStain = 1.0 - (distToRoadMin / 18.0);
+              col.lerp(new THREE.Color(0x14110f), roadStain * 0.82);
+            }
+
+          } else if (this.showPit && uDist < 1.15) {
+            // ==============================================================
+            // ZONE B/A TRANSITION: DISTURBED GROUND / MINE PERIMETER
+            // ==============================================================
+            // Blends naturally from lush forest green into cleared laterite clay & perimeter berms
+            const marginFrac = (1.15 - uDist) / (1.15 - 0.88); // 0.0 at lush forest -> 1.0 at pit rim
+
+            // Natural forest baseline at this elevation
+            let natBase;
+            if (elevNorm < 0.35) {
+              natBase = cNatLowScrub.clone().lerp(cNatMidCanopy, elevNorm / 0.35);
+            } else {
+              natBase = cNatMidCanopy.clone().lerp(cNatRidgeScrub, (elevNorm - 0.35) / 0.65);
+            }
+
+            // Disturbed laterite ground target
+            const distTarget = cDisturbedClay.clone().lerp(cDisturbedDust, Math.sin(worldPos.x * 0.02) * 0.5 + 0.5);
+            col.copy(natBase).lerp(distTarget, marginFrac * 0.94);
+
+            // Haul road cut entering the mine rim
+            if (distToRoadMin < 18.0) {
+              const roadStain = 1.0 - (distToRoadMin / 18.0);
+              col.lerp(new THREE.Color(0x14110f), roadStain * 0.82);
+            }
+
+          } else {
+            // ==============================================================
+            // ZONE A: SURROUNDING / NATURAL TERRAIN (Lush Forest of Green)
+            // ==============================================================
+            if (elevNorm < 0.25) {
+              // Low valley floor & river basin: Deep emerald forest canopy
+              col.copy(cNatValley).lerp(cNatLowScrub, elevNorm / 0.25);
+            } else if (elevNorm < 0.55) {
+              // Lower to mid mountain slopes: Rich lush green canopy
+              const q = (elevNorm - 0.25) / 0.30;
+              col.copy(cNatLowScrub).lerp(cNatMidCanopy, q);
+            } else if (elevNorm < 0.80) {
+              // Upper mountain ridges: Vibrant tropical forest foliage
+              const q = (elevNorm - 0.55) / 0.25;
+              col.copy(cNatMidCanopy).lerp(cNatRidgeScrub, q);
+            } else {
+              // High mountain crests & peaks: Lush high-elevation mountain forest
+              const q = (elevNorm - 0.80) / 0.20;
+              col.copy(cNatRidgeScrub).lerp(cNatPeakStone, q);
+            }
+
+            // Natural organic canopy variation (deep emerald patches, sunlit treetops, and canopy shadows)
+            const foliageNoise = Math.sin(worldPos.x * 0.006 + 1.2) * Math.cos(worldPos.z * 0.006 + 0.7);
+            const foliageNoise2 = Math.sin(worldPos.x * 0.016 - 0.8) * Math.sin(worldPos.z * 0.016 + 0.3);
+            col.offsetHSL(0.015 * foliageNoise, 0.06 * foliageNoise2, 0.03 * foliageNoise);
+
+            // Access road cut through natural terrain if road crosses here
+            if (distToRoadMin < 18.0) {
+              const roadStain = 1.0 - (distToRoadMin / 18.0);
+              col.lerp(new THREE.Color(0x1a1613), roadStain * 0.80);
+            }
           }
 
           colors.push(col.r, col.g, col.b);
@@ -630,14 +790,17 @@
 
       const mat = new THREE.MeshStandardMaterial({
         vertexColors: true,
-        roughness: 0.94,
-        metalness: 0.04,
+        roughness: 0.92,
+        metalness: 0.05,
         flatShading: false
       });
 
       this.terrainMesh = new THREE.Mesh(geo, mat);
       this.terrainMesh.name = 'BailadilaDEMTerrain';
-      if (scene) scene.add(this.terrainMesh);
+      if (scene) {
+        this.scene = scene;
+        scene.add(this.terrainMesh);
+      }
 
       return this.terrainMesh;
     }
@@ -652,7 +815,7 @@
      * that follows the exact 16 canonical Deposit-14 waypoints used by the simulation.
      * Drapes tightly over the carved open-cast terrain benches with per-vertex elevation sampling.
      */
-    buildHaulRoads(scene, vscale = 1.0, waypoints = null) {
+    buildHaulRoads(scene, vscale = 1.5, waypoints = null) {
       if (this.roadGroup && scene) {
         scene.remove(this.roadGroup);
       }
@@ -706,21 +869,21 @@
       }
 
       // 3. Construct 7-Column Conforming Physical Haul Road Mesh
-      // Standard dual-lane haul road: 26m wide (13m half-width).
-      // Hairpin switchbacks: expanded to 34m wide (17m half-width) for authentic heavy truck turning pads.
+      // Standard dual-lane haul road: 28m wide (14m half-width).
+      // Hairpin switchbacks: expanded to 38m wide (19m half-width) for heavy mining truck turning pads.
       const basePositions = [];
       const baseColors = [];
       const baseIndices = [];
 
       // Open-Cast Mining Haul Road Color Palette:
-      // Outer shoulders: dusty quarry berm gravel (#574a3e)
-      // Road verges: crushed rock edge (#3b322a)
-      // Travel lanes: dark heavy-rolled compacted haul earth (#221c18)
-      // Center crown: weathered dark haul surface (#181411)
-      const cShoulder = new THREE.Color(0x574a3e);
-      const cVerge = new THREE.Color(0x3b322a);
-      const cLane = new THREE.Color(0x221c18);
-      const cCenter = new THREE.Color(0x181411);
+      // Outer shoulders: crushed quarry berm gravel (#52463a)
+      // Road verges: crushed rock edge (#342c25)
+      // Travel lanes: dark heavy-rolled compacted haul earth (#1a1613)
+      // Center crown: weathered dark haul surface (#120f0d)
+      const cShoulder = new THREE.Color(0x52463a);
+      const cVerge = new THREE.Color(0x342c25);
+      const cLane = new THREE.Color(0x1a1613);
+      const cCenter = new THREE.Color(0x120f0d);
 
       const colColors = [cShoulder, cVerge, cLane, cCenter, cLane, cVerge, cShoulder];
       const normOffsets = [-1.0, -0.72, -0.36, 0.0, 0.36, 0.72, 1.0];
@@ -729,7 +892,7 @@
       for (let i = 0; i < numStations; i++) {
         const p = stations[i];
         const norm = this.sampledNormals[i];
-        const halfW = stationIsSwitchback[i] ? 17.0 : 13.0;
+        const halfW = stationIsSwitchback[i] ? 19.0 : 14.0;
 
         for (let c = 0; c < 7; c++) {
           const vx = p.x + norm.x * (normOffsets[c] * halfW);
@@ -738,7 +901,7 @@
           const facetH = this.getRenderedTerrainHeight(vx, vz);
           const elev = (facetH - this.yMin) * vscale;
           // Offset above terrain scaled with vscale to eliminate facet clipping
-          const clearance = 0.55 * Math.max(1.0, vscale);
+          const clearance = 0.58 * Math.max(1.0, vscale);
           const vy = elev + clearance + crowns[c];
 
           basePositions.push(vx, vy, vz);
@@ -792,12 +955,12 @@
       this.roadGroup.add(this.roadBaseMesh);
 
       // 4. Physical Quarry Rock Safety Berm Boulders along switchbacks & steep bench edges
-      const bermMat = new THREE.MeshStandardMaterial({ color: 0x42382e, roughness: 0.96 });
+      const bermMat = new THREE.MeshStandardMaterial({ color: 0x3d3227, roughness: 0.96 });
       const bermGeo = new THREE.BoxGeometry(2.4, 2.0, 3.8);
       for (let s = 3; s < numStations; s += 8) {
         const p = stations[s];
         const norm = this.sampledNormals[s];
-        const halfW = stationIsSwitchback[s] ? 17.0 : 13.0;
+        const halfW = stationIsSwitchback[s] ? 19.0 : 14.0;
         const bx = p.x + norm.x * (halfW + 1.2);
         const bz = p.z + norm.z * (halfW + 1.2);
         const by = (this.getRenderedTerrainHeight(bx, bz) - this.yMin) * vscale + 1.1 * Math.max(1.0, vscale);
@@ -818,18 +981,10 @@
     /**
      * MASSIVE DESIGNATED OPEN-CAST MINE DEPOSITION CENTER & STOCKPILE YARD
      * Engineering-standardized coal & iron ore deposition area at Kirandul Dispatch Terminal (Waypoint 0).
-     * Visual scale: approximately 8-10x the footprint of an ultra-class mining truck (150m x 115m).
-     * Includes:
-     * - Broad irregular multi-tier dumping apron with safety wheel stops & guide berms
-     * - Massive primary raw coal stockpile ridge (76m long, 22m high)
-     * - High-grade hematite iron ore conical stockpile (64m diameter, 18m high)
-     * - Blended sinter feed ore mound & active ROM spoil bank finger
-     * - Coal Handling Plant (CHP) dual-bay dump pocket hopper with grizzly screen grating
-     * - Dual elevated conveyor gantries heading towards the processing & rail complex
-     * - Four 18m high-mast floodlight towers & perimeter warning beacons
-     * - Floating high-contrast 3D billboard marker: "DEPOSITION CENTER — STOCKPILE YARD & CHP HOPPER"
+     * Visual scale: approximately 10-12x the footprint of an ultra-class mining truck (~240m x 190m).
+     * Realistic muted brown / dark rock overburden tones, layered spoil mounds, safety bunds, and CHP hopper.
      */
-    buildStockpileYard(scene, vscale = 1.0) {
+    buildStockpileYard(scene, vscale = 1.5) {
       if (this.stockpileGroup && scene) {
         scene.remove(this.stockpileGroup);
       }
@@ -842,43 +997,45 @@
       const groundH = this.getRenderedTerrainHeight(yardCenter.x, yardCenter.z);
       const groundY = (groundH - this.yMin) * vscale;
 
-      // 1. Broad Irregular Multi-Tiered Dumping Apron Pad (150m x 115m extent)
-      const padGeo = new THREE.CylinderGeometry(74, 82, 1.4 * Math.max(0.8, vscale), 36);
+      // 1. Broad Multi-Tiered Dumping Apron Pad (240m x 190m extent)
+      const padGeo = new THREE.CylinderGeometry(90, 105, 1.4 * Math.max(0.8, vscale), 40);
       const padMat = new THREE.MeshStandardMaterial({
-        color: 0x241e18,
-        roughness: 0.95,
-        metalness: 0.05
+        color: 0x241e1a,
+        roughness: 0.96,
+        metalness: 0.04
       });
       const pad = new THREE.Mesh(padGeo, padMat);
-      pad.scale.set(1.22, 1.0, 0.94); // Irregular broad footprint
+      pad.scale.set(1.35, 1.0, 1.05); // Broad irregular footprint
       pad.position.set(yardCenter.x, groundY + 0.45 * vscale, yardCenter.z);
       pad.receiveShadow = true;
       this.stockpileGroup.add(pad);
 
       // Elevated Dumping Spoil Terrace (Raised working bench where trucks discharge)
-      const terraceGeo = new THREE.BoxGeometry(88, 3.6 * Math.max(0.8, vscale), 46);
+      const terraceGeo = new THREE.BoxGeometry(105, 3.8 * Math.max(0.8, vscale), 55);
       const terraceMat = new THREE.MeshStandardMaterial({
-        color: 0x3d2b1c,
+        color: 0x36291e,
         roughness: 0.96
       });
       const terrace = new THREE.Mesh(terraceGeo, terraceMat);
       terrace.position.set(yardCenter.x + 8.0, groundY + 2.0 * vscale, yardCenter.z - 12.0);
       this.stockpileGroup.add(terrace);
 
-      // 2. High-Visibility Safety Boundary Ring (Amber hazard zone perimeter)
-      const ringGeo = new THREE.RingGeometry(72.0, 75.5, 40);
-      ringGeo.rotateX(-Math.PI / 2);
-      const ringMat = new THREE.MeshBasicMaterial({
-        color: 0xf59e0b,
-        side: THREE.DoubleSide
-      });
-      const ring = new THREE.Mesh(ringGeo, ringMat);
-      ring.scale.set(1.22, 0.94, 1.0);
-      ring.position.set(yardCenter.x, groundY + 1.2 * vscale, yardCenter.z);
-      this.stockpileGroup.add(ring);
+      // 2. Realistic Safety Guide Berm Boulders around apron perimeter (replaces neon ring)
+      const guideBermGeo = new THREE.BoxGeometry(3.6, 2.0, 5.0);
+      const guideBermMat = new THREE.MeshStandardMaterial({ color: 0x483a2e, roughness: 0.95 });
+      for (let a = 0; a < 16; a++) {
+        const ang = (a / 16) * Math.PI * 2;
+        const bx = yardCenter.x + Math.cos(ang) * 88.0 * 1.35;
+        const bz = yardCenter.z + Math.sin(ang) * 88.0 * 1.05;
+        const by = (this.getRenderedTerrainHeight(bx, bz) - this.yMin) * vscale + 1.0 * Math.max(0.8, vscale);
+        const berm = new THREE.Mesh(guideBermGeo, guideBermMat);
+        berm.position.set(bx, by, bz);
+        berm.rotation.y = -ang + Math.PI / 2;
+        this.stockpileGroup.add(berm);
+      }
 
-      // 3. Massive Primary Raw Coal Stockpile Ridge (76m length, 22m high)
-      const coalGeo = new THREE.ConeGeometry(38, 22.0 * Math.max(0.7, vscale), 28);
+      // 3. Massive Primary Raw Coal Stockpile Ridge (80m length, 22m high)
+      const coalGeo = new THREE.ConeGeometry(40, 22.0 * Math.max(0.7, vscale), 28);
       const coalMat = new THREE.MeshStandardMaterial({
         color: 0x141416,
         roughness: 0.98,
@@ -886,7 +1043,7 @@
       });
       const coalMound = new THREE.Mesh(coalGeo, coalMat);
       coalMound.scale.set(1.45, 1.0, 0.85); // Elongated coal ridge
-      const cOffX = -38.0, cOffZ = -28.0;
+      const cOffX = -42.0, cOffZ = -30.0;
       const coalH = this.getRenderedTerrainHeight(yardCenter.x + cOffX, yardCenter.z + cOffZ);
       coalMound.position.set(
         yardCenter.x + cOffX,
@@ -899,12 +1056,12 @@
       // 4. Massive High-Grade Hematite Iron Ore Stockpile (64m diameter, 18m high)
       const oreGeo = new THREE.ConeGeometry(32, 18.0 * Math.max(0.7, vscale), 24);
       const oreMat = new THREE.MeshStandardMaterial({
-        color: 0x7a2818,
+        color: 0x6a2517, // Rich dark hematite
         roughness: 0.95,
         metalness: 0.08
       });
       const oreMound = new THREE.Mesh(oreGeo, oreMat);
-      const oOffX = 44.0, oOffZ = -24.0;
+      const oOffX = 46.0, oOffZ = -26.0;
       const oreH = this.getRenderedTerrainHeight(yardCenter.x + oOffX, yardCenter.z + oOffZ);
       oreMound.position.set(
         yardCenter.x + oOffX,
@@ -913,14 +1070,14 @@
       );
       this.stockpileGroup.add(oreMound);
 
-      // 5. Blended Sinter Feed Ore Mound (52m diameter, 14m high)
-      const sinterGeo = new THREE.ConeGeometry(26, 14.0 * Math.max(0.7, vscale), 20);
+      // 5. Blended Sinter Feed Ore Mound (54m diameter, 14m high - muted brown)
+      const sinterGeo = new THREE.ConeGeometry(27, 14.0 * Math.max(0.7, vscale), 20);
       const sinterMat = new THREE.MeshStandardMaterial({
-        color: 0x8a4322,
-        roughness: 0.94
+        color: 0x543924, // Muted earthy brown
+        roughness: 0.95
       });
       const sinterMound = new THREE.Mesh(sinterGeo, sinterMat);
-      const sOffX = -36.0, sOffZ = 32.0;
+      const sOffX = -38.0, sOffZ = 34.0;
       const sinterH = this.getRenderedTerrainHeight(yardCenter.x + sOffX, yardCenter.z + sOffZ);
       sinterMound.position.set(
         yardCenter.x + sOffX,
@@ -929,18 +1086,18 @@
       );
       this.stockpileGroup.add(sinterMound);
 
-      // 6. Active Run-of-Mine Spoil Bank Finger (48m x 24m)
-      const spoilGeo = new THREE.BoxGeometry(48, 8.5 * Math.max(0.7, vscale), 24);
+      // 6. Active Run-of-Mine Overburden Spoil Bank Finger (52m x 26m)
+      const spoilGeo = new THREE.BoxGeometry(52, 9.0 * Math.max(0.7, vscale), 26);
       const spoilMat = new THREE.MeshStandardMaterial({
-        color: 0x3d2b1f,
+        color: 0x382c20, // Weathered spoil rock
         roughness: 0.96
       });
       const spoilMound = new THREE.Mesh(spoilGeo, spoilMat);
-      const spOffX = 42.0, spOffZ = 32.0;
+      const spOffX = 46.0, spOffZ = 34.0;
       const spoilH = this.getRenderedTerrainHeight(yardCenter.x + spOffX, yardCenter.z + spOffZ);
       spoilMound.position.set(
         yardCenter.x + spOffX,
-        (spoilH - this.yMin) * vscale + 4.25 * Math.max(0.7, vscale),
+        (spoilH - this.yMin) * vscale + 4.5 * Math.max(0.7, vscale),
         yardCenter.z + spOffZ
       );
       spoilMound.rotation.y = -0.22;
@@ -966,7 +1123,7 @@
       grizzly.position.set(yardCenter.x + 2.0, hopperY + 13.1 * Math.max(0.7, vscale), yardCenter.z + 16.0);
       this.stockpileGroup.add(grizzly);
 
-      // Safety yellow and black zebra-striped wheel stop bunds along dump bay lip
+      // Safety wheel stop bunds along dump bay lip
       const curbGeo = new THREE.BoxGeometry(30, 2.6, 2.2);
       const curbMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.5 });
       const curb = new THREE.Mesh(curbGeo, curbMat);
@@ -1004,15 +1161,15 @@
         this.stockpileGroup.add(lamp);
       });
 
-      // 9. Perimeter Warning Stanchions with Amber Beacons (12 beacons)
+      // 9. Perimeter Guide Stanchions with Subtle Low-Intensity Beacons (12 stanchions)
       const poleGeo = new THREE.CylinderGeometry(0.35, 0.35, 5.5, 8);
       const poleMat = new THREE.MeshStandardMaterial({ color: 0x64748b, metalness: 0.7 });
-      const beaconGeo = new THREE.SphereGeometry(0.9, 8, 8);
-      const beaconMat = new THREE.MeshBasicMaterial({ color: 0xf59e0b });
+      const beaconGeo = new THREE.SphereGeometry(0.8, 8, 8);
+      const beaconMat = new THREE.MeshBasicMaterial({ color: 0xd97706 });
       for (let a = 0; a < 12; a++) {
         const ang = (a / 12) * Math.PI * 2;
-        const bx = yardCenter.x + Math.cos(ang) * 72.0 * 1.22;
-        const bz = yardCenter.z + Math.sin(ang) * 72.0 * 0.94;
+        const bx = yardCenter.x + Math.cos(ang) * 82.0 * 1.35;
+        const bz = yardCenter.z + Math.sin(ang) * 82.0 * 1.05;
         const by = (this.getRenderedTerrainHeight(bx, bz) - this.yMin) * vscale;
         const pole = new THREE.Mesh(poleGeo, poleMat);
         pole.position.set(bx, by + 2.75, bz);
@@ -1022,35 +1179,38 @@
         this.stockpileGroup.add(beacon);
       }
 
-      // 10. Floating 3D Billboard Sprite Badge: "DEPOSITION CENTER — STOCKPILE YARD"
+      // 10. Floating 3D Billboard Sprite Badge: "DEPOSITION CENTER & STOCKPILE YARD"
       const canvas = document.createElement('canvas');
-      canvas.width = 640;
-      canvas.height = 150;
+      canvas.width = 580;
+      canvas.height = 120;
       const ctx = canvas.getContext('2d');
-      ctx.fillStyle = 'rgba(10, 15, 26, 0.94)';
-      ctx.fillRect(0, 0, 640, 150);
-      ctx.strokeStyle = '#f59e0b';
-      ctx.lineWidth = 6;
-      ctx.strokeRect(4, 4, 632, 142);
+      ctx.fillStyle = 'rgba(10, 15, 26, 0.90)';
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(4, 4, 572, 112, 12);
+      else ctx.rect(4, 4, 572, 112);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(201, 162, 39, 0.75)';
+      ctx.lineWidth = 3;
+      ctx.stroke();
 
       ctx.fillStyle = '#38bdf8';
-      ctx.font = 'bold 22px "Space Grotesk", monospace';
+      ctx.font = 'bold 18px "Space Grotesk", monospace';
       ctx.textAlign = 'center';
-      ctx.fillText('COAL HANDLING PLANT (CHP) — KIRANDUL COMPLEX', 320, 38);
+      ctx.fillText('COAL & ORE PROCESSING — KIRANDUL COMPLEX', 290, 32);
 
       ctx.fillStyle = '#ffffff';
-      ctx.font = '900 44px "Space Grotesk", sans-serif';
-      ctx.fillText('DEPOSITION CENTER & STOCKPILE YARD', 320, 88);
+      ctx.font = '900 34px "Space Grotesk", sans-serif';
+      ctx.fillText('DEPOSITION & STOCKPILE YARD', 290, 72);
 
       ctx.fillStyle = '#10b981';
-      ctx.font = 'bold 22px "Space Grotesk", monospace';
-      ctx.fillText('● ACTIVE UNLOADING BAYS & RECEIVING HOPPER', 320, 126);
+      ctx.font = '600 17px "IBM Plex Mono", monospace';
+      ctx.fillText('● ACTIVE RECEIVING HOPPER & UNLOADING PAD', 290, 102);
 
       const tex = new THREE.CanvasTexture(canvas);
-      const spriteMat = new THREE.SpriteMaterial({ map: tex, transparent: true });
+      const spriteMat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
       const sprite = new THREE.Sprite(spriteMat);
-      sprite.position.set(yardCenter.x, groundY + 54.0 * Math.max(0.8, vscale), yardCenter.z);
-      sprite.scale.set(130, 32, 1);
+      sprite.position.set(yardCenter.x, groundY + 52.0 * Math.max(0.8, vscale), yardCenter.z);
+      sprite.scale.set(115, 24, 1);
       this.stockpileGroup.add(sprite);
 
       if (scene) scene.add(this.stockpileGroup);
@@ -1256,13 +1416,26 @@
       truck.bedPivot = bedPivot;
       truck.add(bedPivot);
 
-      // 5. Fog-Guard Radar Safety Ring (Concentric hazard boundary)
+      // 5. Contact Shadow underneath truck to ground all 6 tires onto haul road
+      const shadowGeo = new THREE.PlaneGeometry(13.0, 18.5);
+      shadowGeo.rotateX(-Math.PI / 2);
+      const shadowMat = new THREE.MeshBasicMaterial({
+        color: 0x000000,
+        transparent: true,
+        opacity: 0.65,
+        depthWrite: false
+      });
+      const shadowMesh = new THREE.Mesh(shadowGeo, shadowMat);
+      shadowMesh.position.y = 0.08;
+      truck.add(shadowMesh);
+
+      // 6. Fog-Guard Radar Safety Ring (Hidden during normal operations, illuminates on warning/hazard)
       const ringGeo = new THREE.RingGeometry(11.5, 13.5, 24);
       ringGeo.rotateX(-Math.PI / 2);
       const ringMat = new THREE.MeshBasicMaterial({
         color: 0x10b981,
         transparent: true,
-        opacity: 0.55,
+        opacity: 0.0, // Invisible during normal clear driving
         side: THREE.DoubleSide
       });
       const ring = new THREE.Mesh(ringGeo, ringMat);
@@ -1270,27 +1443,31 @@
       truck.add(ring);
       truck.radarRing = ring;
 
-      // 6. Visible Illuminated Vehicle ID Tag Sprite
+      // 7. Visible Illuminated Vehicle ID Tag Sprite (Sleek dark glass pill badge)
       const canvas = document.createElement('canvas');
-      canvas.width = 256;
-      canvas.height = 80;
+      canvas.width = 240;
+      canvas.height = 72;
       const ctx = canvas.getContext('2d');
-      ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
-      ctx.fillRect(0, 0, 256, 80);
-      ctx.strokeStyle = '#f59e0b';
-      ctx.lineWidth = 6;
-      ctx.strokeRect(3, 3, 250, 74);
+      ctx.fillStyle = 'rgba(10, 15, 26, 0.88)';
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(4, 4, 232, 64, 8);
+      else ctx.rect(4, 4, 232, 64);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(201, 162, 39, 0.85)';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
       ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 36px "Space Grotesk", monospace';
+      ctx.font = 'bold 30px "Space Grotesk", monospace';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(truckId, 128, 42);
+      ctx.fillText(truckId, 120, 37);
 
       const texture = new THREE.CanvasTexture(canvas);
-      const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true });
+      const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
       const sprite = new THREE.Sprite(spriteMat);
-      sprite.position.set(0, 12.5, 0);
-      sprite.scale.set(22, 6.8, 1);
+      sprite.position.set(0, 10.2, 0);
+      sprite.scale.set(10.5, 3.2, 1);
       truck.add(sprite);
 
       return truck;
@@ -1311,7 +1488,7 @@
 
       defaultIds.forEach((id, idx) => {
         const vId = (fleetList && fleetList[idx] && fleetList[idx].id) ? fleetList[idx].id : `TRUCK_0${idx+1}`;
-        const truckMesh = this.createMiningTruck(id, 0xe5a93c);
+        const truckMesh = this.createMiningTruck(id, 0xd49b28);
         truckMesh.name = vId;
         this.truckObjects[vId] = {
           mesh: truckMesh,
@@ -1325,7 +1502,10 @@
         this.truckGroup.add(truckMesh);
       });
 
-      if (scene) scene.add(this.truckGroup);
+      if (scene) {
+        this.scene = scene;
+        scene.add(this.truckGroup);
+      }
       return this.truckGroup;
     }
 
@@ -1395,7 +1575,7 @@
             item.mesh.radarRing.material.opacity = 0.65;
           } else {
             item.mesh.radarRing.material.color.setHex(0x10b981); // Green clear
-            item.mesh.radarRing.material.opacity = 0.45;
+            item.mesh.radarRing.material.opacity = 0.0; // Completely invisible during normal clear driving
           }
         }
         // Record historical travelled trail point
@@ -1589,7 +1769,7 @@
     /**
      * BUILD TERRAIN-AWARE HAZARD ZONES & FOG INVERSION DISC
      */
-    buildHazardZones(scene, vscale = 1.0) {
+    buildHazardZones(scene, vscale = 1.5) {
       if (this.hazardGroup && scene) {
         scene.remove(this.hazardGroup);
       }
@@ -1660,51 +1840,121 @@
     /**
      * BUILD GEODETIC LANDMARK PINS & LABELS
      */
-    buildLandmarks(scene, vscale = 1.0) {
+    buildLandmarks(scene, vscale = 1.5) {
       if (this.landmarkGroup && scene) {
         scene.remove(this.landmarkGroup);
       }
       this.landmarkGroup = new THREE.Group();
       this.landmarkGroup.name = 'BailadilaLandmarks';
 
-      Object.values(LANDMARKS).forEach(lm => {
-        const h = (lm.type === 'pit') ? this.sampleCarvedElevation(lm.lon, lm.lat) : this.sampleRawElevation(lm.lon, lm.lat);
+      const OPERATIONAL_LABELS = [
+        {
+          name: 'MINE PIT',
+          sub: 'Deposit-14 Pit Floor (~519m ASL)',
+          lon: 81.2194, lat: 18.5792,
+          color: '#ef4444',
+          colorHex: 0xef4444,
+          isPit: true,
+          lift: 55
+        },
+        {
+          name: 'HAUL ROAD',
+          sub: 'Deposit-14 Haul Corridor',
+          lon: 81.2255, lat: 18.5862,
+          color: '#38bdf8',
+          colorHex: 0x38bdf8,
+          isPit: true,
+          lift: 50
+        },
+        {
+          name: 'DEPOSITION AREA',
+          sub: 'Stockpile Yard & CHP Hopper',
+          lon: 81.2215, lat: 18.5928,
+          color: '#f59e0b',
+          colorHex: 0xf59e0b,
+          isPit: false,
+          lift: 60
+        },
+        {
+          name: 'ORE ZONE',
+          sub: 'High-Grade Hematite Seam',
+          lon: 81.2248, lat: 18.5818,
+          color: '#fb923c',
+          colorHex: 0xfb923c,
+          isPit: true,
+          lift: 52
+        },
+        {
+          name: 'ZONE 2 — EAST HAIRPIN',
+          sub: 'Switchback 1 (11 km/h)',
+          lon: 81.2264, lat: 18.5876,
+          color: '#f59e0b',
+          colorHex: 0xf59e0b,
+          isPit: true,
+          lift: 48
+        },
+        {
+          name: 'ZONE 2 — WEST HAIRPIN',
+          sub: 'Switchback 2 (11 km/h)',
+          lon: 81.2148, lat: 18.5840,
+          color: '#f59e0b',
+          colorHex: 0xf59e0b,
+          isPit: true,
+          lift: 48
+        }
+      ];
+
+      OPERATIONAL_LABELS.forEach(lm => {
+        const h = lm.isPit ? this.sampleCarvedElevation(lm.lon, lm.lat) : this.sampleRawElevation(lm.lon, lm.lat);
         const pos = this.lonLatToWorld(lm.lon, lm.lat, h, vscale);
 
-        // Pin cone
-        const pinColor = (lm.type === 'pit') ? 0xef4444 : (lm.type === 'complex' ? 0x38bdf8 : 0xf59e0b);
-        const pinGeo = new THREE.ConeGeometry(18, 55, 12);
-        const pinMat = new THREE.MeshStandardMaterial({
-          color: pinColor,
-          roughness: 0.3,
-          emissive: pinColor,
-          emissiveIntensity: 0.35
-        });
-        const pin = new THREE.Mesh(pinGeo, pinMat);
-        pin.position.set(pos.x, pos.y + 35, pos.z);
-        this.landmarkGroup.add(pin);
+        // Slim vertical needle anchor
+        const needleGeo = new THREE.CylinderGeometry(0.6, 0.6, lm.lift, 8);
+        const needleMat = new THREE.MeshBasicMaterial({ color: lm.colorHex, transparent: true, opacity: 0.65 });
+        const needle = new THREE.Mesh(needleGeo, needleMat);
+        needle.position.set(pos.x, pos.y + lm.lift * 0.5, pos.z);
+        this.landmarkGroup.add(needle);
 
-        // Label sprite
+        // Subtle 3D Pill Badge
         const canvas = document.createElement('canvas');
-        canvas.width = 380;
-        canvas.height = 70;
+        canvas.width = 360;
+        canvas.height = 96;
         const ctx = canvas.getContext('2d');
-        ctx.fillStyle = 'rgba(7, 14, 18, 0.88)';
-        ctx.fillRect(0, 0, 380, 70);
-        ctx.strokeStyle = (lm.type === 'pit') ? '#ef4444' : '#38bdf8';
-        ctx.lineWidth = 4;
-        ctx.strokeRect(2, 2, 376, 66);
-        ctx.fillStyle = '#EDE6D6';
-        ctx.font = 'bold 24px "Space Grotesk", sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(lm.name, 190, 36);
+
+        // Dark glass background
+        ctx.fillStyle = 'rgba(10, 15, 26, 0.88)';
+        ctx.beginPath();
+        if (ctx.roundRect) {
+          ctx.roundRect(4, 4, 352, 88, 12);
+        } else {
+          ctx.rect(4, 4, 352, 88);
+        }
+        ctx.fill();
+
+        ctx.strokeStyle = lm.color;
+        ctx.lineWidth = 3;
+        ctx.stroke();
+
+        // Accent top bar
+        ctx.fillStyle = lm.color;
+        ctx.fillRect(16, 8, 50, 4);
+
+        // Title
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '900 24px "Space Grotesk", sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText(lm.name, 16, 42);
+
+        // Subtitle
+        ctx.fillStyle = lm.color;
+        ctx.font = '600 13px "JetBrains Mono", monospace';
+        ctx.fillText(lm.sub, 16, 68);
 
         const tex = new THREE.CanvasTexture(canvas);
         const sm = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
         const sprite = new THREE.Sprite(sm);
-        sprite.position.set(pos.x, pos.y + 95, pos.z);
-        sprite.scale.set(160, 32, 1);
+        sprite.position.set(pos.x, pos.y + lm.lift + 16, pos.z);
+        sprite.scale.set(110, 29, 1);
         this.landmarkGroup.add(sprite);
       });
 
@@ -1738,9 +1988,117 @@
       if (this.truckGroup) this.truckGroup.visible = this.showTrucks;
     }
 
+    /**
+     * UPDATE WORLD OBSTACLES DIRECTLY FROM AUTHORITATIVE BACKEND TELEMETRY
+     * Renders physical 3D boulders on the DEM terrain and removes them when expired.
+     */
+    updateObstacles(obstacles) {
+      const scene = this.scene || (this.truckGroup ? this.truckGroup.parent : null);
+      if (!scene) return;
+
+      if (!this.obstacleGroup) {
+        this.obstacleGroup = new THREE.Group();
+        this.obstacleGroup.name = 'BailadilaWorldObstacles';
+        scene.add(this.obstacleGroup);
+      } else if (!this.obstacleGroup.parent) {
+        scene.add(this.obstacleGroup);
+      }
+
+      const activeIds = new Set();
+      const list = Array.isArray(obstacles) ? obstacles : [];
+
+      list.forEach(obs => {
+        if (!obs || !obs.id) return;
+        activeIds.add(obs.id);
+        let item = this.obstacleObjects[obs.id];
+
+        const elev = (obs.elevation_m !== undefined && obs.elevation_m !== null)
+          ? obs.elevation_m
+          : this.sampleCarvedElevation(obs.lng, obs.lat);
+        const worldPos = this.lonLatToWorld(obs.lng, obs.lat, elev, this.vscale);
+
+        if (!item) {
+          const boulderGroup = new THREE.Group();
+          boulderGroup.name = `Obstacle_${obs.id}`;
+
+          // Realistic blasted iron-ore boulder mesh (faceted, rugged hematite)
+          const rockGeo = new THREE.DodecahedronGeometry(3.2, 1);
+          const posAttr = rockGeo.attributes.position;
+          for (let i = 0; i < posAttr.count; i++) {
+            const vx = posAttr.getX(i);
+            const vy = posAttr.getY(i);
+            const vz = posAttr.getZ(i);
+            const noise = 0.82 + Math.sin(vx * 2.8 + vy * 1.9) * 0.28;
+            posAttr.setXYZ(i, vx * noise, vy * noise * 0.85, vz * noise);
+          }
+          rockGeo.computeVertexNormals();
+
+          const rockMat = new THREE.MeshStandardMaterial({
+            color: 0x662d22, // Rich dark ironstone/hematite
+            roughness: 0.92,
+            metalness: 0.18,
+            flatShading: true
+          });
+          const rockMesh = new THREE.Mesh(rockGeo, rockMat);
+          rockMesh.position.y = 2.0;
+          rockMesh.castShadow = true;
+          rockMesh.receiveShadow = true;
+          boulderGroup.add(rockMesh);
+
+          // Glowing red hazard boundary ring on ground
+          const ringGeo = new THREE.RingGeometry(3.6, 4.2, 32);
+          ringGeo.rotateX(-Math.PI / 2);
+          const ringMat = new THREE.MeshBasicMaterial({
+            color: 0xef4444,
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: 0.85
+          });
+          const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+          ringMesh.position.y = 0.2;
+          boulderGroup.add(ringMesh);
+
+          // Glowing beacon light
+          const beaconLight = new THREE.PointLight(0xef4444, 2.2, 35);
+          beaconLight.position.set(0, 3.5, 0);
+          boulderGroup.add(beaconLight);
+
+          boulderGroup.position.set(worldPos.x, worldPos.y, worldPos.z);
+          this.obstacleGroup.add(boulderGroup);
+
+          this.obstacleObjects[obs.id] = {
+            group: boulderGroup,
+            rockMesh: rockMesh,
+            ringMesh: ringMesh,
+            light: beaconLight,
+            data: obs
+          };
+        } else {
+          item.group.position.set(worldPos.x, worldPos.y, worldPos.z);
+          item.data = obs;
+        }
+      });
+
+      // Remove expired obstacles cleanly
+      Object.keys(this.obstacleObjects).forEach(id => {
+        if (!activeIds.has(id)) {
+          const item = this.obstacleObjects[id];
+          if (item && item.group) {
+            this.obstacleGroup.remove(item.group);
+            if (item.rockMesh && item.rockMesh.geometry) item.rockMesh.geometry.dispose();
+            if (item.rockMesh && item.rockMesh.material) item.rockMesh.material.dispose();
+            if (item.ringMesh && item.ringMesh.geometry) item.ringMesh.geometry.dispose();
+            if (item.ringMesh && item.ringMesh.material) item.ringMesh.material.dispose();
+          }
+          delete this.obstacleObjects[id];
+        }
+      });
+    }
+
     setHazardsVisible(visible) {
       this.showHazards = !!visible;
       if (this.hazardGroup) this.hazardGroup.visible = this.showHazards;
+      if (this.obstacleGroup) this.obstacleGroup.visible = this.showHazards;
     }
 
     setVerticalScale(scene, vscale) {
@@ -1753,13 +2111,16 @@
     }
 
     /**
-     * Optimal camera starting position framing Deposit 14 pit and surrounding Bailadila mountain range.
+     * Panoramic camera starting position:
+     * High-vantage overview that visually frames the surrounding natural terrain,
+     * the active open-cast mine pit, stepped benches, winding haul roads, moving haul trucks,
+     * and the northern stockpile/deposition yard.
      */
     getRecommendedCameraOverview() {
       const pC = this.pitPos;
       return {
-        position: new THREE.Vector3(pC.x + 1200, 1050, pC.z + 1400),
-        target: new THREE.Vector3(pC.x, 480, pC.z - 200)
+        position: new THREE.Vector3(pC.x + 2300, 2100, pC.z + 2400),
+        target: new THREE.Vector3(pC.x - 40, 520, pC.z - 450)
       };
     }
   }

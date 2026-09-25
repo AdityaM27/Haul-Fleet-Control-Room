@@ -1167,11 +1167,76 @@ for vid, prof in SIMULATION_PROFILES.items():
     t = prof["wp_t"]
     INITIAL_LOOP_OFFSETS[vid] = CIRCUIT_CUM_DISTANCES[idx] + t * CIRCUIT_SEG_DISTANCES[idx]
 
+# ==============================================================================
+# AUTHORITATIVE SHARED WORLD OBSTACLES (PHYSICAL DIGITAL TWIN HAZARDS)
+# ==============================================================================
+world_obstacles = {}
+
+
+def get_truck_forward_vector(heading_deg):
+    """Calculates forward unit vector in local DEM frame (0° North = -Z, 90° East = +X)."""
+    rad = math.radians(heading_deg)
+    fwd_x = math.sin(rad)
+    fwd_z = -math.cos(rad)
+    return fwd_x, fwd_z
+
+
+def place_world_obstacle(target_vid, distance_m=10.0, duration_s=2.0):
+    """
+    Places an authoritative physical boulder 8-15m in front of the truck on real DEM terrain.
+    Replaces existing temporary hazards for this vehicle to prevent duplicates.
+    Auto-expires in exactly duration_s (default 2.0s).
+    """
+    now_ts = time.time()
+    v = fleet_data.get(target_vid)
+    if not v:
+        return None
+
+    heading = v.get("heading", 0.0)
+    fwd_x, fwd_z = get_truck_forward_vector(heading)
+
+    truck_x = (v["lng"] - DEM_LON0) * M_LON
+    truck_z = -(v["lat"] - DEM_LAT0) * M_LAT
+
+    obs_x = truck_x + fwd_x * distance_m
+    obs_z = truck_z + fwd_z * distance_m
+
+    obs_lng = round(DEM_LON0 + obs_x / M_LON, 6)
+    obs_lat = round(DEM_LAT0 - obs_z / M_LAT, 6)
+    obs_elev = round(sample_mine_surface_elevation(obs_lat, obs_lng), 2)
+
+    clean_num = target_vid.replace("TRUCK_", "").replace("VEHICLE_", "")
+    obs_id = f"BOULDER_{clean_num}"
+
+    # Replace existing hazard for this truck to prevent duplicates
+    for k in list(world_obstacles.keys()):
+        if world_obstacles[k].get("target_vehicle_id") == target_vid or k == obs_id:
+            world_obstacles.pop(k, None)
+
+    obs_entity = {
+        "id": obs_id,
+        "type": "BOULDER",
+        "target_vehicle_id": target_vid,
+        "lat": obs_lat,
+        "lng": obs_lng,
+        "x": round(obs_x, 2),
+        "z": round(obs_z, 2),
+        "elevation_m": obs_elev,
+        "nominal_dist_m": distance_m,
+        "created_at": now_ts,
+        "expires_at": now_ts + duration_s,
+        "duration_s": duration_s,
+        "active": True
+    }
+    world_obstacles[obs_id] = obs_entity
+    return obs_entity
+
 
 def update_fleet_state(now_ts=None):
     global telemetry_sequence, last_sim_tick
     if now_ts is None:
         now_ts = time.time()
+    dt = max(0.0, min(2.0, now_ts - last_sim_tick)) if last_sim_tick else 0.0
     last_sim_tick = now_ts
     telemetry_sequence = int(now_ts * 2)
     now_str = datetime.fromtimestamp(now_ts).strftime("%H:%M:%S")
@@ -1179,13 +1244,17 @@ def update_fleet_state(now_ts=None):
     is_running = simulation_config.get("running", True)
     scen_id = active_scenario.get("id", "CLEAR_RUN")
 
+    # Authoritative auto-expiry of world obstacles (2.0s lifetime)
+    expired_ids = [oid for oid, obs in list(world_obstacles.items()) if now_ts >= obs.get("expires_at", 0)]
+    for oid in expired_ids:
+        world_obstacles.pop(oid, None)
+
     # Global continuous displacement in meters along canonical Deposit-14 circuit
     base_fleet_speed_mps = 13.5 * 1000.0 / 3600.0  # 3.75 m/s (~13.5 km/h nominal corridor pace)
     if is_running:
         elapsed = (now_ts - BASE_SIM_EPOCH) * multiplier
-        global_dist = elapsed * base_fleet_speed_mps
     else:
-        global_dist = 0.0
+        elapsed = 0.0
 
     for vid, v in fleet_data.items():
         v["last_update_ts"] = now_ts
@@ -1217,12 +1286,19 @@ def update_fleet_state(now_ts=None):
                 "color": zone["color"],
                 "dfri": zone.get("dfri"),
             }
+            v["obstacles"] = list(world_obstacles.values())
+            v["radar_detections"] = []
+            v["nearest_obstacle"] = None
             continue
 
         # SIMULATED TRUCKS
-        # Calculate current position along the canonical loop
+        # Pause forward movement naturally when stopped by hazard, preventing teleportation
+        if v.get("action") == "STOP" or not is_running:
+            v["stopped_seconds"] = v.get("stopped_seconds", 0.0) + dt
+
         init_offset = INITIAL_LOOP_OFFSETS.get(vid, 0.0)
-        curr_dist = (init_offset + global_dist) % CIRCUIT_TOTAL_DIST
+        effective_elapsed = max(0.0, elapsed - v.get("stopped_seconds", 0.0))
+        curr_dist = (init_offset + effective_elapsed * base_fleet_speed_mps) % CIRCUIT_TOTAL_DIST
 
         # Locate segment
         seg_idx = 0
@@ -1278,16 +1354,67 @@ def update_fleet_state(now_ts=None):
 
         target_speed = min(base_target, zone["max_safe_speed"])
 
+        # True 3D World Geometry Radar Perception calculation
+        truck_x = (lng - DEM_LON0) * M_LON
+        truck_z = -(lat - DEM_LAT0) * M_LAT
+        fwd_x, fwd_z = get_truck_forward_vector(heading)
+        right_x = math.cos(math.radians(heading))
+        right_z = math.sin(math.radians(heading))
+
+        radar_detections = []
+        nearest_obs = None
+        min_obs_dist = 9999.0
+
+        for obs in world_obstacles.values():
+            dx = obs["x"] - truck_x
+            dz = obs["z"] - truck_z
+            dist_m = math.hypot(dx, dz)
+
+            local_fwd = dx * fwd_x + dz * fwd_z
+            local_lat = dx * right_x + dz * right_z
+            bearing_deg = math.degrees(math.atan2(local_lat, local_fwd))
+
+            if local_fwd > 0 and abs(bearing_deg) <= 45.0:
+                sector = "FRONT"
+            elif 45.0 < bearing_deg <= 135.0:
+                sector = "RIGHT"
+            elif -135.0 <= bearing_deg < -45.0:
+                sector = "LEFT"
+            else:
+                sector = "REAR"
+
+            det = {
+                "id": obs["id"],
+                "distance_m": round(dist_m, 2),
+                "local_x": round(local_lat, 2),
+                "local_z": round(-local_fwd, 2),
+                "sector": sector,
+                "bearing_deg": round(bearing_deg, 1)
+            }
+            radar_detections.append(det)
+
+            if dist_m < min_obs_dist:
+                min_obs_dist = dist_m
+                nearest_obs = det
+
+        v["radar_detections"] = radar_detections
+        v["nearest_obstacle"] = nearest_obs
+        v["obstacles"] = list(world_obstacles.values())
+
         # Sensor readings computation based on active scenario and profiles
-        if now_ts < v.get("manual_obstacle_until", 0):
-            front = v.get("dist_front", 150)
-            left = v.get("dist_left", 100)
-            right = v.get("dist_right", 100)
+        has_manual = (now_ts < v.get("manual_obstacle_until", 0))
+        has_front_hazard = (nearest_obs is not None and nearest_obs.get("sector") == "FRONT" and nearest_obs.get("distance_m", 999) <= 15.0)
+
+        if has_manual or has_front_hazard:
+            obs_dist = nearest_obs.get("distance_m", 10.0) if nearest_obs else 10.0
+            front = max(8, min(150, int(obs_dist * 10)))
+            left = 100
+            right = 100
             vis = v.get("fog_visibility_m", zone["visibility_m"])
-            action = decide_action(front, left, right)
-            status = "CRITICAL" if action == "STOP" else ("CAUTION" if action != "CLEAR" else "NORMAL")
-            speed_kmh = 0.0 if action == "STOP" else (round(target_speed * 0.7, 1) if action != "CLEAR" else target_speed)
-            gear = "N" if action == "STOP" else "D1"
+            action = "STOP"
+            status = "CRITICAL"
+            speed_kmh = 0.0
+            gear = "N"
         elif scen_id == "OBSTACLE_AHEAD" and vid == "TRUCK_04":
             front = 12
             left = 65
@@ -2224,6 +2351,9 @@ def get_fleet():
                 "last_update": v["last_update"],
                 "last_update_ts": v.get("last_update_ts", time.time()),
                 "sequence": telemetry_sequence,
+                "radar_detections": v.get("radar_detections", []),
+                "nearest_obstacle": v.get("nearest_obstacle"),
+                "obstacles": list(world_obstacles.values()),
             })
 
             if v["action"] == "STOP":
@@ -2241,6 +2371,7 @@ def get_fleet():
         avg_speed = round(total_speed / len(v_list), 1) if v_list else 0.0
 
         return jsonify({
+            "obstacles": list(world_obstacles.values()),
             "vehicles": v_list,
             "simulation": {
                 "running": simulation_config["running"],
@@ -2265,6 +2396,9 @@ def get_fleet():
 def get_vehicle(vehicle_id):
     norm_vid = VEHICLE_ALIASES.get(vehicle_id.upper(), vehicle_id.upper())
     with fleet_lock:
+        now_ts = time.time()
+        update_fleet_state(now_ts)
+
         v = fleet_data.get(norm_vid)
         if not v:
             return jsonify({"status": "error", "msg": f"Vehicle {vehicle_id} not found"}), 404
@@ -2290,6 +2424,7 @@ def get_vehicle(vehicle_id):
         v["is_connected"] = is_connected
         v["is_moving"] = is_moving
         v["sequence"] = telemetry_sequence
+        v["obstacles"] = list(world_obstacles.values())
 
         return jsonify(v)
 
@@ -2658,26 +2793,31 @@ def simulate_obstacle():
     req = request.get_json(force=True, silent=True) or {}
     raw_vid = req.get("vehicle_id", "TRUCK_01")
     vid = VEHICLE_ALIASES.get(raw_vid.upper(), raw_vid.upper())
-    distance = int(req.get("distance", 10))
-    duration = int(req.get("duration", 6))
+    dist_req = float(req.get("distance", 10.0))
+    # Standardize physical world distance (default 10.0m directly ahead)
+    world_dist_m = 10.0 if (dist_req <= 15.0 and dist_req >= 8.0) else (dist_req if dist_req > 1.0 else 10.0)
+    duration = float(req.get("duration", 2.0))
+    # Strict 2.0s duration requirement
+    if duration <= 0 or duration > 2.0:
+        duration = 2.0
 
     with fleet_lock:
         if vid not in fleet_data:
             return jsonify({"status": "error", "msg": "Vehicle not found"}), 404
 
         v = fleet_data[vid]
-        v["dist_front"] = distance
-        v["action"] = decide_action(distance, v["dist_left"], v["dist_right"])
-        v["status"] = "CRITICAL" if v["action"] == "STOP" else "CAUTION"
-        if v["action"] == "STOP":
-            v["speed_kmh"] = 0.0
-            v["gear"] = "N"
-        v["manual_obstacle_until"] = time.time() + duration
+        obs = place_world_obstacle(vid, distance_m=world_dist_m, duration_s=duration)
+
+        v["dist_front"] = 10
+        v["action"] = "STOP"
+        v["status"] = "CRITICAL"
+        v["speed_kmh"] = 0.0
+        v["gear"] = "N"
+        v["manual_obstacle_until"] = obs["expires_at"]
         v["last_update"] = datetime.now().strftime("%H:%M:%S")
 
         is_truck_01 = (vid == "TRUCK_01")
         if is_truck_01:
-            v["speed_kmh"] = 0.0
             v["risk_score"] = None
         else:
             zone = get_zone_for_point(v["lat"], v["lng"])
@@ -2685,19 +2825,35 @@ def simulate_obstacle():
 
         v["log"].insert(0, {
             "time": v["last_update"],
-            "action": v["action"],
-            "dist_front": distance,
-            "note": f"MANUAL OBSTACLE INJECTED: {distance} cm",
+            "action": "STOP",
+            "dist_front": 10,
+            "note": f"PHYSICAL HAZARD INJECTED: {obs['id']} at {world_dist_m}m (2.0s TTL)",
         })
         del v["log"][MAX_VEHICLE_LOG:]
 
     return jsonify({
         "status": "ok",
         "vehicle_id": vid,
-        "action": v["action"],
-        "dist_front": distance,
-        "msg": f"Obstacle injected on {vid}: {distance} cm ({v['action']})"
+        "action": "STOP",
+        "dist_front": 10,
+        "obstacle": obs,
+        "msg": f"Physical obstacle {obs['id']} injected 10m ahead of {vid} (2.0s duration)"
     })
+
+
+@app.route("/api/obstacles", methods=["GET"])
+def get_world_obstacles_api():
+    with fleet_lock:
+        now_ts = time.time()
+        expired = [k for k, o in list(world_obstacles.items()) if now_ts >= o.get("expires_at", 0)]
+        for k in expired:
+            world_obstacles.pop(k, None)
+        return jsonify({
+            "status": "ok",
+            "count": len(world_obstacles),
+            "obstacles": list(world_obstacles.values()),
+            "timestamp": datetime.now().strftime("%H:%M:%S")
+        })
 
 
 @app.route("/api/simulate/control", methods=["POST"])

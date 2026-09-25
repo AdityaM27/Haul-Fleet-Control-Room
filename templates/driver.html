@@ -79,6 +79,28 @@
       font-size: 10.5px;
       color: var(--text-muted);
     }
+    .vehicle-select-dropdown {
+      background: #0b1329;
+      color: var(--cyan);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      border-radius: 6px;
+      padding: 3px 8px;
+      font-size: 11px;
+      font-family: inherit;
+      font-weight: 700;
+      cursor: pointer;
+      outline: none;
+      transition: all 0.2s;
+    }
+    .vehicle-select-dropdown:hover, .vehicle-select-dropdown:focus {
+      border-color: var(--cyan);
+      background: #152238;
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.3);
+    }
+    .vehicle-select-dropdown option {
+      background: #0b1329;
+      color: #f1f5f9;
+    }
 
     /* HEADER TELEMETRY RIBBON */
     .header-telemetry-ribbon {
@@ -510,6 +532,93 @@
       100% { box-shadow: 0 0 10px rgba(239, 68, 68, 0.2); }
     }
 
+    /* SYNCHRONIZED CAMERA OBSTACLE DETECTION RETICLE */
+    .cam-detection-box {
+      position: absolute;
+      bottom: 22%;
+      left: 33%;
+      width: 34%;
+      height: 30%;
+      border: 2px solid #ef4444;
+      background: rgba(239, 68, 68, 0.12);
+      box-shadow: 0 0 20px rgba(239, 68, 68, 0.6), inset 0 0 15px rgba(239, 68, 68, 0.3);
+      pointer-events: none;
+      z-index: 15;
+      animation: camBoxPulse 1.2s infinite alternate;
+      border-radius: 4px;
+    }
+    @keyframes camBoxPulse {
+      0% { border-color: #ef4444; box-shadow: 0 0 10px rgba(239, 68, 68, 0.4); }
+      100% { border-color: #f87171; box-shadow: 0 0 25px rgba(239, 68, 68, 0.85); }
+    }
+    .cam-detection-tag {
+      position: absolute;
+      top: -24px;
+      left: 0;
+      background: #ef4444;
+      color: #fff;
+      font-size: 10px;
+      font-weight: 800;
+      padding: 2px 8px;
+      border-radius: 3px 3px 0 0;
+      white-space: nowrap;
+      letter-spacing: 0.5px;
+    }
+
+    /* DIGITAL TWIN SYNC MODAL */
+    .sync-modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(3, 7, 18, 0.85);
+      backdrop-filter: blur(8px);
+      z-index: 999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .sync-modal-card {
+      background: #0c121e;
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      border-radius: 12px;
+      width: 100%;
+      max-width: 520px;
+      padding: 18px 22px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.85);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .sync-modal-hdr {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 10px;
+    }
+    .sync-metric-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+    }
+    .sync-metric-box {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--border);
+      padding: 8px 10px;
+      border-radius: 6px;
+    }
+    .sync-metric-lbl {
+      font-size: 9px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      margin-bottom: 3px;
+    }
+    .sync-metric-val {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
     /* RESPONSIVE BREAKPOINTS */
     @media (max-width: 1100px) {
       .primary-viewport-grid { grid-template-columns: 1fr; }
@@ -532,7 +641,15 @@
       <div class="truck-title-group">
         <div class="truck-main-name">
           <span>🚛</span>
-          <span id="hdrTruckTitle">TRUCK_02 (Bucyrus MT4400)</span>
+          <span id="hdrTruckTitle">{{ target_vehicle_id }}</span>
+          <select id="vehicleSelector" class="vehicle-select-dropdown" onchange="window.location.href='/driver?vehicle_id=' + this.value" title="Switch Vehicle in Cockpit">
+            <option value="TRUCK_01" {% if target_vehicle_id == 'TRUCK_01' %}selected{% endif %}>Switch to TRUCK_01 (CAT 797F)</option>
+            <option value="TRUCK_02" {% if target_vehicle_id == 'TRUCK_02' or not target_vehicle_id %}selected{% endif %}>Switch to TRUCK_02 (Bucyrus MT4400)</option>
+            <option value="TRUCK_03" {% if target_vehicle_id == 'TRUCK_03' %}selected{% endif %}>Switch to TRUCK_03 (Komatsu 930E)</option>
+            <option value="TRUCK_04" {% if target_vehicle_id == 'TRUCK_04' %}selected{% endif %}>Switch to TRUCK_04 (BelAZ 75710)</option>
+            <option value="TRUCK_05" {% if target_vehicle_id == 'TRUCK_05' %}selected{% endif %}>Switch to TRUCK_05 (Hitachi EH5000)</option>
+            <option value="TRUCK_06" {% if target_vehicle_id == 'TRUCK_06' %}selected{% endif %}>Switch to TRUCK_06 (Liebherr T284)</option>
+          </select>
           <span style="font-size:9px;padding:2px 7px;border-radius:4px;background:rgba(16,185,129,0.15);color:var(--green);border:1px solid rgba(16,185,129,0.3)">DRIVER CABIN</span>
         </div>
         <div class="truck-sub-info">
@@ -569,8 +686,12 @@
 
     <!-- ACTIONS -->
     <div class="header-actions">
-      <button class="hdr-btn hazard-btn" onclick="triggerTestObstacle()" title="Simulate immediate 10cm obstacle ahead of front bumper">
-        ⚠️ Test Hazard
+      <button class="hdr-btn" id="btnToggleSyncModal" onclick="toggleSyncModal()" title="Inspect Digital Twin Spatial & Hazard Synchronization" style="border-color:rgba(16,185,129,0.35);color:var(--green)">
+        <span class="pulse-dot" style="background:#10b981;width:6px;height:6px"></span>
+        <span id="hdrSyncBadgeText">TWIN: 100% SYNCED</span>
+      </button>
+      <button class="hdr-btn hazard-btn" id="btnInjectHazardHdr" onclick="triggerTestObstacle()" title="Inject physical world obstacle 10m ahead (2.0s TTL)">
+        ⚠️ Inject Hazard
       </button>
       <button class="hdr-btn" style="color:var(--red);border-color:rgba(239,68,68,0.3)" onclick="logout()">
         🔒 Disconnect
@@ -670,6 +791,9 @@
           <div class="card-title">
             <span>📷</span>
             <span>Live Vehicle Camera</span>
+            <span style="font-size:9.5px;color:var(--cyan);font-weight:700;display:inline-flex;align-items:center;gap:5px;background:rgba(56,189,248,0.1);padding:2px 7px;border-radius:4px;border:1px solid rgba(56,189,248,0.3)">
+              <span class="pulse-dot" style="width:5px;height:5px"></span> CAM-01 [FORWARD BUMPER]
+            </span>
           </div>
           <div class="cam-toggle-group">
             <button class="cam-toggle-btn active" id="btnStreamClean" onclick="switchCameraFeed('clean')">DE-WEATHERED AI</button>
@@ -685,11 +809,12 @@
           <div class="corner-bracket corner-bl"></div>
           <div class="corner-bracket corner-br"></div>
 
-          <!-- TOP BADGES -->
-          <div class="cam-hud-badge">
-            <span class="pulse-dot"></span>
-            <span id="camIdLabel">CAM-01 [FORWARD BUMPER]</span>
+          <!-- SYNCHRONIZED CAMERA OBSTACLE DETECTION RETICLE -->
+          <div id="cameraDetectionBox" class="cam-detection-box" style="display:none;">
+            <div class="cam-detection-tag">🚨 <span id="camDetectionLabel">BOULDER_01 [ 10.0m ] | STOP HAZARD</span></div>
           </div>
+
+          <!-- TOP TIME BADGE -->
           <div class="cam-hud-time" id="camTimestamp">--:--:-- UTC</div>
 
           <!-- LIVE IMAGE STREAM -->
@@ -814,6 +939,71 @@
 
   </main>
 
+  <!-- DIGITAL TWIN SYNC VALIDATOR MODAL -->
+  <div id="driverSyncModal" class="sync-modal-backdrop" style="display:none;" onclick="if(event.target===this)toggleSyncModal()">
+    <div class="sync-modal-card">
+      <div class="sync-modal-hdr">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:16px">⚡</span>
+          <span style="font-weight:800;font-size:13px;letter-spacing:1px;color:#fff">DIGITAL-TWIN SYNC VALIDATOR</span>
+        </div>
+        <button class="hdr-btn" onclick="toggleSyncModal()" style="padding:2px 8px;font-size:12px">✕</button>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.3);border-radius:6px">
+        <span style="font-size:11px;color:var(--text-muted)">OVERALL COHERENCE:</span>
+        <span id="dtModalOverallStatus" style="font-size:12px;font-weight:800;color:var(--green)">DIGITAL TWIN SYNCED</span>
+      </div>
+
+      <div class="sync-metric-grid">
+        <div class="sync-metric-box">
+          <div class="sync-metric-lbl">Vehicle ID</div>
+          <div class="sync-metric-val" id="dtModalVid">TRUCK_01</div>
+        </div>
+        <div class="sync-metric-box">
+          <div class="sync-metric-lbl">Loop Waypoint</div>
+          <div class="sync-metric-val" id="dtModalWp">WP 0 (Yard)</div>
+        </div>
+        <div class="sync-metric-box">
+          <div class="sync-metric-lbl">GPS Geographic Lat</div>
+          <div class="sync-metric-val" id="dtModalLat">18.58083°N</div>
+        </div>
+        <div class="sync-metric-box">
+          <div class="sync-metric-lbl">GPS Geographic Lng</div>
+          <div class="sync-metric-val" id="dtModalLng">81.22315°E</div>
+        </div>
+        <div class="sync-metric-box">
+          <div class="sync-metric-lbl">DEM Surface Elevation</div>
+          <div class="sync-metric-val" id="dtModalElev">571.7 m</div>
+        </div>
+        <div class="sync-metric-box">
+          <div class="sync-metric-lbl">True Compass Heading</div>
+          <div class="sync-metric-val" id="dtModalHeading">240.0°</div>
+        </div>
+      </div>
+
+      <div style="border-top:1px solid var(--border);padding-top:10px">
+        <div style="font-size:10px;font-weight:700;color:var(--cyan);margin-bottom:6px">AUTHORITATIVE WORLD OBSTACLES:</div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;padding:3px 0">
+          <span style="color:var(--text-dim)">Active in Shared World:</span>
+          <strong id="dtModalObsCount" style="color:var(--green)">0 Active</strong>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;padding:3px 0">
+          <span style="color:var(--text-dim)">Nearest Hazard Entity:</span>
+          <strong id="dtModalObsNearest" style="color:#fff">NONE (CLEAR)</strong>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;padding:3px 0">
+          <span style="color:var(--text-dim)">In-Cab Radar Projection:</span>
+          <strong id="dtModalObsProjection" style="color:var(--cyan)">Aligned with 3D Radar Origin</strong>
+        </div>
+      </div>
+
+      <div style="display:flex;justify-content:flex-end">
+        <button class="hdr-btn" onclick="toggleSyncModal()" style="font-size:11px">Close Inspector</button>
+      </div>
+    </div>
+  </div>
+
   <!-- =========================================================================
        JAVASCRIPT LOGIC: 3D RADAR, TELEMETRY & CAMERA HUD
        ========================================================================= -->
@@ -837,6 +1027,10 @@
     let targetLeftDist = 18.0;
     let targetRightDist = 19.0;
     let currentTruckAction = 'CLEAR';
+    let targetObstacleLocalX = 0.0;
+    let targetObstacleLocalZ = -10.0;
+    let hasActiveWorldObstacle = false;
+    let hasObstacleInRadar = false;
 
     function init3DSpatialRadar() {
       const container = document.getElementById('radar3DContainer');
@@ -1031,21 +1225,40 @@
       // D. DYNAMIC SENSOR WEDGES & DETECTION BLIPS
       // -----------------------------------------------------------------------
       // 1. Forward Obstacle 3D Mesh & Wireframe Bounding Reticle
-      const obsGeo = new THREE.BoxGeometry(1.6, 1.2, 1.6);
-      const obsMat = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.8 });
+      // Authentic blasted mining boulder geometry matching 3D DEM Twin
+      const obsGeo = new THREE.DodecahedronGeometry(1.8, 1);
+      const posAttr = obsGeo.attributes.position;
+      for (let i = 0; i < posAttr.count; i++) {
+        const vx = posAttr.getX(i);
+        const vy = posAttr.getY(i);
+        const vz = posAttr.getZ(i);
+        const noise = 0.82 + Math.sin(vx * 2.8 + vy * 1.9) * 0.28;
+        posAttr.setXYZ(i, vx * noise, vy * noise * 0.85, vz * noise);
+      }
+      obsGeo.computeVertexNormals();
+
+      const obsMat = new THREE.MeshStandardMaterial({
+        color: 0x662d22,
+        roughness: 0.92,
+        metalness: 0.18,
+        flatShading: true
+      });
       frontObstacleMesh = new THREE.Mesh(obsGeo, obsMat);
-      frontObstacleMesh.position.set(0, 0.6, -24.5);
+      frontObstacleMesh.position.set(0, 1.2, -10.0);
+      frontObstacleMesh.visible = false;
       radarScene.add(frontObstacleMesh);
 
-      const reticleGeo = new THREE.BoxGeometry(2.4, 1.8, 2.4);
+      const reticleGeo = new THREE.BoxGeometry(3.6, 2.6, 3.6);
       const reticleMat = new THREE.MeshBasicMaterial({ color: 0xef4444, wireframe: true, transparent: true, opacity: 0.9 });
       frontObstacleReticle = new THREE.Mesh(reticleGeo, reticleMat);
-      frontObstacleReticle.position.set(0, 0.9, -24.5);
+      frontObstacleReticle.position.set(0, 1.3, -10.0);
+      frontObstacleReticle.visible = false;
       radarScene.add(frontObstacleReticle);
 
       // Distance Tag Floating Sprite
-      frontObstacleSprite = createReticleSprite('[ ⚠ 24.5 m ]', '#38bdf8');
-      frontObstacleSprite.position.set(0, 2.5, -24.5);
+      frontObstacleSprite = createReticleSprite('[ 🚨 BOULDER: 10.0m ]', '#ef4444');
+      frontObstacleSprite.position.set(0, 3.2, -10.0);
+      frontObstacleSprite.visible = false;
       radarScene.add(frontObstacleSprite);
 
       // 2. Left Flank Detection Indicator Beam
@@ -1092,15 +1305,28 @@
           sweepBeamMesh.rotation.y += dt * 1.8;
         }
 
-        // 2. Smoothly lerp obstacle position to live target Z
+        // 2. Smoothly lerp obstacle position to live target X & Z from shared world state or proximity sensors
         if (frontObstacleMesh) {
-          frontObstacleMesh.position.z = THREE.MathUtils.lerp(frontObstacleMesh.position.z, -targetFrontDist, 0.12);
-          if (frontObstacleReticle) {
-            frontObstacleReticle.position.z = frontObstacleMesh.position.z;
-            frontObstacleReticle.rotation.y = time * 0.6;
-          }
-          if (frontObstacleSprite) {
-            frontObstacleSprite.position.z = frontObstacleMesh.position.z;
+          if (hasObstacleInRadar || hasActiveWorldObstacle) {
+            frontObstacleMesh.visible = true;
+            if (frontObstacleReticle) frontObstacleReticle.visible = true;
+            if (frontObstacleSprite) frontObstacleSprite.visible = true;
+
+            frontObstacleMesh.position.x = THREE.MathUtils.lerp(frontObstacleMesh.position.x, targetObstacleLocalX, 0.15);
+            frontObstacleMesh.position.z = THREE.MathUtils.lerp(frontObstacleMesh.position.z, targetObstacleLocalZ, 0.15);
+            if (frontObstacleReticle) {
+              frontObstacleReticle.position.x = frontObstacleMesh.position.x;
+              frontObstacleReticle.position.z = frontObstacleMesh.position.z;
+              frontObstacleReticle.rotation.y = time * 0.6;
+            }
+            if (frontObstacleSprite) {
+              frontObstacleSprite.position.x = frontObstacleMesh.position.x;
+              frontObstacleSprite.position.z = frontObstacleMesh.position.z;
+            }
+          } else {
+            frontObstacleMesh.visible = false;
+            if (frontObstacleReticle) frontObstacleReticle.visible = false;
+            if (frontObstacleSprite) frontObstacleSprite.visible = false;
           }
         }
 
@@ -1267,6 +1493,8 @@
       // 1. Header Ticker & Identification
       const elTitle = document.getElementById('hdrTruckTitle');
       if (elTitle) elTitle.textContent = `${v.name || v.id} (${v.model || 'Hauler'})`;
+      const elSel = document.getElementById('vehicleSelector');
+      if (elSel && v.id && elSel.value !== v.id) elSel.value = v.id;
 
       const curSpeed = parseFloat(v.speed_kmh) || 0.0;
       const safeSpeed = parseFloat(v.safe_speed_kmh || (v.dsr ? v.dsr.safe_speed_kmh : 18.0)) || 18.0;
@@ -1281,17 +1509,10 @@
       const leftCm = v.dist_left !== undefined ? v.dist_left : 180;
       const rightCm = v.dist_right !== undefined ? v.dist_right : 190;
       const action = v.action || 'CLEAR';
+      const nearestObs = v.nearest_obstacle || null;
+      const obstacles = v.obstacles || [];
 
       currentTruckAction = action;
-      // Convert distance cm to 3D world meters (scaling realistically)
-      targetFrontDist = Math.max(3.8, frontCm / 10.0);
-      targetLeftDist = leftCm / 10.0;
-      targetRightDist = rightCm / 10.0;
-
-      // Update Sensor Chips
-      document.getElementById('distFront').textContent = `${frontCm} cm`;
-      document.getElementById('distLeft').textContent = `${leftCm} cm`;
-      document.getElementById('distRight').textContent = `${rightCm} cm`;
 
       const chipFront = document.getElementById('chipFront');
       const statFront = document.getElementById('statFront');
@@ -1300,63 +1521,117 @@
       const chipRight = document.getElementById('chipRight');
       const statRight = document.getElementById('statRight');
 
-      // Forward Sensor Evaluation
-      if (action === 'STOP' || frontCm < 60) {
-        chipFront.className = 'radar-sector-chip hazard';
-        statFront.textContent = 'CRITICAL (<60cm)';
-        statFront.style.color = 'var(--red)';
+      // Forward Sensor & World Obstacle Synchronization
+      if (nearestObs && nearestObs.distance_m < 80.0) {
+        hasActiveWorldObstacle = true;
+        hasObstacleInRadar = true;
+        targetObstacleLocalX = nearestObs.local_x;
+        targetObstacleLocalZ = nearestObs.local_z;
+        targetFrontDist = Math.max(2.5, nearestObs.distance_m);
+
+        const obsDistStr = nearestObs.distance_m < 2.0 ? `${Math.round(nearestObs.distance_m * 100)} cm` : `${nearestObs.distance_m.toFixed(1)} m`;
+        document.getElementById('distFront').textContent = obsDistStr;
+        if (chipFront) chipFront.className = 'radar-sector-chip hazard';
+        if (statFront) {
+          statFront.textContent = `CRITICAL (${nearestObs.id})`;
+          statFront.style.color = 'var(--red)';
+        }
         if (frontObstacleReticle) frontObstacleReticle.material.color.setHex(0xef4444);
         if (frontObstacleMesh) frontObstacleMesh.material.color.setHex(0xef4444);
-        updateRadarSprite(`[ 🚨 ${frontCm} cm ]`, '#ef4444');
-      } else if (action === 'SLOW DOWN' || frontCm < 150) {
-        chipFront.className = 'radar-sector-chip caution';
-        statFront.textContent = 'CAUTION (<150cm)';
-        statFront.style.color = 'var(--amber)';
-        if (frontObstacleReticle) frontObstacleReticle.material.color.setHex(0xf59e0b);
-        if (frontObstacleMesh) frontObstacleMesh.material.color.setHex(0xf59e0b);
-        updateRadarSprite(`[ ⚠ ${frontCm} cm ]`, '#f59e0b');
+        updateRadarSprite(`[ 🚨 ${nearestObs.id}: ${nearestObs.distance_m.toFixed(1)}m ]`, '#ef4444');
       } else {
-        chipFront.className = 'radar-sector-chip';
-        statFront.textContent = 'CLEAR (>150cm)';
-        statFront.style.color = 'var(--green)';
-        if (frontObstacleReticle) frontObstacleReticle.material.color.setHex(0x38bdf8);
-        if (frontObstacleMesh) frontObstacleMesh.material.color.setHex(0x0284c7);
-        updateRadarSprite(`[ CLEAR: ${frontCm}cm ]`, '#38bdf8');
+        hasActiveWorldObstacle = false;
+        targetFrontDist = Math.max(2.5, frontCm / 10.0);
+        targetObstacleLocalX = 0;
+        targetObstacleLocalZ = -targetFrontDist;
+
+        document.getElementById('distFront').textContent = `${frontCm} cm`;
+        if (action === 'STOP' || frontCm < 60) {
+          hasObstacleInRadar = true;
+          if (chipFront) chipFront.className = 'radar-sector-chip hazard';
+          if (statFront) {
+            statFront.textContent = 'CRITICAL (<60cm)';
+            statFront.style.color = 'var(--red)';
+          }
+          if (frontObstacleReticle) frontObstacleReticle.material.color.setHex(0xef4444);
+          if (frontObstacleMesh) frontObstacleMesh.material.color.setHex(0xef4444);
+          updateRadarSprite(`[ 🚨 ${frontCm} cm ]`, '#ef4444');
+        } else if (action === 'SLOW DOWN' || frontCm < 150) {
+          hasObstacleInRadar = true;
+          if (chipFront) chipFront.className = 'radar-sector-chip caution';
+          if (statFront) {
+            statFront.textContent = 'CAUTION (<150cm)';
+            statFront.style.color = 'var(--amber)';
+          }
+          if (frontObstacleReticle) frontObstacleReticle.material.color.setHex(0xf59e0b);
+          if (frontObstacleMesh) frontObstacleMesh.material.color.setHex(0xf59e0b);
+          updateRadarSprite(`[ ⚠ ${frontCm} cm ]`, '#f59e0b');
+        } else {
+          hasObstacleInRadar = false;
+          if (chipFront) chipFront.className = 'radar-sector-chip';
+          if (statFront) {
+            statFront.textContent = 'CLEAR (>150cm)';
+            statFront.style.color = 'var(--green)';
+          }
+          if (frontObstacleReticle) frontObstacleReticle.material.color.setHex(0x38bdf8);
+          if (frontObstacleMesh) frontObstacleMesh.material.color.setHex(0x0284c7);
+          updateRadarSprite(`[ CLEAR: ${frontCm}cm ]`, '#38bdf8');
+        }
       }
+
+      // Convert distance cm to 3D world meters for flank sensors
+      targetLeftDist = leftCm / 10.0;
+      targetRightDist = rightCm / 10.0;
+
+      // Update Flank Sensor Chips
+      document.getElementById('distLeft').textContent = `${leftCm} cm`;
+      document.getElementById('distRight').textContent = `${rightCm} cm`;
 
       // Left Flank Evaluation
       if (leftCm < 60) {
-        chipLeft.className = 'radar-sector-chip hazard';
-        statLeft.textContent = 'CRITICAL (<60cm)';
-        statLeft.style.color = 'var(--red)';
+        if (chipLeft) chipLeft.className = 'radar-sector-chip hazard';
+        if (statLeft) {
+          statLeft.textContent = 'CRITICAL (<60cm)';
+          statLeft.style.color = 'var(--red)';
+        }
         if (leftSensorBeam) leftSensorBeam.material.color.setHex(0xef4444);
       } else if (leftCm < 120) {
-        chipLeft.className = 'radar-sector-chip caution';
-        statLeft.textContent = 'CAUTION (<120cm)';
-        statLeft.style.color = 'var(--amber)';
+        if (chipLeft) chipLeft.className = 'radar-sector-chip caution';
+        if (statLeft) {
+          statLeft.textContent = 'CAUTION (<120cm)';
+          statLeft.style.color = 'var(--amber)';
+        }
         if (leftSensorBeam) leftSensorBeam.material.color.setHex(0xf59e0b);
       } else {
-        chipLeft.className = 'radar-sector-chip';
-        statLeft.textContent = 'CLEAR (>120cm)';
-        statLeft.style.color = 'var(--green)';
+        if (chipLeft) chipLeft.className = 'radar-sector-chip';
+        if (statLeft) {
+          statLeft.textContent = 'CLEAR (>120cm)';
+          statLeft.style.color = 'var(--green)';
+        }
         if (leftSensorBeam) leftSensorBeam.material.color.setHex(0x10b981);
       }
 
       // Right Flank Evaluation
       if (rightCm < 60) {
-        chipRight.className = 'radar-sector-chip hazard';
-        statRight.textContent = 'CRITICAL (<60cm)';
-        statRight.style.color = 'var(--red)';
+        if (chipRight) chipRight.className = 'radar-sector-chip hazard';
+        if (statRight) {
+          statRight.textContent = 'CRITICAL (<60cm)';
+          statRight.style.color = 'var(--red)';
+        }
         if (rightSensorBeam) rightSensorBeam.material.color.setHex(0xef4444);
       } else if (rightCm < 120) {
-        chipRight.className = 'radar-sector-chip caution';
-        statRight.textContent = 'CAUTION (<120cm)';
-        statRight.style.color = 'var(--amber)';
+        if (chipRight) chipRight.className = 'radar-sector-chip caution';
+        if (statRight) {
+          statRight.textContent = 'CAUTION (<120cm)';
+          statRight.style.color = 'var(--amber)';
+        }
         if (rightSensorBeam) rightSensorBeam.material.color.setHex(0xf59e0b);
       } else {
-        chipRight.className = 'radar-sector-chip';
-        statRight.textContent = 'CLEAR (>120cm)';
-        statRight.style.color = 'var(--green)';
+        if (chipRight) chipRight.className = 'radar-sector-chip';
+        if (statRight) {
+          statRight.textContent = 'CLEAR (>120cm)';
+          statRight.style.color = 'var(--green)';
+        }
         if (rightSensorBeam) rightSensorBeam.material.color.setHex(0x10b981);
       }
 
@@ -1385,22 +1660,38 @@
       const now = new Date();
       document.getElementById('camTimestamp').textContent = now.toTimeString().split(' ')[0] + ' UTC';
 
+      // Visual AI Hazard Bounding Box Overlay
+      const camBox = document.getElementById('cameraDetectionBox');
+      const camTag = document.getElementById('camDetectionLabel');
+      const shouldShowCam = (hasActiveWorldObstacle && nearestObs && nearestObs.distance_m <= 25.0 && nearestObs.sector === 'FRONT') || (action === 'STOP' || frontCm < 80);
+      if (shouldShowCam) {
+        if (camBox) camBox.style.display = 'block';
+        if (camTag) {
+          camTag.textContent = nearestObs ? `${nearestObs.id} [ ${nearestObs.distance_m.toFixed(1)}m ] | STOP HAZARD` : `PROXIMITY [ ${frontCm} cm ] | STOP HAZARD`;
+        }
+      } else {
+        if (camBox) camBox.style.display = 'none';
+      }
+
       // 4. Driver Critical Alert System Synthesis
-      renderAlertSystem(v, curSpeed, safeSpeed, frontCm, visMeters, action);
+      renderAlertSystem(v, curSpeed, safeSpeed, frontCm, visMeters, action, nearestObs);
+
+      // 5. Digital Twin Sync Validator Update
+      updateSyncValidatorUI(v, obstacles, nearestObs);
     }
 
     function updateRadarSprite(text, colorStr) {
       if (!frontObstacleSprite || !radarScene) return;
       radarScene.remove(frontObstacleSprite);
       frontObstacleSprite = createReticleSprite(text, colorStr);
-      frontObstacleSprite.position.set(0, 2.5, -targetFrontDist);
+      frontObstacleSprite.position.set(targetObstacleLocalX, 2.5, targetObstacleLocalZ);
       radarScene.add(frontObstacleSprite);
     }
 
     // =========================================================================
     // 4. DRIVER SAFETY ALERT ENGINE
     // =========================================================================
-    function renderAlertSystem(v, curSpeed, safeSpeed, frontCm, visMeters, action) {
+    function renderAlertSystem(v, curSpeed, safeSpeed, frontCm, visMeters, action, nearestObs) {
       let hasCritical = false;
       let hasWarning = false;
 
@@ -1411,7 +1702,14 @@
       const titleObs = document.getElementById('alertObstacleTitle');
       const bodyObs = document.getElementById('alertObstacleBody');
 
-      if (action === 'STOP' || frontCm < 60) {
+      if (nearestObs && nearestObs.distance_m < 80.0) {
+        hasCritical = true;
+        boxObs.className = 'alert-box critical';
+        badgeObs.textContent = 'CRITICAL';
+        iconObs.textContent = '🚨';
+        titleObs.textContent = `EMERGENCY BRAKE ENGAGED — ${nearestObs.id}`;
+        bodyObs.innerHTML = `Physical world hazard <strong>${nearestObs.id}</strong> at <span class="alert-metric">${nearestObs.distance_m.toFixed(1)}m</span> in direct path (${nearestObs.sector}). Autonomic stop active. Elevation: ${Math.round(nearestObs.elevation || v.elevation_m || 675)}m.`;
+      } else if (action === 'STOP' || frontCm < 60) {
         hasCritical = true;
         boxObs.className = 'alert-box critical';
         badgeObs.textContent = 'CRITICAL';
@@ -1542,19 +1840,87 @@
     }
 
     // =========================================================================
-    // 5. TEST HAZARD SIMULATION TRIGGER & AUTH
+    // 5. TEST HAZARD SIMULATION TRIGGER, SYNC VALIDATOR & AUTH
     // =========================================================================
     async function triggerTestObstacle() {
+      const btn = document.getElementById('btnInjectHazardHdr');
+      if (btn) {
+        btn.textContent = '💥 INJECTING (2s)...';
+        btn.style.borderColor = 'var(--red)';
+        btn.style.color = 'var(--red)';
+      }
       try {
         await fetch('/api/simulate/obstacle', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ vehicle_id: currentVid, distance: 10, duration: 6 })
+          body: JSON.stringify({ vehicle_id: currentVid, distance: 10, duration: 2 })
         });
-        fetchDriverTelemetry();
+        await fetchDriverTelemetry();
       } catch (err) {
         console.error('Trigger obstacle error:', err);
+      } finally {
+        setTimeout(() => {
+          if (btn) {
+            btn.textContent = '💥 Inject Hazard (2s)';
+            btn.style.borderColor = 'rgba(239, 68, 68, 0.4)';
+            btn.style.color = '#fca5a5';
+          }
+        }, 2200);
       }
+    }
+
+    function updateSyncValidatorUI(v, activeObsList, nearestObs) {
+      // Header badge
+      const b = document.getElementById('hdrSyncBadgeText');
+      if (b) {
+        b.textContent = activeObsList.length > 0 ? `DT SYNC: HAZARD (${activeObsList.length})` : 'DT SYNC: 100% OK';
+        b.style.color = activeObsList.length > 0 ? 'var(--amber)' : 'var(--green)';
+      }
+
+      // Modal fields
+      const elVid = document.getElementById('dtModalTruckId');
+      if (elVid) elVid.textContent = `${v.name || v.id} (${v.model || 'Hauler'})`;
+
+      const elCoords = document.getElementById('dtModalCoords');
+      if (elCoords) elCoords.textContent = `[${(v.lat || 0).toFixed(6)}, ${(v.lng || 0).toFixed(6)}]`;
+
+      const elElev = document.getElementById('dtModalElev');
+      if (elElev) elElev.textContent = `${Math.round(v.elevation_m || 675)} m`;
+
+      const elHead = document.getElementById('dtModalHeading');
+      if (elHead) elHead.textContent = `${(v.heading || 0).toFixed(1)}°`;
+
+      const elObsCount = document.getElementById('dtModalObsCount');
+      if (elObsCount) {
+        elObsCount.textContent = `${activeObsList.length} Active in Shared State`;
+        elObsCount.style.color = activeObsList.length > 0 ? 'var(--red)' : 'var(--green)';
+      }
+
+      const elNearest = document.getElementById('dtModalObsNearest');
+      if (elNearest) {
+        if (nearestObs) {
+          elNearest.textContent = `${nearestObs.id} [${nearestObs.distance_m.toFixed(1)}m, ${nearestObs.sector}]`;
+          elNearest.style.color = 'var(--red)';
+        } else {
+          elNearest.textContent = 'NONE (CLEAR)';
+          elNearest.style.color = 'var(--green)';
+        }
+      }
+
+      const elProj = document.getElementById('dtModalObsProjection');
+      if (elProj) {
+        if (nearestObs) {
+          elProj.textContent = `Local X: ${nearestObs.local_x.toFixed(1)}m | Local Z: ${nearestObs.local_z.toFixed(1)}m`;
+        } else {
+          elProj.textContent = 'Radar origin zero-referenced';
+        }
+      }
+    }
+
+    function toggleSyncModal() {
+      const m = document.getElementById('driverSyncModal');
+      if (!m) return;
+      m.style.display = (m.style.display === 'flex') ? 'none' : 'flex';
     }
 
     async function logout() {
