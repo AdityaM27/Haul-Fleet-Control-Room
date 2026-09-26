@@ -1800,8 +1800,17 @@
 
       const isOverspeed = (curSpeed > safeSpeed + 2.5);
       const isCloseTruck = (v.closest_truck && v.closest_truck.distance_m < 35.0 && v.closest_truck.name !== 'None');
+      const v2vAdv = v.v2v && v.v2v.active_advisory;
 
-      if (isOverspeed) {
+      if (v2vAdv) {
+        const isCrit = (v2vAdv.severity === 'CRITICAL' || v2vAdv.v2v_safe_speed_kmh <= 8.0);
+        if (isCrit) hasCritical = true; else hasWarning = true;
+        boxSpd.className = isCrit ? 'alert-box critical' : 'alert-box warning';
+        badgeSpd.textContent = v2vAdv.severity || 'WARNING';
+        iconSpd.textContent = '📡';
+        titleSpd.textContent = `V2V ALERT: ${v2vAdv.advisory_badge || 'HAZARD AHEAD'}`;
+        bodySpd.innerHTML = `V2V peer warning from <strong>${v2vAdv.sender_name}</strong> at <span class="alert-metric">${Math.round(v2vAdv.distance_m)}m</span> (${v2vAdv.hazard_type}). Action: <strong>${v2vAdv.recommended_action}</strong> to <span class="alert-metric">${v2vAdv.v2v_safe_speed_kmh} km/h</span>.`;
+      } else if (isOverspeed) {
         hasCritical = true;
         boxSpd.className = 'alert-box critical';
         badgeSpd.textContent = 'CRITICAL';

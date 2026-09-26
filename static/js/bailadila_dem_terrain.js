@@ -1685,6 +1685,7 @@
           }
         }
       }
+      this.stepV2VAnimations(dt);
     }
 
     /**
@@ -2095,10 +2096,220 @@
       });
     }
 
+    /**
+     * Animate active V2V links and expanding hazard broadcast waves.
+     */
+    stepV2VAnimations(dt = 0.016) {
+      this.v2vAnimTimer = (this.v2vAnimTimer || 0) + dt;
+      const t = this.v2vAnimTimer;
+
+      // Update active link lines to track moving trucks
+      if (this.v2vLinkObjects) {
+        for (const key in this.v2vLinkObjects) {
+          const item = this.v2vLinkObjects[key];
+          if (!item || !item.geom) continue;
+          const parts = key.split('_');
+          const srcId = parts[0];
+          const tgtId = parts[1];
+          const t1 = this.truckObjects[srcId];
+          const t2 = this.truckObjects[tgtId];
+          if (t1 && t2 && t1.mesh && t2.mesh) {
+            const p1 = t1.mesh.position;
+            const p2 = t2.mesh.position;
+            const posAttr = item.geom.attributes.position;
+            posAttr.setXYZ(0, p1.x, p1.y + 4.2, p1.z);
+            posAttr.setXYZ(1, p2.x, p2.y + 4.2, p2.z);
+            posAttr.needsUpdate = true;
+
+            // Animate pulse
+            if (item.mat) {
+              const rate = item.status === 'HIGH_RISK' ? 12.0 : (item.status === 'CAUTION' ? 7.0 : 3.5);
+              const pulse = 0.5 + 0.5 * Math.sin(t * rate);
+              const base = item.status === 'HIGH_RISK' ? 0.95 : (item.status === 'CAUTION' ? 0.80 : 0.40);
+              item.mat.opacity = base * (0.65 + 0.35 * pulse);
+            }
+          }
+        }
+      }
+
+      // Animate expanding hazard broadcast waves
+      if (this.v2vWaveObjects) {
+        const cycleDuration = 1.6;
+        for (const key in this.v2vWaveObjects) {
+          const item = this.v2vWaveObjects[key];
+          if (!item || !item.group || !item.rings) continue;
+          const senderId = item.senderId;
+          const senderItem = this.truckObjects[senderId];
+          if (senderItem && senderItem.mesh) {
+            item.group.position.copy(senderItem.mesh.position);
+            item.group.position.y += 0.4;
+          }
+
+          item.age = (item.age || 0) + dt;
+          for (let i = 0; i < item.rings.length; i++) {
+            const r = item.rings[i];
+            const cycleProgress = ((item.age + r.phase * cycleDuration) % cycleDuration) / cycleDuration;
+            const currentScale = 1.0 + cycleProgress * 55.0; // Expand outward
+            r.mesh.scale.set(currentScale, currentScale, currentScale);
+            r.mat.opacity = Math.max(0.0, 0.85 * (1.0 - cycleProgress));
+          }
+        }
+      }
+    }
+
+    /**
+     * UPDATE VEHICLE-TO-VEHICLE (V2V) SAFETY MESH & HAZARD PROPAGATION WAVES (Section 16)
+     */
+    updateV2VNetwork(v2vData) {
+      const scene = this.scene || (this.truckGroup ? this.truckGroup.parent : null);
+      if (!scene) return;
+
+      if (!this.v2vGroup) {
+        this.v2vGroup = new THREE.Group();
+        this.v2vGroup.name = 'BailadilaV2VNetwork';
+        scene.add(this.v2vGroup);
+      } else if (!this.v2vGroup.parent) {
+        scene.add(this.v2vGroup);
+      }
+
+      if (!this.v2vLinkObjects) this.v2vLinkObjects = {};
+      if (!this.v2vWaveObjects) this.v2vWaveObjects = {};
+
+      const activeLinkKeys = new Set();
+      const activeAlertKeys = new Set();
+
+      const links = (v2vData && Array.isArray(v2vData.active_links)) ? v2vData.active_links : [];
+      const alerts = (v2vData && Array.isArray(v2vData.active_alerts)) ? v2vData.active_alerts : [];
+
+      // 1. Process active communication links
+      links.forEach(link => {
+        const srcId = link.source;
+        const tgtId = link.target;
+        const item1 = this.truckObjects[srcId];
+        const item2 = this.truckObjects[tgtId];
+        if (!item1 || !item2 || !item1.mesh || !item2.mesh) return;
+
+        const key = `${srcId}_${tgtId}`;
+        activeLinkKeys.add(key);
+
+        let colorHex = 0x06b6d4; // SAFE: Cyan
+        if (link.status === 'HIGH_RISK') {
+          colorHex = 0xef4444; // HIGH_RISK: Red
+        } else if (link.status === 'CAUTION') {
+          colorHex = 0xf59e0b; // CAUTION: Amber
+        }
+
+        let linkItem = this.v2vLinkObjects[key];
+        const p1 = item1.mesh.position;
+        const p2 = item2.mesh.position;
+
+        if (!linkItem) {
+          const geom = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(p1.x, p1.y + 4.2, p1.z),
+            new THREE.Vector3(p2.x, p2.y + 4.2, p2.z)
+          ]);
+          const mat = new THREE.LineBasicMaterial({
+            color: colorHex,
+            transparent: true,
+            opacity: link.status === 'HIGH_RISK' ? 0.95 : (link.status === 'CAUTION' ? 0.80 : 0.40),
+            linewidth: link.status === 'HIGH_RISK' ? 2 : 1
+          });
+          const lineMesh = new THREE.Line(geom, mat);
+          lineMesh.name = `V2V_Link_${key}`;
+          this.v2vGroup.add(lineMesh);
+
+          this.v2vLinkObjects[key] = {
+            line: lineMesh,
+            geom: geom,
+            mat: mat,
+            status: link.status
+          };
+        } else {
+          if (linkItem.status !== link.status) {
+            linkItem.mat.color.setHex(colorHex);
+            linkItem.status = link.status;
+          }
+        }
+      });
+
+      // Remove expired links
+      Object.keys(this.v2vLinkObjects).forEach(key => {
+        if (!activeLinkKeys.has(key)) {
+          const item = this.v2vLinkObjects[key];
+          if (item && item.line) {
+            this.v2vGroup.remove(item.line);
+            if (item.geom) item.geom.dispose();
+            if (item.mat) item.mat.dispose();
+          }
+          delete this.v2vLinkObjects[key];
+        }
+      });
+
+      // 2. Process active hazard broadcast waves (expanding red wave from broadcasting truck)
+      alerts.forEach(alert => {
+        const senderId = alert.sender_id;
+        const senderItem = this.truckObjects[senderId];
+        if (!senderItem || !senderItem.mesh) return;
+
+        const waveKey = `WAVE_${senderId}`;
+        activeAlertKeys.add(waveKey);
+
+        let waveItem = this.v2vWaveObjects[waveKey];
+        if (!waveItem) {
+          const waveGroup = new THREE.Group();
+          waveGroup.name = waveKey;
+
+          const rings = [];
+          for (let r = 0; r < 2; r++) {
+            const rGeom = new THREE.RingGeometry(1.2, 3.5, 48);
+            rGeom.rotateX(-Math.PI / 2);
+            const rMat = new THREE.MeshBasicMaterial({
+              color: 0xef4444,
+              side: THREE.DoubleSide,
+              transparent: true,
+              opacity: 0.85
+            });
+            const rMesh = new THREE.Mesh(rGeom, rMat);
+            waveGroup.add(rMesh);
+            rings.push({ mesh: rMesh, mat: rMat, phase: r * 0.5 });
+          }
+
+          waveGroup.position.copy(senderItem.mesh.position);
+          waveGroup.position.y += 0.4;
+          this.v2vGroup.add(waveGroup);
+
+          this.v2vWaveObjects[waveKey] = {
+            group: waveGroup,
+            rings: rings,
+            senderId: senderId,
+            age: 0.0
+          };
+        }
+      });
+
+      // Remove expired broadcast waves
+      Object.keys(this.v2vWaveObjects).forEach(key => {
+        if (!activeAlertKeys.has(key)) {
+          const item = this.v2vWaveObjects[key];
+          if (item && item.group) {
+            this.v2vGroup.remove(item.group);
+            if (item.rings) {
+              item.rings.forEach(r => {
+                if (r.mesh && r.mesh.geometry) r.mesh.geometry.dispose();
+                if (r.mat) r.mat.dispose();
+              });
+            }
+          }
+          delete this.v2vWaveObjects[key];
+        }
+      });
+    }
+
     setHazardsVisible(visible) {
       this.showHazards = !!visible;
       if (this.hazardGroup) this.hazardGroup.visible = this.showHazards;
       if (this.obstacleGroup) this.obstacleGroup.visible = this.showHazards;
+      if (this.v2vGroup) this.v2vGroup.visible = this.showHazards;
     }
 
     setVerticalScale(scene, vscale) {

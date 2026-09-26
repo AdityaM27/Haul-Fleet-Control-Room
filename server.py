@@ -24,8 +24,22 @@ from flask import Flask, Response, jsonify, render_template, request, session, r
 import cv2
 import numpy as np
 
+from v2v_engine import v2v_engine, V2V_CONFIG, V2VSafetyEngine
+
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "resurgence_mine_fleet_auth_key_2026")
+
+latest_v2v_summary = {
+    "status": "CONNECTED",
+    "transport": V2V_CONFIG["transport_type"],
+    "hardware_readiness": V2V_CONFIG["hardware_readiness"],
+    "active_links_count": 0,
+    "active_alerts_count": 0,
+    "messages_per_sec": 0.0,
+    "active_links": [],
+    "active_alerts": [],
+    "recent_events": []
+}
 
 # ==============================================================================
 # CANONICAL SIMULATION DATA & REAL DEM TERRAIN ENGINE
@@ -839,6 +853,16 @@ def compute_dynamic_safe_speed(vehicle, zone=None, closest_truck_info=None, cur_
         (speed_weather, "Atmospheric Inversion", "Dew Point Condensation Inversion"),
     ]
 
+    # V2V Safety Advisory constraint (Section 12: final_safe_speed = min(fog, obstacle, terrain, v2v))
+    v2v_block = vehicle.get("v2v") or {}
+    active_adv = v2v_block.get("active_advisory")
+    if active_adv:
+        v2v_speed = float(active_adv.get("v2v_safe_speed_kmh", 35.0))
+        sender_name = active_adv.get("sender_name", "Preceding Hauler")
+        haz_type = active_adv.get("hazard_type", "HAZARD")
+        adv_dist = int(active_adv.get("distance_m", 0))
+        all_limits.append((v2v_speed, "V2V Advisory", f"V2V Alert: {haz_type} on {sender_name} ({adv_dist}m ahead)"))
+
     min_speed, bottleneck_type, bottleneck_desc = min(all_limits, key=lambda x: x[0])
     safe_speed = round(min_speed, 1)
     speed_delta = round(cur_speed - safe_speed, 1)
@@ -1543,6 +1567,9 @@ def update_fleet_state(now_ts=None):
             "name": fleet_data[closest_id]["name"] if closest_id else "None",
             "distance_m": round(min_d, 1),
         }
+
+    global latest_v2v_summary
+    latest_v2v_summary = v2v_engine.update_cycle(fleet_data, now_ts)
 
     for vid, v in fleet_data.items():
         v["closest_truck"] = closest_info[vid]
@@ -2354,6 +2381,8 @@ def get_fleet():
                 "radar_detections": v.get("radar_detections", []),
                 "nearest_obstacle": v.get("nearest_obstacle"),
                 "obstacles": list(world_obstacles.values()),
+                "v2v": v.get("v2v"),
+                "vehicle_state": v.get("vehicle_state"),
             })
 
             if v["action"] == "STOP":
@@ -2373,6 +2402,7 @@ def get_fleet():
         return jsonify({
             "obstacles": list(world_obstacles.values()),
             "vehicles": v_list,
+            "v2v": latest_v2v_summary,
             "simulation": {
                 "running": simulation_config["running"],
                 "speed_multiplier": simulation_config["speed_multiplier"],
@@ -2831,6 +2861,18 @@ def simulate_obstacle():
         })
         del v["log"][MAX_VEHICLE_LOG:]
 
+        # Broadcast V2V Hazard Alert across the mesh
+        v2v_engine.trigger_hazard_broadcast(
+            sender_id=vid,
+            hazard_type="OBSTACLE",
+            severity="CRITICAL",
+            lat=v["lat"],
+            lng=v["lng"],
+            distance_m=world_dist_m,
+            recommended_action="STOP_OR_SLOW",
+            ttl_seconds=duration + 3.0
+        )
+
     return jsonify({
         "status": "ok",
         "vehicle_id": vid,
@@ -2839,6 +2881,194 @@ def simulate_obstacle():
         "obstacle": obs,
         "msg": f"Physical obstacle {obs['id']} injected 10m ahead of {vid} (2.0s duration)"
     })
+
+
+# ==============================================================================
+# VEHICLE-TO-VEHICLE (V2V) SAFETY API ROUTES (Sections 15, 20, 21)
+# ==============================================================================
+@app.route("/api/v2v/status", methods=["GET"])
+def get_v2v_status():
+    """Returns comprehensive V2V network status, active links, active alerts, and event log."""
+    with fleet_lock:
+        now_ts = time.time()
+        update_fleet_state(now_ts)
+        return jsonify({
+            "status": "ok",
+            "v2v": latest_v2v_summary,
+            "config": V2V_CONFIG,
+            "timestamp": datetime.now().strftime("%H:%M:%S"),
+            "epoch": int(now_ts)
+        })
+
+
+@app.route("/api/v2v/vehicle/<vehicle_id>", methods=["GET"])
+def get_v2v_vehicle(vehicle_id):
+    """Returns V2V state, discovered neighbors, active advisory, and fused sensor state for a vehicle."""
+    norm_vid = VEHICLE_ALIASES.get(vehicle_id.upper(), vehicle_id.upper())
+    with fleet_lock:
+        now_ts = time.time()
+        update_fleet_state(now_ts)
+        v = fleet_data.get(norm_vid)
+        if not v:
+            return jsonify({"status": "error", "msg": f"Vehicle {vehicle_id} not found"}), 404
+        return jsonify({
+            "status": "ok",
+            "vehicle_id": norm_vid,
+            "v2v": v.get("v2v"),
+            "vehicle_state": v.get("vehicle_state"),
+            "active_alerts": [a for a in latest_v2v_summary.get("active_alerts", []) if a.get("sender_id") == norm_vid],
+            "timestamp": datetime.now().strftime("%H:%M:%S")
+        })
+
+
+@app.route("/api/v2v/neighbors/<vehicle_id>", methods=["GET"])
+def get_v2v_neighbors(vehicle_id):
+    """Returns discovered nearby trucks with Haversine distance, relative motion, and TTC."""
+    norm_vid = VEHICLE_ALIASES.get(vehicle_id.upper(), vehicle_id.upper())
+    with fleet_lock:
+        now_ts = time.time()
+        update_fleet_state(now_ts)
+        v = fleet_data.get(norm_vid)
+        if not v:
+            return jsonify({"status": "error", "msg": f"Vehicle {vehicle_id} not found"}), 404
+        neighbors = v.get("v2v", {}).get("neighbors", [])
+        return jsonify({
+            "status": "ok",
+            "vehicle_id": norm_vid,
+            "count": len(neighbors),
+            "neighbors": neighbors,
+            "timestamp": datetime.now().strftime("%H:%M:%S")
+        })
+
+
+@app.route("/api/v2v/alert", methods=["POST"])
+def post_v2v_alert():
+    """Manual or simulated hazard injection via V2V message broadcast."""
+    req = request.get_json(force=True, silent=True) or {}
+    raw_vid = req.get("sender_id", "TRUCK_01")
+    vid = VEHICLE_ALIASES.get(raw_vid.upper(), raw_vid.upper())
+    hazard_type = req.get("hazard_type", "OBSTACLE").upper()
+    severity = req.get("severity", "CRITICAL").upper()
+    distance_m = float(req.get("distance_m", 10.0))
+    rec_action = req.get("recommended_action", "STOP_OR_SLOW")
+    ttl = float(req.get("ttl_seconds", V2V_CONFIG["message_ttl_s"]))
+
+    with fleet_lock:
+        v = fleet_data.get(vid)
+        if not v:
+            return jsonify({"status": "error", "msg": f"Vehicle {vid} not found"}), 404
+
+        alert = v2v_engine.trigger_hazard_broadcast(
+            sender_id=vid,
+            hazard_type=hazard_type,
+            severity=severity,
+            lat=v["lat"],
+            lng=v["lng"],
+            distance_m=distance_m,
+            recommended_action=rec_action,
+            ttl_seconds=ttl
+        )
+        update_fleet_state(time.time())
+
+        return jsonify({
+            "status": "ok",
+            "alert": alert,
+            "msg": f"V2V hazard alert {hazard_type} broadcast from {vid}"
+        })
+
+
+@app.route("/api/v2v/simulate", methods=["POST"])
+def simulate_v2v_demonstration():
+    """
+    Core demonstration trigger (Section 1, 20, 21):
+      TRUCK_01 detects obstacle
+      -> TRUCK_01 stops
+      -> TRUCK_01 broadcasts V2V hazard
+      -> TRUCK_02 receives warning & slows down
+      -> TRUCK_03 receives warning if within range
+      -> Control room & 3D digital twin visualize V2V propagation
+    """
+    req = request.get_json(force=True, silent=True) or {}
+    raw_vid = req.get("vehicle_id", "TRUCK_01")
+    vid = VEHICLE_ALIASES.get(raw_vid.upper(), raw_vid.upper())
+    duration = float(req.get("duration", 2.0))
+    if duration <= 0 or duration > 2.0:
+        duration = 2.0
+
+    with fleet_lock:
+        if vid not in fleet_data:
+            return jsonify({"status": "error", "msg": "Vehicle not found"}), 404
+
+        v = fleet_data[vid]
+        obs = place_world_obstacle(vid, distance_m=10.0, duration_s=duration)
+
+        v["dist_front"] = 10
+        v["action"] = "STOP"
+        v["status"] = "CRITICAL"
+        v["speed_kmh"] = 0.0
+        v["gear"] = "N"
+        v["manual_obstacle_until"] = obs["expires_at"]
+        v["last_update"] = datetime.now().strftime("%H:%M:%S")
+
+        # Broadcast hazard
+        alert = v2v_engine.trigger_hazard_broadcast(
+            sender_id=vid,
+            hazard_type="OBSTACLE",
+            severity="CRITICAL",
+            lat=v["lat"],
+            lng=v["lng"],
+            distance_m=10.0,
+            recommended_action="STOP_OR_SLOW",
+            ttl_seconds=duration + 3.0
+        )
+
+        # Align TRUCK_02 (~110m) and TRUCK_03 (~240m) in trail behind broadcaster for canonical V2V demo
+        now_ts = time.time()
+        multiplier = simulation_config.get("speed_multiplier", 1.0)
+        elapsed = (now_ts - BASE_SIM_EPOCH) * multiplier
+        base_speed = 13.5 * 1000.0 / 3600.0
+        eff_elapsed_lead = max(0.0, elapsed - v.get("stopped_seconds", 0.0))
+        dist_lead = (INITIAL_LOOP_OFFSETS[vid] + eff_elapsed_lead * base_speed) % CIRCUIT_TOTAL_DIST
+
+        if "TRUCK_02" in fleet_data and vid != "TRUCK_02":
+            eff_elapsed_02 = max(0.0, elapsed - fleet_data["TRUCK_02"].get("stopped_seconds", 0.0))
+            INITIAL_LOOP_OFFSETS["TRUCK_02"] = (dist_lead - 110.0 - eff_elapsed_02 * base_speed) % CIRCUIT_TOTAL_DIST
+
+        if "TRUCK_03" in fleet_data and vid != "TRUCK_03":
+            eff_elapsed_03 = max(0.0, elapsed - fleet_data["TRUCK_03"].get("stopped_seconds", 0.0))
+            INITIAL_LOOP_OFFSETS["TRUCK_03"] = (dist_lead - 240.0 - eff_elapsed_03 * base_speed) % CIRCUIT_TOTAL_DIST
+
+        # Trigger immediate simulation step so neighbors adapt
+        update_fleet_state(now_ts)
+
+        # Identify responding vehicles
+        affected = []
+        for other_id, other_v in fleet_data.items():
+            if other_id == vid:
+                continue
+            v2v_adv = other_v.get("v2v", {}).get("active_advisory")
+            if v2v_adv:
+                affected.append({
+                    "vehicle_id": other_id,
+                    "name": other_v["name"],
+                    "distance_m": v2v_adv["distance_m"],
+                    "action": other_v["action"],
+                    "status": other_v["status"],
+                    "speed_kmh": other_v["speed_kmh"],
+                    "v2v_safe_speed_kmh": v2v_adv["v2v_safe_speed_kmh"],
+                    "advisory": v2v_adv["advisory_badge"]
+                })
+
+        return jsonify({
+            "status": "ok",
+            "scenario": "V2V_DEMO_CASCADE",
+            "broadcaster": vid,
+            "obstacle": obs,
+            "alert": alert,
+            "affected_vehicles": affected,
+            "v2v_summary": latest_v2v_summary,
+            "msg": f"V2V Demonstration Cascade Triggered: {vid} STOPPED -> Broadcast -> Fleet cooperative response active."
+        })
 
 
 @app.route("/api/obstacles", methods=["GET"])

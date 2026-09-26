@@ -1487,10 +1487,41 @@
           <span>Inject Hazard on Unit</span>
         </button>
 
+        <button type="button" class="test-obs-btn" style="background:rgba(239,68,68,0.18);border-color:#ef4444;color:#fca5a5;font-weight:700" onclick="triggerV2VDemoCascade()">
+          <span>📡</span>
+          <span>Trigger V2V Demo</span>
+        </button>
+
         <button type="button" class="add-device-btn" id="addDeviceBtn" onclick="openAddDeviceModal()">
           <span>➕</span>
           <span>Register Telemetry Node</span>
         </button>
+      </div>
+
+      <!-- V2V Safety Mesh Summary Card (Section 17) -->
+      <div class="v2v-network-card" id="v2vNetworkCard" style="margin:6px 8px;padding:8px 10px;background:var(--bg-surface-elevated);border:1px solid rgba(6,182,212,0.3);border-radius:4px;font-family:var(--font-mono)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <span style="font-weight:700;font-size:10px;color:var(--cyan);letter-spacing:0.5px">📡 V2V SAFETY NETWORK</span>
+          <span id="v2vNetStatusBadge" class="status-pill" style="font-size:8px;background:rgba(16,185,129,0.15);color:var(--green);border:1px solid var(--green)">CONNECTED</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;font-size:9px;text-align:center;margin-bottom:6px">
+          <div style="background:rgba(19,28,42,0.6);padding:3px;border-radius:2px">
+            <div style="color:var(--text-dim);font-size:7.5px">ACTIVE LINKS</div>
+            <div id="v2vStatLinks" style="font-weight:700;color:var(--cyan)">--</div>
+          </div>
+          <div style="background:rgba(19,28,42,0.6);padding:3px;border-radius:2px">
+            <div style="color:var(--text-dim);font-size:7.5px">ALERTS</div>
+            <div id="v2vStatAlerts" style="font-weight:700;color:var(--green)">0</div>
+          </div>
+          <div style="background:rgba(19,28,42,0.6);padding:3px;border-radius:2px">
+            <div style="color:var(--text-dim);font-size:7.5px">MESSAGES</div>
+            <div id="v2vStatMsgRate" style="font-weight:700;color:var(--text-main)">--/s</div>
+          </div>
+        </div>
+        <div style="font-size:8.5px;color:var(--text-dim);margin-bottom:3px">ACTIVE PEER LINKS:</div>
+        <div id="v2vLinksList" style="max-height:68px;overflow-y:auto;display:flex;flex-direction:column;gap:2px;font-size:8.5px">
+          <div style="color:var(--text-dim);font-style:italic">Discovering peer links...</div>
+        </div>
       </div>
     </aside>
 
@@ -1759,6 +1790,60 @@
         </div>
       </div>
 
+      <!-- ACCORDION: VEHICLE-TO-VEHICLE (V2V) SAFETY STATUS (Section 18) -->
+      <div class="ops-accordion" id="accV2V">
+        <div class="ops-accordion-hdr" onclick="toggleOpsAccordion('accV2V')">
+          <span>📡 V2V Safety & Neighbor Discovery</span>
+          <span id="v2vHeroStatusBadge" style="font-size:8px;padding:1px 5px;background:rgba(16,185,129,0.15);color:var(--green);border-radius:3px;font-family:var(--font-mono)">CONNECTED</span>
+        </div>
+        <div class="ops-accordion-body">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;font-family:var(--font-mono);font-size:9px;margin-bottom:6px">
+            <div style="background:var(--bg-surface-elevated);padding:4px 6px;border-radius:3px">
+              <span style="color:var(--text-dim);font-size:7.5px">COMMUNICATION</span>
+              <div id="v2vDetailComm" style="color:var(--green);font-weight:700">CONNECTED (SIM)</div>
+            </div>
+            <div style="background:var(--bg-surface-elevated);padding:4px 6px;border-radius:3px">
+              <span style="color:var(--text-dim);font-size:7.5px">NEARBY PEERS</span>
+              <div id="v2vDetailNearbyCount" style="color:var(--cyan);font-weight:700">-- in range</div>
+            </div>
+            <div style="background:var(--bg-surface-elevated);padding:4px 6px;border-radius:3px">
+              <span style="color:var(--text-dim);font-size:7.5px">NEAREST VEHICLE</span>
+              <div id="v2vDetailNearest" style="color:var(--text-main);font-weight:700">--</div>
+            </div>
+            <div style="background:var(--bg-surface-elevated);padding:4px 6px;border-radius:3px">
+              <span style="color:var(--text-dim);font-size:7.5px">DISTANCE</span>
+              <div id="v2vDetailDistance" style="color:var(--text-main);font-weight:700">-- m</div>
+            </div>
+            <div style="background:var(--bg-surface-elevated);padding:4px 6px;border-radius:3px">
+              <span style="color:var(--text-dim);font-size:7.5px">CLOSING SPEED</span>
+              <div id="v2vDetailRelSpeed" style="color:var(--text-main);font-weight:700">-- km/h</div>
+            </div>
+            <div style="background:var(--bg-surface-elevated);padding:4px 6px;border-radius:3px">
+              <span style="color:var(--text-dim);font-size:7.5px">APPROACH STATE</span>
+              <div id="v2vDetailApproach" style="color:var(--cyan);font-weight:700">--</div>
+            </div>
+            <div style="background:var(--bg-surface-elevated);padding:4px 6px;border-radius:3px">
+              <span style="color:var(--text-dim);font-size:7.5px">ESTIMATED TTC</span>
+              <div id="v2vDetailTTC" style="color:var(--text-main);font-weight:700">-- s</div>
+            </div>
+            <div style="background:var(--bg-surface-elevated);padding:4px 6px;border-radius:3px">
+              <span style="color:var(--text-dim);font-size:7.5px">LAST V2V PACKET</span>
+              <div id="v2vDetailLastMsg" style="color:var(--text-dim);font-weight:600">-- s ago</div>
+            </div>
+          </div>
+          <div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);border-radius:3px;padding:5px 7px;font-family:var(--font-mono);font-size:9px">
+            <div style="display:flex;justify-content:space-between;margin-bottom:2px">
+              <span style="color:var(--text-dim);font-size:7.5px">ACTIVE V2V ADVISORY:</span>
+              <span id="v2vDetailActiveAlert" style="font-weight:700;color:var(--green)">NONE (CLEAR)</span>
+            </div>
+            <div style="display:flex;justify-content:space-between">
+              <span style="color:var(--text-dim);font-size:7.5px">RECOMMENDED ACTION:</span>
+              <span id="v2vDetailRecAction" style="font-weight:700;color:var(--cyan)">NOMINAL CRUISE</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- ACCORDION 1: SITUATIONAL RADAR & COLLISION AVOIDANCE -->
       <div class="ops-accordion" id="accRadar">
         <div class="ops-accordion-hdr" onclick="toggleOpsAccordion('accRadar')">
@@ -1939,6 +2024,17 @@
           <div id="vehicleLogCard">
             <div class="log-list" id="vehicleLogContainer">
               <!-- Entries populated via JS -->
+            </div>
+          </div>
+
+          <!-- V2V Safety Event Log (Section 19: Rolling 30-50 events) -->
+          <div style="margin-top:6px;border-top:1px solid var(--border-subtle);padding-top:6px">
+            <div style="display:flex;justify-content:space-between;align-items:center;font-size:9px;font-family:var(--font-mono);margin-bottom:4px">
+              <span style="color:var(--cyan);font-weight:700">📡 V2V EVENT LOG</span>
+              <span id="v2vEventCountBadge" style="color:var(--text-dim);font-size:8px">-- events</span>
+            </div>
+            <div class="log-list" id="v2vEventLogContainer" style="max-height:100px;overflow-y:auto;font-family:var(--font-mono);font-size:8.5px">
+              <!-- Populated dynamically via JS -->
             </div>
           </div>
 
@@ -2185,6 +2281,7 @@
 let selectedVehicleId = "TRUCK_01";
 let fleetList = [];
 let currentFleetObstacles = [];
+let currentV2VData = null;
 let fogZones = [];
 let sourceFilter = "ALL";
 let simRunning = true;
@@ -2555,6 +2652,7 @@ async function fetchFleet() {
     const data = await res.json();
     fleetList = data.vehicles || [];
     currentFleetObstacles = data.obstacles || [];
+    currentV2VData = data.v2v || null;
 
     const stats = data.fleet_stats || {};
     const elTot = document.getElementById('fstatTotal');
@@ -2610,11 +2708,95 @@ async function fetchFleet() {
     renderSidebar();
     update3DMine(fleetList);
 
+    if (currentV2VData) {
+      updateV2VUI(currentV2VData);
+    }
+
     const selV = fleetList.find(x => x.id === selectedVehicleId);
     if (selV) applyVehicleToUI(selV);
 
   } catch (err) {
     console.error('fetchFleet err:', err);
+  }
+}
+
+// =============================================================================
+// UPDATE V2V SAFETY NETWORK UI (Sections 17, 19)
+// =============================================================================
+function updateV2VUI(v2v) {
+  if (!v2v) return;
+
+  const badge = document.getElementById('v2vNetStatusBadge');
+  if (badge) {
+    badge.textContent = v2v.status || 'CONNECTED';
+    badge.style.color = (v2v.status === 'CONNECTED') ? 'var(--green)' : 'var(--red)';
+  }
+
+  const elLinks = document.getElementById('v2vStatLinks');
+  if (elLinks) elLinks.textContent = v2v.active_links_count !== undefined ? v2v.active_links_count : (v2v.active_links ? v2v.active_links.length : '--');
+
+  const elAlerts = document.getElementById('v2vStatAlerts');
+  if (elAlerts) {
+    const alertCount = v2v.active_alerts_count !== undefined ? v2v.active_alerts_count : (v2v.active_alerts ? v2v.active_alerts.length : 0);
+    elAlerts.textContent = alertCount;
+    elAlerts.style.color = alertCount > 0 ? 'var(--red)' : 'var(--green)';
+  }
+
+  const elMsgRate = document.getElementById('v2vStatMsgRate');
+  if (elMsgRate) elMsgRate.textContent = `${v2v.messages_per_sec || 0}/s`;
+
+  // Render peer links list
+  const listEl = document.getElementById('v2vLinksList');
+  if (listEl) {
+    const links = v2v.active_links || [];
+    if (links.length === 0) {
+      listEl.innerHTML = '<div style="color:var(--text-dim);font-style:italic">No active direct links in range</div>';
+    } else {
+      listEl.innerHTML = links.map(l => {
+        let statusColor = '#06b6d4';
+        if (l.status === 'HIGH_RISK') statusColor = '#ef4444';
+        else if (l.status === 'CAUTION') statusColor = '#f59e0b';
+
+        return `<div style="display:flex;justify-content:space-between;padding:1px 0;border-bottom:1px solid rgba(255,255,255,0.05)">
+          <span><b>${l.source}</b> → <b>${l.target}</b></span>
+          <span style="color:var(--text-dim)">${Math.round(l.distance_m)}m</span>
+          <span style="color:${statusColor};font-weight:700">${l.status}</span>
+        </div>`;
+      }).join('');
+    }
+  }
+
+  // Render V2V event log
+  const eventContainer = document.getElementById('v2vEventLogContainer');
+  const countBadge = document.getElementById('v2vEventCountBadge');
+  if (eventContainer && v2v.recent_events) {
+    if (countBadge) countBadge.textContent = `${v2v.recent_events.length} events`;
+    eventContainer.innerHTML = v2v.recent_events.map(ev => {
+      let col = 'var(--text-dim)';
+      if (ev.severity === 'CRITICAL') col = 'var(--red)';
+      else if (ev.severity === 'WARNING') col = 'var(--amber)';
+      else if (ev.severity === 'INFO') col = 'var(--cyan)';
+
+      return `<div class="log-entry" style="border-left:2px solid ${col};padding:2px 4px;margin-bottom:2px">
+        <span class="log-time" style="color:${col}">${ev.timestamp}</span>
+        <b style="color:var(--text-main)">[${ev.source}]</b> ${ev.event}
+      </div>`;
+    }).join('');
+  }
+}
+
+async function triggerV2VDemoCascade() {
+  try {
+    const res = await fetch('/api/v2v/simulate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ vehicle_id: 'TRUCK_01', duration: 2.0 })
+    });
+    const d = await res.json();
+    console.log('[V2V Demo] Cascade Activated:', d);
+    fetchFleet();
+  } catch (err) {
+    console.error('triggerV2VDemoCascade err:', err);
   }
 }
 
@@ -2856,6 +3038,57 @@ function applyVehicleToUI(v) {
   if (v.trail && v.trail.length) {
     selectedTrailPolyline.setLatLngs(v.trail);
     if (v.avatar_color) selectedTrailPolyline.setStyle({ color: v.avatar_color });
+  }
+
+  // V2V Operational Details (Section 18)
+  const v2v = v.v2v || {};
+  const v2vComm = document.getElementById('v2vDetailComm');
+  if (v2vComm) v2vComm.textContent = v2v.communication_status ? `${v2v.communication_status} (SIM)` : 'DISCONNECTED';
+
+  const v2vHeroStatus = document.getElementById('v2vHeroStatusBadge');
+  if (v2vHeroStatus) {
+    v2vHeroStatus.textContent = v2v.communication_status || 'CONNECTED';
+    v2vHeroStatus.style.color = (v2v.communication_status === 'CONNECTED') ? 'var(--green)' : 'var(--red)';
+  }
+
+  const v2vNearby = document.getElementById('v2vDetailNearbyCount');
+  if (v2vNearby) v2vNearby.textContent = `${v2v.nearby_count || 0} in range`;
+
+  const v2vNearest = document.getElementById('v2vDetailNearest');
+  if (v2vNearest) v2vNearest.textContent = v2v.nearest_vehicle || 'NONE';
+
+  const v2vDistance = document.getElementById('v2vDetailDistance');
+  if (v2vDistance) v2vDistance.textContent = (v2v.nearest_distance_m !== undefined && v2v.nearest_distance_m !== null) ? `${Math.round(v2v.nearest_distance_m)} m` : '-- m';
+
+  const v2vRelSpeed = document.getElementById('v2vDetailRelSpeed');
+  if (v2vRelSpeed) v2vRelSpeed.textContent = (v2v.relative_speed_kmh !== undefined && v2v.relative_speed_kmh !== null) ? `${v2v.relative_speed_kmh.toFixed(1)} km/h` : '-- km/h';
+
+  const v2vApproach = document.getElementById('v2vDetailApproach');
+  if (v2vApproach) {
+    v2vApproach.textContent = v2v.approaching ? 'CLOSING' : 'RECEDING';
+    v2vApproach.style.color = v2v.approaching ? 'var(--amber)' : 'var(--cyan)';
+  }
+
+  const v2vTTC = document.getElementById('v2vDetailTTC');
+  if (v2vTTC) {
+    v2vTTC.textContent = (v2v.ttc_seconds !== undefined && v2v.ttc_seconds !== null) ? `${v2v.ttc_seconds.toFixed(1)} s` : '> 99 s';
+    v2vTTC.style.color = (v2v.ttc_seconds && v2v.ttc_seconds < 15.0) ? 'var(--red)' : 'var(--text-main)';
+  }
+
+  const v2vLastMsg = document.getElementById('v2vDetailLastMsg');
+  if (v2vLastMsg) v2vLastMsg.textContent = v2v.last_message_age_s !== undefined ? `${v2v.last_message_age_s}s ago` : '0.2s ago';
+
+  const v2vAlert = document.getElementById('v2vDetailActiveAlert');
+  if (v2vAlert) {
+    v2vAlert.textContent = v2v.active_alert_name || 'NONE (CLEAR)';
+    v2vAlert.style.color = (v2v.active_alert_name && v2v.active_alert_name !== 'NONE') ? 'var(--red)' : 'var(--green)';
+  }
+
+  const v2vAction = document.getElementById('v2vDetailRecAction');
+  if (v2vAction) {
+    v2vAction.textContent = v2v.recommended_action || 'NOMINAL CRUISE';
+    v2vAction.style.color = (v2v.recommended_action && v2v.recommended_action.includes('SLOW')) ? 'var(--amber)' :
+                           (v2v.recommended_action && v2v.recommended_action.includes('STOP')) ? 'var(--red)' : 'var(--cyan)';
   }
 }
 
@@ -3597,6 +3830,9 @@ function update3DMine(fleet) {
   dashBailadilaEngine.updateFleetTelemetry(fleet);
   if (dashBailadilaEngine.updateObstacles && currentFleetObstacles) {
     dashBailadilaEngine.updateObstacles(currentFleetObstacles);
+  }
+  if (dashBailadilaEngine.updateV2VNetwork && currentV2VData) {
+    dashBailadilaEngine.updateV2VNetwork(currentV2VData);
   }
 
   const targetLbl = document.getElementById('threeDTargetLabel');
