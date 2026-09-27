@@ -453,6 +453,19 @@
   controls.zoomSpeed = 1.35;
   controls.maxPolarAngle = Math.PI * 0.495;
 
+  // Mouse mappings (Physical Mouse: Left = Rotate, Right = Pan)
+  controls.mouseButtons = {
+    LEFT: THREE.MOUSE.ROTATE,
+    MIDDLE: THREE.MOUSE.DOLLY,
+    RIGHT: THREE.MOUSE.PAN
+  };
+
+  // Touch mappings (Touchpad / Touch: 1 finger = Rotate, 2 fingers = Pan)
+  controls.touches = {
+    ONE: THREE.TOUCH.ROTATE,
+    TWO: THREE.TOUCH.PAN
+  };
+
   // Load Copernicus GLO-30 DEM Heightmap & Metadata
   const engine = window.bailadilaEngine;
   try {

@@ -2263,36 +2263,67 @@
         }
       });
 
-      // Cursor-Directed Wheel Zoom: gently shifts orbit target toward cursor point of interest when zooming in
+      // Configure touch-action so the canvas handles touch gestures cleanly without browser page scrolling
+      domElement.style.touchAction = 'none';
+
+      // Distinguish Touchpad 2-Finger Pan vs Mouse Wheel Zoom vs Touchpad Pinch Zoom
       domElement.addEventListener('wheel', (event) => {
         if (!controls || !controls.enabled) return;
-        const m = getNDC(event);
-        mouse.x = m.x;
-        mouse.y = m.y;
-        raycaster.setFromCamera(mouse, camera);
 
-        const targets = [];
-        if (this.truckGroup) targets.push(...this.truckGroup.children);
-        if (this.roadBaseMesh) targets.push(this.roadBaseMesh);
-        if (this.terrainMesh) targets.push(this.terrainMesh);
+        // Prevent the entire dashboard/webpage from scrolling when cursor is over the 3D viewport
+        event.preventDefault();
 
-        if (targets.length > 0) {
-          const hits = raycaster.intersectObjects(targets, true);
-          if (hits.length > 0) {
-            const hitPoint = hits[0].point;
-            // When zooming in (wheel forward / deltaY < 0), gently lerp controls.target towards cursor hit point
-            if (event.deltaY < 0) {
-              controls.target.lerp(hitPoint, 0.15);
-            }
-          } else if (this.selectedVehicleId && this.truckObjects[this.selectedVehicleId]) {
-            const trk = this.truckObjects[this.selectedVehicleId];
-            if (trk && trk.mesh && event.deltaY < 0) {
-              const tp = trk.mesh.position;
-              controls.target.lerp(new THREE.Vector3(tp.x, tp.y + 3.8, tp.z), 0.10);
+        const isPinch = event.ctrlKey;
+        const isTouchpadPan = !isPinch && (
+          Math.abs(event.deltaX) > 0.05 ||
+          (!Number.isInteger(event.deltaY) && Math.abs(event.deltaY) < 40)
+        );
+
+        if (isTouchpadPan) {
+          // Touchpad 2-Finger Drag -> PAN CAMERA (moves target & camera in screen-space)
+          const targetDist = camera.position.distanceTo(controls.target);
+          const panSpeed = Math.max(0.12, targetDist * 0.0009);
+
+          const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+          const up = new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion);
+
+          const panOffset = new THREE.Vector3()
+            .addScaledVector(right, event.deltaX * panSpeed)
+            .addScaledVector(up, -event.deltaY * panSpeed);
+
+          controls.target.add(panOffset);
+          camera.position.add(panOffset);
+          controls.update();
+        } else {
+          // Physical Mouse Wheel OR Touchpad Pinch -> ZOOM CAMERA (with cursor-directed focus)
+          const m = getNDC(event);
+          mouse.x = m.x;
+          mouse.y = m.y;
+          raycaster.setFromCamera(mouse, camera);
+
+          const targets = [];
+          if (this.truckGroup) targets.push(...this.truckGroup.children);
+          if (this.roadBaseMesh) targets.push(this.roadBaseMesh);
+          if (this.terrainMesh) targets.push(this.terrainMesh);
+
+          if (targets.length > 0) {
+            const hits = raycaster.intersectObjects(targets, true);
+            if (hits.length > 0) {
+              const hitPoint = hits[0].point;
+              // When zooming in (wheel forward / deltaY < 0), gently lerp controls.target towards cursor hit point
+              if (event.deltaY < 0) {
+                controls.target.lerp(hitPoint, 0.15);
+              }
+            } else if (this.selectedVehicleId && this.truckObjects[this.selectedVehicleId]) {
+              const trk = this.truckObjects[this.selectedVehicleId];
+              if (trk && trk.mesh && event.deltaY < 0) {
+                const tp = trk.mesh.position;
+                controls.target.lerp(new THREE.Vector3(tp.x, tp.y + 3.8, tp.z), 0.10);
+              }
             }
           }
         }
-      }, { passive: true });
+      }, { passive: false });
     }
 
     /**

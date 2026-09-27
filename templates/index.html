@@ -4226,6 +4226,19 @@ async function initMine3DViewer() {
   controls3D.zoomSpeed = 1.35;
   controls3D.maxPolarAngle = Math.PI * 0.495;
 
+  // Mouse mappings (Physical Mouse: Left = Rotate, Right = Pan)
+  controls3D.mouseButtons = {
+    LEFT: THREE.MOUSE.ROTATE,
+    MIDDLE: THREE.MOUSE.DOLLY,
+    RIGHT: THREE.MOUSE.PAN
+  };
+
+  // Touch mappings (Touchpad / Touch: 1 finger = Rotate, 2 fingers = Pan)
+  controls3D.touches = {
+    ONE: THREE.TOUCH.ROTATE,
+    TWO: THREE.TOUCH.PAN
+  };
+
   const hemiLight = new THREE.HemisphereLight(0xdde3ea, 0x1a2128, 1.35);
   scene3D.add(hemiLight);
 
@@ -4429,7 +4442,7 @@ const orientationSteps = [
     step: 2,
     badge: "ORIENTATION 2 OF 5",
     title: "3D DIGITAL TWIN",
-    text: "View the mine terrain, haul roads, active vehicles, hazards and sensor detections in the live digital-twin environment.",
+    text: "View the mine terrain, haul roads, active vehicles, hazards and sensor detections in the live digital-twin environment.\n\n🎮 Navigation Controls:\n• Left-click & drag: Rotate camera\n• 2-finger drag (touchpad) / Right-click & drag (mouse): Move / pan camera\n• Mouse wheel / pinch: Zoom in & out",
     targetSelector: '[data-tour="3d-twin"], #mine3DCard, #twinViewportContainer',
     placement: "inside-top",
     nextText: "Next →",
@@ -4508,7 +4521,7 @@ function renderOrientationStep() {
 
   if (badgeEl) badgeEl.textContent = stepData.badge;
   if (titleEl) titleEl.textContent = stepData.title;
-  if (textEl) textEl.textContent = stepData.text;
+  if (textEl) textEl.innerHTML = stepData.text.replace(/\n/g, '<br>');
   if (nextBtn) nextBtn.textContent = stepData.nextText;
   if (counterEl) counterEl.textContent = stepData.counterText;
 
