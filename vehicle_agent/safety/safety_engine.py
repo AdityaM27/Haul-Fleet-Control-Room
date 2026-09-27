@@ -1,7 +1,7 @@
 """
 Edge Safety Engine (Section 12)
 Local Decision-Making on Raspberry Pi
-Computes: final_safe_speed = min(fog_safe_speed, obstacle_safe_speed, terrain_safe_speed, v2v_safe_speed)
+Computes: final_safe_speed = min(fog_safe_speed, obstacle_safe_speed, terrain_safe_speed)
 """
 
 from typing import Dict, Any, Optional
@@ -12,12 +12,11 @@ class LocalSafetyEngine:
 
     def evaluate(self, current_speed_kmh: float,
                  perception_result: Dict[str, Any],
-                 received_v2v_advisories: list,
                  fog_visibility_m: float = 85.0,
                  is_hairpin: bool = False) -> Dict[str, Any]:
         """
         Calculates safe speed recommendation and control action.
-        Integrates local sensor perception, DFRI visibility, and received V2V hazard alerts.
+        Integrates local sensor perception, DFRI visibility, and terrain geometry.
         """
         # 1. Obstacle Limit from Sensor Fusion
         fused_dist = perception_result.get("fused_distance_m")
@@ -45,23 +44,11 @@ class LocalSafetyEngine:
         # 3. Terrain / Curvature Limit
         speed_terrain = 12.0 if is_hairpin else 35.0
 
-        # 4. V2V Advisory Limit (Section 12)
-        speed_v2v = 35.0
-        active_v2v_alert = None
-        if received_v2v_advisories:
-            # Pick lowest safe speed from incoming V2V warnings
-            for adv in received_v2v_advisories:
-                v_speed = adv.get("v2v_safe_speed_kmh", 35.0)
-                if v_speed < speed_v2v:
-                    speed_v2v = v_speed
-                    active_v2v_alert = adv
-
         # Composite speed: minimum of all safety bounds
         all_limits = [
             (speed_obs, "Obstacle Detection"),
             (speed_fog, "Fog / Low Visibility (DFRI)"),
             (speed_terrain, "Hairpin Switchback"),
-            (speed_v2v, "V2V Safety Advisory"),
         ]
         min_speed, bottleneck = min(all_limits, key=lambda x: x[0])
         final_safe_speed = round(min_speed, 1)
@@ -87,11 +74,9 @@ class LocalSafetyEngine:
             "action": action,
             "emergency": emergency,
             "bottleneck": bottleneck,
-            "active_v2v_alert": active_v2v_alert,
             "limits": {
                 "obstacle": speed_obs,
                 "fog": speed_fog,
-                "terrain": speed_terrain,
-                "v2v": speed_v2v
+                "terrain": speed_terrain
             }
         }

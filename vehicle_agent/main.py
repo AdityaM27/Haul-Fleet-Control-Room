@@ -17,14 +17,13 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from vehicle_agent.sensors import RTKGNSSDriver, LiDARSensor, AICameraSensor, UltrasonicSensor
 from vehicle_agent.perception import SensorFusionEngine
 from vehicle_agent.safety import LocalSafetyEngine
-from vehicle_agent.communication import V2VEdgeTransceiver, BackendClient
+from vehicle_agent.communication import BackendClient
 from vehicle_agent.state import VehicleStateManager
 
 def run_agent(vehicle_id: str, sim_mode: bool = True, backend_url: str = "http://127.0.0.1:5000", iterations: int = 0):
     print("=" * 65)
     print(f" RESURGENCE VEHICLE AGENT — {vehicle_id}")
     print(" EDGE COMPUTING STACK: Raspberry Pi + RTK GNSS + LiDAR + Camera")
-    print(" V2V LAYER: Direct Peer Mesh (Simulated Software Transport)")
     print("=" * 65)
 
     # Initialize subsystems
@@ -35,7 +34,6 @@ def run_agent(vehicle_id: str, sim_mode: bool = True, backend_url: str = "http:/
 
     fusion = SensorFusionEngine()
     safety = LocalSafetyEngine(vehicle_id)
-    v2v = V2VEdgeTransceiver(vehicle_id)
     state = VehicleStateManager(vehicle_id)
     backend = BackendClient(backend_url)
 
@@ -57,41 +55,14 @@ def run_agent(vehicle_id: str, sim_mode: bool = True, backend_url: str = "http:/
             # 2. Multi-Sensor Perception Fusion
             fused = fusion.fuse(lidar_data, cam_data, sonar_data)
 
-            # 3. Poll Incoming V2V Safety Messages
-            inbound_msgs = v2v.poll_messages()
-            hazard_alerts = [m for m in inbound_msgs if m.get("message_type") == "V2V_HAZARD_ALERT"]
-
-            # 4. Local Safety Engine Evaluation
+            # 3. Local Safety Engine Evaluation
             safety_decision = safety.evaluate(
                 current_speed_kmh=gnss_data["speed_kmh"],
                 perception_result=fused,
-                received_v2v_advisories=hazard_alerts,
                 fog_visibility_m=75.0
             )
 
-            # 5. Broadcast V2V Messages
-            if fused["trigger_v2v_broadcast"]:
-                v2v.broadcast_hazard(
-                    hazard_type="OBSTACLE",
-                    severity="CRITICAL",
-                    lat=gnss_data["latitude"],
-                    lng=gnss_data["longitude"],
-                    distance_m=fused["fused_distance_m"] or 10.0,
-                    rec_action="STOP_OR_SLOW"
-                )
-                print(f"[{now_str}] [{vehicle_id}] >>> BROADCAST V2V_HAZARD_ALERT: Obstacle Confirmed at {fused['fused_distance_m']}m!")
-            else:
-                v2v.broadcast_status(
-                    lat=gnss_data["latitude"],
-                    lng=gnss_data["longitude"],
-                    alt=gnss_data["altitude_m"],
-                    speed_kmh=gnss_data["speed_kmh"],
-                    heading=gnss_data["heading_deg"],
-                    status=safety_decision["status"],
-                    safe_speed=safety_decision["final_safe_speed_kmh"]
-                )
-
-            # 6. Update Unified Vehicle State
+            # 4. Update Unified Vehicle State
             state.update_position(gnss_data["latitude"], gnss_data["longitude"], gnss_data["altitude_m"])
             state.update_motion(gnss_data["speed_kmh"], gnss_data["heading_deg"])
             state.update_sensors(
@@ -109,7 +80,7 @@ def run_agent(vehicle_id: str, sim_mode: bool = True, backend_url: str = "http:/
 
             # Print telemetry tick
             if count % 5 == 1:
-                print(f"[{now_str}] [{vehicle_id}] Pos: ({state.latitude}, {state.longitude}) | Speed: {state.speed_kmh}km/h | Safe: {state.recommended_speed_kmh}km/h | Status: {state.safety_status} | V2V: {len(inbound_msgs)} msgs")
+                print(f"[{now_str}] [{vehicle_id}] Pos: ({state.latitude}, {state.longitude}) | Speed: {state.speed_kmh}km/h | Safe: {state.recommended_speed_kmh}km/h | Status: {state.safety_status}")
 
             if iterations > 0 and count >= iterations:
                 break

@@ -1,7 +1,7 @@
 """
 Multi-Sensor Fusion Engine (Section 10)
 Corroborates Solid-State LiDAR + AI Camera + Ultrasonic Sonar
-Filters sensor noise before triggering emergency stops and V2V hazard propagation.
+Filters sensor noise before triggering emergency stops and obstacle hazard mitigation.
 """
 
 from typing import Dict, Any
@@ -85,6 +85,5 @@ class SensorFusionEngine:
             "identified_object": cam_label if has_cam else "UNKNOWN",
             "camera_confidence": cam_conf,
             "hazard_type": hazard_type,
-            "severity": severity,
-            "trigger_v2v_broadcast": (fusion_state == "CONFIRMED_HAZARD")
+            "severity": severity
         }

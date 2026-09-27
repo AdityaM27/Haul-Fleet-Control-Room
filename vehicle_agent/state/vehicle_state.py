@@ -31,9 +31,6 @@ class VehicleStateManager:
         self.recommended_speed_kmh = 18.0
         self.emergency = False
 
-        self.v2v_enabled = True
-        self.v2v_communication_status = "CONNECTED"
-
     def update_position(self, lat: float, lng: float, alt: float, rtk: str = "FIX"):
         self.latitude = round(lat, 6)
         self.longitude = round(lng, 6)
@@ -82,9 +79,5 @@ class VehicleStateManager:
                 "status": self.safety_status,
                 "recommended_speed_kmh": self.recommended_speed_kmh,
                 "emergency": self.emergency
-            },
-            "v2v": {
-                "enabled": self.v2v_enabled,
-                "communication_status": self.v2v_communication_status
             }
         }

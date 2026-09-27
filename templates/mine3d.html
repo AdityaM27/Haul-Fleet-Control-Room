@@ -787,9 +787,6 @@
         if (engine.updateObstacles) {
           engine.updateObstacles(data.obstacles || []);
         }
-        if (engine.updateV2VNetwork && data.v2v) {
-          engine.updateV2VNetwork(data.v2v);
-        }
         updateDebugSyncDisplay();
       }
     } catch (err) {

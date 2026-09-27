@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Resurgence Fleet — Bailadila Complex Digital Twin & Command Center</title>
+  <title>Haul Fleet Control Room — Bailadila Operations</title>
 
-  <!-- Google Fonts: Inter for UI, Space Grotesk for industrial badges/headings, IBM Plex Mono for numeric telemetry -->
+  <!-- Google Fonts: Inter for clean UI, IBM Plex Mono strictly for numeric telemetry & coordinates -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
   <!-- Leaflet GIS Map -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
@@ -17,50 +17,86 @@
   <!-- Three.js & OrbitControls for 3D Open-Cast Mine Digital Twin -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-  <script src="/static/js/bailadila_dem_terrain.js?v=2.5"></script>
+  <script src="/static/js/bailadila_dem_terrain.js?v=2.6"></script>
 
   <style>
     /* ==========================================================================
-       INDUSTRIAL MINING COMMAND CENTER — DESIGN SYSTEM (CSS VARIABLES)
+       INDUSTRIAL MINING OPERATIONS DESIGN SYSTEM — DESIGN TOKENS
+       Clean, Light/Neutral, Trustworthy, Human-Designed Operational Interface
        ========================================================================== */
     :root {
-      /* Dark Graphite & Steel Palette */
-      --bg-app: #080c12;
-      --bg-surface: #0e141e;
-      --bg-surface-elevated: #141c2a;
-      --bg-surface-hover: #192335;
-      --bg-surface-active: #1f2c42;
-      
-      /* Subtle Industrial Borders */
-      --border-subtle: #1a2332;
-      --border-medium: #243246;
-      --border-accent: #2e415b;
-      
-      /* Tactical Telemetry Colors (Restrained, High-Contrast) */
-      --text-main: #f1f5f9;
-      --text-muted: #8899a6;
-      --text-dim: #54667a;
-      
-      --cyan: #38bdf8;
-      --cyan-dim: rgba(56, 189, 248, 0.12);
-      --green: #10b981;
-      --green-dim: rgba(16, 185, 129, 0.12);
-      --amber: #f59e0b;
-      --amber-dim: rgba(245, 158, 11, 0.14);
-      --red: #ef4444;
-      --red-dim: rgba(239, 68, 68, 0.16);
-      
+      /* Neutral Foundation */
+      --bg-app: #F4F5F2;              /* Warm concrete neutral */
+      --bg-surface: #FFFFFF;          /* Pure white cards/panels */
+      --bg-surface-secondary: #F7F8F6;/* Clean secondary row/card surface */
+      --bg-surface-elevated: #FFFFFF; /* High clarity surfaces */
+      --bg-surface-hover: #ECEEEA;    /* Soft tactile hover */
+      --bg-surface-active: #E2E5E0;   /* Pressed state */
+
+      /* Thin Crisp Borders */
+      --border-subtle: #E6EAE4;
+      --border: #D9DDD8;
+      --border-medium: #D0D5CE;
+      --border-strong: #B4BCB2;
+
+      /* High-Legibility Typography */
+      --text-main: #1E2421;           /* Deep slate/charcoal */
+      --text-primary: #1E2421;
+      --text-secondary: #58615B;      /* Medium stone */
+      --text-muted: #8A928C;          /* Calm quiet labels */
+      --text-dim: #8A928C;
+
+      /* Restrained Operational Status Colors */
+      --green: #2E7D5B;               /* SAFE / Normal operation */
+      --status-safe: #2E7D5B;
+      --status-safe-bg: #EAF4EE;
+      --status-safe-border: #B7DEC8;
+      --green-dim: rgba(46, 125, 91, 0.12);
+
+      --amber: #C58A18;               /* CAUTION / Attention needed */
+      --status-caution: #C58A18;
+      --status-caution-bg: #FDF6E8;
+      --status-caution-border: #F1DDB4;
+      --amber-dim: rgba(197, 138, 24, 0.14);
+
+      --status-warning: #D46B32;      /* WARNING */
+      --status-warning-bg: #FAF0E9;
+      --status-warning-border: #F2D2BE;
+
+      --red: #C74646;                 /* CRITICAL / Emergency stop */
+      --status-critical: #C74646;
+      --status-critical-bg: #FBEFEF;
+      --status-critical-border: #F3C4C4;
+      --red-dim: rgba(199, 70, 70, 0.14);
+
+      /* Primary Operational Accent (Deep Slate / Forest Slate) */
+      --cyan: #2A6E55;                /* Neutral deep pine/slate instead of neon cyan */
+      --cyan-dim: rgba(42, 110, 85, 0.12);
+      --action-primary: #1E3A2F;
+      --action-primary-hover: #142820;
+
+      /* Shadows: Minimal & Flat */
+      --shadow-sm: 0 1px 2px rgba(30, 36, 33, 0.04);
+      --shadow-md: 0 2px 6px rgba(30, 36, 33, 0.06);
+      --shadow-lg: 0 6px 18px rgba(30, 36, 33, 0.08);
+
+      /* Corner Radii */
+      --radius-xs: 3px;
+      --radius-sm: 4px;
+      --radius-md: 6px;
+      --radius-lg: 8px;
+
       /* Layout Dimensions */
-      --header-h: 46px;
-      --rail-w: 265px;
-      --ops-w: 340px;
+      --header-h: 50px;
+      --rail-w: 280px;
+      --ops-w: 360px;
       --strip-h: 36px;
       --mobile-nav-h: 56px;
-      
+
       /* Typography */
       --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      --font-heading: 'Space Grotesk', var(--font-sans);
-      --font-mono: 'IBM Plex Mono', monospace;
+      --font-heading: 'Inter', var(--font-sans);
+      --font-mono: 'IBM Plex Mono', 'SF Mono', Consolas, monospace;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -68,7 +104,7 @@
     html, body {
       height: 100%;
       background: var(--bg-app);
-      color: var(--text-main);
+      color: var(--text-primary);
       font-family: var(--font-sans);
       font-size: 13px;
       line-height: 1.45;
@@ -77,134 +113,194 @@
     }
 
     /* Scrollbars */
-    ::-webkit-scrollbar { width: 5px; height: 5px; }
-    ::-webkit-scrollbar-track { background: var(--bg-surface); }
-    ::-webkit-scrollbar-thumb { background: var(--border-medium); border-radius: 2px; }
-    ::-webkit-scrollbar-thumb:hover { background: var(--cyan); }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg-surface-secondary); }
+    ::-webkit-scrollbar-thumb { background: var(--border-medium); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--border-strong); }
 
-    /* ==========================================================================
-       APP CONTAINER & TOPBAR
-       ========================================================================== */
+    /* App Container */
     .app-root {
       display: flex;
       flex-direction: column;
       height: 100vh;
       width: 100vw;
       overflow: hidden;
+      background: var(--bg-app);
     }
 
+    /* ==========================================================================
+       TOP NAVIGATION BAR
+       Clear answers to: Where am I? What am I monitoring? Is system connected?
+       ========================================================================== */
     .topbar {
       height: var(--header-h);
       min-height: var(--header-h);
       background: var(--bg-surface);
-      border-bottom: 1px solid var(--border-subtle);
+      border-bottom: 1px solid var(--border);
       display: flex;
       align-items: center;
       justify-content: space-between;
       padding: 0 16px;
       z-index: 50;
       user-select: none;
+      box-shadow: var(--shadow-sm);
     }
 
     .topbar-left {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 14px;
     }
 
     .brand-mark {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 9px;
       text-decoration: none;
       color: inherit;
     }
 
     .brand-icon-box {
-      width: 24px;
-      height: 24px;
-      background: #0284c7;
-      color: #fff;
-      border-radius: 4px;
-      font-family: var(--font-heading);
+      width: 28px;
+      height: 28px;
+      background: var(--action-primary);
+      color: #FFFFFF;
+      border-radius: var(--radius-sm);
       font-weight: 700;
       font-size: 13px;
       display: grid;
       place-items: center;
+      letter-spacing: -0.5px;
+    }
+
+    .brand-text-col {
+      display: flex;
+      flex-direction: column;
+      line-height: 1.15;
     }
 
     .brand-name {
-      font-family: var(--font-heading);
       font-weight: 700;
       font-size: 14px;
-      letter-spacing: 0.8px;
-      color: #fff;
+      letter-spacing: 0.3px;
+      color: var(--text-primary);
     }
 
-    .brand-badge {
-      font-family: var(--font-mono);
-      font-size: 9.5px;
-      color: var(--text-dim);
-      background: rgba(255, 255, 255, 0.04);
-      padding: 2px 6px;
-      border-radius: 3px;
-      border: 1px solid var(--border-subtle);
-      letter-spacing: 0.5px;
+    .brand-subtitle {
+      font-size: 10.5px;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .topbar-divider {
+      width: 1px;
+      height: 22px;
+      background: var(--border);
+    }
+
+    .operational-context {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--bg-surface-secondary);
+      border: 1px solid var(--border);
+      padding: 4px 10px;
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+
+    .operational-context strong {
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
     }
 
     .sys-pulse-indicator {
       display: flex;
       align-items: center;
       gap: 6px;
-      font-size: 10px;
-      font-family: var(--font-mono);
-      color: var(--green);
-      margin-left: 6px;
+      font-size: 11.5px;
+      font-weight: 500;
+      color: var(--status-safe);
+      background: var(--status-safe-bg);
+      border: 1px solid var(--status-safe-border);
+      padding: 3px 8px;
+      border-radius: var(--radius-sm);
     }
 
     .sys-pulse-dot {
-      width: 6px;
-      height: 6px;
+      width: 7px;
+      height: 7px;
       border-radius: 50%;
-      background: var(--green);
-      box-shadow: 0 0 6px var(--green);
-    }
-
-    .topbar-right {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .status-pill {
-      font-size: 10px;
-      font-weight: 600;
-      padding: 3px 8px;
-      border-radius: 4px;
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      letter-spacing: 0.3px;
+      background: var(--status-safe);
     }
 
     .top-clock-group {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
       font-family: var(--font-mono);
+      font-size: 11.5px;
+      color: var(--text-secondary);
+      background: var(--bg-surface-secondary);
+      border: 1px solid var(--border);
+      padding: 3px 8px;
+      border-radius: var(--radius-sm);
+    }
+
+    .top-clock-group strong {
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+
+    .btn-help {
+      background: var(--bg-surface-secondary);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      padding: 4px 9px;
+      border-radius: var(--radius-sm);
       font-size: 11px;
-      color: var(--text-muted);
-      border-left: 1px solid var(--border-subtle);
-      padding-left: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.15s ease;
+    }
+    .btn-help:hover {
+      background: var(--bg-surface-hover);
+      color: var(--text-primary);
+      border-color: var(--border-strong);
+    }
+
+    .status-pill {
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: var(--radius-sm);
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+
+    .topbar-role-badge {
+      background: var(--bg-surface-secondary);
+      color: var(--text-secondary);
+      border: 1px solid var(--border);
     }
 
     .mobile-menu-btn {
       display: none;
-      background: var(--bg-surface-elevated);
-      border: 1px solid var(--border-medium);
-      color: var(--text-main);
-      padding: 6px 10px;
-      border-radius: 4px;
+      background: var(--bg-surface-secondary);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      padding: 5px 9px;
+      border-radius: var(--radius-sm);
       font-size: 12px;
       font-weight: 600;
       cursor: pointer;
@@ -220,14 +316,17 @@
       height: calc(100vh - var(--header-h) - var(--strip-h));
       min-height: 0;
       overflow: hidden;
+      background: var(--bg-app);
+      gap: 1px;
     }
 
     /* ==========================================================================
-       ZONE 1: LEFT FLEET RAIL
+       ZONE 1: LEFT FLEET SIDEBAR
+       Clean, readable vehicle list with status & metrics
        ========================================================================== */
     .fleet-rail {
       background: var(--bg-surface);
-      border-right: 1px solid var(--border-subtle);
+      border-right: 1px solid var(--border);
       display: flex;
       flex-direction: column;
       height: 100%;
@@ -235,22 +334,50 @@
     }
 
     .rail-section-header {
-      padding: 10px 12px 6px;
+      padding: 12px 14px 8px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .rail-header-top {
       display: flex;
-      align-items: center;
+      align-items: baseline;
       justify-content: space-between;
     }
 
     .rail-section-title {
-      font-size: 10px;
+      font-size: 11px;
       font-weight: 700;
-      letter-spacing: 0.8px;
+      letter-spacing: 0.6px;
       text-transform: uppercase;
-      color: var(--text-muted);
+      color: var(--text-primary);
     }
 
+    .rail-total-count {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .rail-summary-line {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11.5px;
+      color: var(--text-secondary);
+      margin-top: 4px;
+    }
+
+    .stat-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .stat-dot.dot-online { background: var(--status-safe); }
+    .stat-dot.dot-warn { background: var(--status-caution); }
+
     .rail-toolbar {
-      padding: 8px 12px;
+      padding: 10px 12px 6px;
       display: flex;
       flex-direction: column;
       gap: 6px;
@@ -260,14 +387,13 @@
     /* Overview Map Button */
     .overview-map-btn {
       width: 100%;
-      background: var(--bg-surface-elevated);
-      border: 1px solid var(--border-medium);
-      color: var(--text-main);
-      border-radius: 4px;
-      padding: 7px 10px;
-      font-family: var(--font-heading);
-      font-size: 11px;
-      font-weight: 700;
+      background: var(--bg-surface-secondary);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      border-radius: var(--radius-sm);
+      padding: 6px 10px;
+      font-size: 11.5px;
+      font-weight: 600;
       cursor: pointer;
       display: flex;
       align-items: center;
@@ -277,122 +403,119 @@
     }
     .overview-map-btn:hover {
       background: var(--bg-surface-hover);
-      border-color: var(--cyan);
+      border-color: var(--border-strong);
     }
     .overview-map-btn.active {
-      border-color: var(--cyan);
-      background: var(--cyan-dim);
-      color: var(--cyan);
+      background: var(--action-primary);
+      color: #FFFFFF;
+      border-color: var(--action-primary);
     }
 
-    /* Filter Tabs: ALL / REAL / SIM */
+    /* Filter Tabs: Segmented Control ALL / ESP32 / SIM */
     .source-filter-tabs {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 3px;
-      background: var(--bg-app);
+      gap: 2px;
+      background: var(--bg-surface-secondary);
       padding: 2px;
-      border-radius: 4px;
-      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
     }
 
     .filter-tab-btn {
       background: transparent;
       border: none;
-      color: var(--text-dim);
-      font-size: 9.5px;
-      font-weight: 700;
+      color: var(--text-secondary);
+      font-size: 10.5px;
+      font-weight: 600;
       padding: 5px 2px;
-      border-radius: 3px;
+      border-radius: var(--radius-xs);
       cursor: pointer;
       text-align: center;
       transition: all 0.15s ease;
     }
-    .filter-tab-btn:hover { color: var(--text-main); }
+    .filter-tab-btn:hover { color: var(--text-primary); }
     .filter-tab-btn.active {
-      background: var(--bg-surface-elevated);
-      color: var(--cyan);
-      box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+      background: var(--bg-surface);
+      color: var(--text-primary);
+      box-shadow: var(--shadow-sm);
+      font-weight: 700;
     }
 
-    /* Truck List Container */
+    /* Vehicle Cards List */
     .vehicle-list {
       flex: 1;
       overflow-y: auto;
-      padding: 6px 8px;
+      padding: 8px 10px;
       display: flex;
       flex-direction: column;
-      gap: 5px;
-    }
-
-    /* Compact Industrial Fleet Card */
-    .fleet-rail-card {
-      background: var(--bg-surface-elevated);
-      border: 1px solid var(--border-subtle);
-      border-radius: 4px;
-      padding: 8px 10px;
-      cursor: pointer;
-      transition: border-color 0.15s ease, background 0.15s ease;
-      position: relative;
-    }
-    .fleet-rail-card:hover {
-      background: var(--bg-surface-hover);
-      border-color: var(--border-medium);
-    }
-    .fleet-rail-card.selected {
-      border-color: var(--cyan);
-      background: rgba(56, 189, 248, 0.05);
-      box-shadow: inset 2px 0 0 var(--cyan);
-    }
-
-    .frc-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 4px;
-    }
-
-    .frc-id-group {
-      display: flex;
-      align-items: center;
       gap: 6px;
     }
 
-    .frc-num-badge {
-      font-family: var(--font-mono);
-      font-size: 10px;
-      font-weight: 700;
-      border: 1px solid;
-      padding: 1px 4px;
-      border-radius: 2px;
+    /* Clean Industrial Fleet Card */
+    .fleet-rail-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 10px 12px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      position: relative;
+    }
+    .fleet-rail-card:hover {
+      border-color: var(--border-strong);
+      background: var(--bg-surface-secondary);
+    }
+    .fleet-rail-card.selected {
+      border-color: var(--action-primary);
+      background: #FFFFFF;
+      box-shadow: inset 3px 0 0 var(--action-primary), var(--shadow-sm);
     }
 
-    .frc-name {
-      font-weight: 700;
-      font-size: 11.5px;
-      color: #fff;
+    .frc-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 6px;
     }
 
-    .frc-source-chip {
-      font-size: 8px;
-      font-family: var(--font-mono);
-      padding: 1px 4px;
-      border-radius: 2px;
-      text-transform: uppercase;
+    .frc-identity {
+      display: flex;
+      flex-direction: column;
+      line-height: 1.2;
     }
-    .frc-source-chip.real { background: var(--green-dim); color: var(--green); border: 1px solid rgba(16, 185, 129, 0.3); }
-    .frc-source-chip.sim { background: rgba(56, 189, 248, 0.08); color: var(--cyan); border: 1px solid rgba(56, 189, 248, 0.25); }
+
+    .frc-id {
+      font-weight: 700;
+      font-size: 12.5px;
+      color: var(--text-primary);
+      letter-spacing: -0.2px;
+    }
+
+    .frc-model {
+      font-size: 10.5px;
+      color: var(--text-muted);
+      font-weight: 500;
+      margin-top: 1px;
+    }
 
     .frc-status-tag {
-      font-size: 8.5px;
-      font-family: var(--font-mono);
+      font-size: 10px;
       font-weight: 600;
       display: flex;
       align-items: center;
       gap: 4px;
+      padding: 2px 6px;
+      border-radius: var(--radius-xs);
     }
-    .frc-status-tag.online { color: var(--green); }
-    .frc-status-tag.offline { color: var(--text-dim); }
+    .frc-status-tag.online {
+      background: var(--status-safe-bg);
+      color: var(--status-safe);
+    }
+    .frc-status-tag.offline {
+      background: var(--bg-surface-secondary);
+      color: var(--text-muted);
+    }
 
     .frc-dot {
       width: 5px;
@@ -401,56 +524,86 @@
       background: currentColor;
     }
 
-    .frc-metrics-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 4px;
-      font-family: var(--font-mono);
-      font-size: 10px;
-      padding-top: 3px;
-      border-top: 1px solid rgba(255, 255, 255, 0.03);
-    }
-
-    .frc-metric {
+    .frc-bottom {
       display: flex;
-      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11px;
+      padding-top: 6px;
+      border-top: 1px solid var(--border-subtle);
     }
 
-    .frc-m-label {
-      font-size: 7.5px;
-      color: var(--text-dim);
-      text-transform: uppercase;
-      letter-spacing: 0.4px;
+    .frc-speed-box {
+      display: flex;
+      align-items: baseline;
+      gap: 3px;
     }
 
-    .frc-m-val {
-      font-weight: 600;
-      color: var(--text-main);
-    }
-    .frc-m-val small { font-size: 8px; color: var(--text-dim); }
-    .frc-m-val.warn { color: var(--amber); }
-    .frc-m-val.critical { color: var(--red); }
-    .frc-m-val.moderate { color: var(--amber); }
-    .frc-m-val.low { color: var(--green); }
-    .frc-m-val.vis { color: var(--cyan); }
-
-    .frc-alert-strip {
-      margin-top: 4px;
-      font-size: 8px;
+    .frc-speed-val {
       font-family: var(--font-mono);
       font-weight: 700;
-      color: #fca5a5;
-      background: var(--red-dim);
-      border: 1px solid rgba(239, 68, 68, 0.3);
+      font-size: 12px;
+      color: var(--text-primary);
+    }
+
+    .frc-speed-unit {
+      font-size: 9.5px;
+      color: var(--text-muted);
+    }
+
+    .frc-action-tag {
+      font-size: 9.5px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: var(--radius-xs);
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+    .frc-action-tag.clear {
+      background: var(--status-safe-bg);
+      color: var(--status-safe);
+    }
+    .frc-action-tag.slow {
+      background: var(--status-caution-bg);
+      color: var(--status-caution);
+    }
+    .frc-action-tag.stop {
+      background: var(--status-critical-bg);
+      color: var(--status-critical);
+    }
+
+    .frc-source-chip {
+      font-size: 9px;
+      font-family: var(--font-mono);
+      font-weight: 600;
+      padding: 1px 4px;
       border-radius: 2px;
-      padding: 2px 4px;
+      color: var(--text-muted);
+      background: var(--bg-surface-secondary);
+      border: 1px solid var(--border);
+    }
+    .frc-source-chip.real {
+      color: var(--status-safe);
+      border-color: var(--status-safe-border);
+      background: var(--status-safe-bg);
+    }
+
+    .frc-alert-strip {
+      margin-top: 6px;
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--status-critical);
+      background: var(--status-critical-bg);
+      border: 1px solid var(--status-critical-border);
+      border-radius: var(--radius-xs);
+      padding: 3px 6px;
       text-align: center;
     }
 
-    /* Rail Bottom Controls */
+    /* Rail Bottom Controls Dock */
     .rail-controls-dock {
-      padding: 8px 12px;
-      border-top: 1px solid var(--border-subtle);
+      padding: 10px 12px;
+      border-top: 1px solid var(--border);
       background: var(--bg-surface);
       display: flex;
       flex-direction: column;
@@ -465,12 +618,12 @@
 
     .ctrl-btn {
       flex: 1;
-      background: var(--bg-surface-elevated);
-      border: 1px solid var(--border-medium);
-      color: var(--text-main);
-      border-radius: 3px;
-      padding: 5px 8px;
-      font-size: 10.5px;
+      background: var(--bg-surface-secondary);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      border-radius: var(--radius-sm);
+      padding: 6px 8px;
+      font-size: 11px;
       font-weight: 600;
       cursor: pointer;
       display: flex;
@@ -479,678 +632,935 @@
       gap: 5px;
       transition: all 0.15s ease;
     }
-    .ctrl-btn:hover { background: var(--bg-surface-hover); border-color: var(--cyan); }
+    .ctrl-btn:hover { background: var(--bg-surface-hover); border-color: var(--border-strong); }
 
     .speed-btn-group { display: flex; gap: 2px; }
     .speed-btn {
-      background: var(--bg-surface-elevated);
-      border: 1px solid var(--border-medium);
-      color: var(--text-dim);
-      border-radius: 2px;
-      padding: 4px 6px;
-      font-size: 9px;
+      background: var(--bg-surface-secondary);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      border-radius: var(--radius-xs);
+      padding: 4px 7px;
+      font-size: 10px;
       font-family: var(--font-mono);
       font-weight: 600;
       cursor: pointer;
     }
     .speed-btn.active {
-      background: var(--cyan);
-      color: #050b14;
-      border-color: var(--cyan);
+      background: var(--action-primary);
+      color: #FFFFFF;
+      border-color: var(--action-primary);
       font-weight: 700;
     }
 
     .test-obs-btn {
-      background: var(--amber-dim);
-      border: 1px solid rgba(245, 158, 11, 0.3);
-      color: var(--amber);
-      border-radius: 3px;
-      padding: 5px 8px;
-      font-size: 10px;
+      background: var(--bg-surface-secondary);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      border-radius: var(--radius-sm);
+      padding: 6px 8px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+    }
+    .test-obs-btn:hover {
+      background: var(--status-caution-bg);
+      border-color: var(--status-caution-border);
+      color: var(--status-caution);
+    }
+
+    .add-device-btn {
+      background: var(--bg-surface-secondary);
+      border: 1px dashed var(--border-strong);
+      color: var(--text-secondary);
+      border-radius: var(--radius-sm);
+      padding: 6px 8px;
+      font-size: 11px;
       font-weight: 600;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
       gap: 5px;
+      transition: all 0.15s ease;
     }
-    .test-obs-btn:hover { background: rgba(245, 158, 11, 0.22); }
-
-    .add-device-btn {
-      background: transparent;
-      border: 1px dashed var(--border-medium);
-      color: var(--text-muted);
-      border-radius: 3px;
-      padding: 4px 8px;
-      font-size: 9.5px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 5px;
+    .add-device-btn:hover {
+      background: var(--bg-surface-hover);
+      border-color: var(--text-primary);
+      color: var(--text-primary);
     }
-    .add-device-btn:hover { color: var(--cyan); border-color: var(--cyan); }
 
     /* ==========================================================================
-       ZONE 2: CENTER DIGITAL TWIN (DOMINANT CENTERPIECE)
+       ZONE 2: MAIN AREA — DIGITAL TWIN AS THE HERO
+       Clean frame, prominent 3D scene, compact View Options popover
        ========================================================================== */
     .digital-twin-zone {
+      background: var(--bg-surface);
       display: flex;
       flex-direction: column;
       height: 100%;
-      min-height: 0;
-      min-width: 0;
-      background: #0a0d12;
-      position: relative;
       overflow: hidden;
+      position: relative;
     }
 
     /* Twin Header Bar */
     .twin-header-bar {
-      height: 38px;
+      height: 44px;
+      min-height: 44px;
+      padding: 0 14px;
       background: var(--bg-surface);
-      border-bottom: 1px solid var(--border-subtle);
+      border-bottom: 1px solid var(--border);
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0 12px;
-      gap: 12px;
-      z-index: 20;
-      user-select: none;
-      flex-shrink: 0;
+      z-index: 10;
     }
 
     .twin-title-group {
       display: flex;
       align-items: center;
-      gap: 8px;
-      min-width: 0;
-      flex: 1;
-    }
-
-    .twin-badge-live {
-      font-family: var(--font-mono);
-      font-size: 9px;
-      font-weight: 700;
-      color: var(--green);
-      background: var(--green-dim);
-      border: 1px solid rgba(16, 185, 129, 0.3);
-      padding: 1px 6px;
-      border-radius: 2px;
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      flex-shrink: 0;
+      gap: 10px;
     }
 
     .twin-title-text {
-      font-family: var(--font-heading);
       font-weight: 700;
-      font-size: 12px;
-      color: var(--text-main);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      font-size: 13.5px;
+      color: var(--text-primary);
+      letter-spacing: -0.2px;
+    }
+
+    .twin-badge-live {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--status-safe);
+      background: var(--status-safe-bg);
+      border: 1px solid var(--status-safe-border);
+      padding: 2px 6px;
+      border-radius: var(--radius-xs);
     }
 
     .twin-tools-group {
       display: flex;
       align-items: center;
       gap: 8px;
-      flex-shrink: 0;
     }
 
-    .cam-mode-buttons {
+    /* Segmented Controls for Mode & Camera */
+    .segmented-control {
       display: flex;
-      gap: 2px;
-      background: var(--bg-app);
+      background: var(--bg-surface-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
       padding: 2px;
-      border-radius: 4px;
-      border: 1px solid var(--border-subtle);
+      gap: 1px;
     }
 
-    .mine3d-cam-btn {
+    .segmented-btn {
       background: transparent;
       border: none;
-      color: var(--text-muted);
-      font-size: 9.5px;
+      color: var(--text-secondary);
+      font-size: 10.5px;
       font-weight: 600;
-      padding: 4px 7px;
-      border-radius: 2px;
+      padding: 3px 8px;
+      border-radius: var(--radius-xs);
       cursor: pointer;
+      transition: all 0.12s ease;
+      white-space: nowrap;
+    }
+    .segmented-btn:hover { color: var(--text-primary); }
+    .segmented-btn.active {
+      background: var(--bg-surface);
+      color: var(--text-primary);
+      box-shadow: var(--shadow-sm);
+      font-weight: 700;
+    }
+
+    .btn-view-options {
+      background: var(--bg-surface-secondary);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      padding: 4px 9px;
+      border-radius: var(--radius-sm);
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
       transition: all 0.15s ease;
     }
-    .mine3d-cam-btn.active {
-      background: var(--bg-surface-elevated);
-      color: var(--cyan);
-      box-shadow: 0 1px 3px rgba(0,0,0,0.4);
-    }
-
-    /* View Switcher (3D vs 2D Map vs Dual) */
-    .view-mode-tabs {
-      display: flex;
-      gap: 2px;
-      background: var(--bg-app);
-      padding: 2px;
-      border-radius: 4px;
-      border: 1px solid var(--border-subtle);
-    }
-
-    .view-tab-btn {
-      background: transparent;
-      border: none;
-      color: var(--text-muted);
-      font-size: 9.5px;
-      font-weight: 600;
-      padding: 4px 8px;
-      border-radius: 2px;
-      cursor: pointer;
-    }
-    .view-tab-btn.active {
-      background: var(--bg-surface-elevated);
-      color: #fff;
+    .btn-view-options:hover {
+      background: var(--bg-surface-hover);
+      border-color: var(--border-strong);
     }
 
     .twin-link-btn {
-      color: var(--cyan);
-      font-size: 10px;
-      font-weight: 600;
+      color: var(--text-secondary);
       text-decoration: none;
-      padding: 3px 6px;
-      border-radius: 3px;
-      border: 1px solid rgba(56, 189, 248, 0.25);
-      background: var(--cyan-dim);
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px 8px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: var(--bg-surface-secondary);
+      transition: all 0.15s ease;
+    }
+    .twin-link-btn:hover {
+      color: var(--text-primary);
+      background: var(--bg-surface-hover);
     }
 
-    /* Twin Scenarios Bar */
+    /* Scenarios Control Bar */
     .scenarios-control-bar {
-      height: 32px;
-      background: rgba(14, 20, 30, 0.95);
-      border-bottom: 1px solid var(--border-subtle);
+      height: 34px;
+      min-height: 34px;
+      padding: 0 14px;
+      background: var(--bg-surface-secondary);
+      border-bottom: 1px solid var(--border);
       display: flex;
       align-items: center;
-      gap: 5px;
-      padding: 0 12px;
-      z-index: 19;
-      flex-shrink: 0;
+      gap: 6px;
       overflow-x: auto;
+      font-size: 11px;
     }
 
     .scen-lbl {
-      font-size: 9px;
-      font-family: var(--font-mono);
+      font-size: 10px;
       font-weight: 700;
-      color: var(--text-dim);
+      color: var(--text-muted);
       text-transform: uppercase;
+      letter-spacing: 0.5px;
       white-space: nowrap;
-      margin-right: 4px;
     }
 
     .scenario-btn {
-      background: var(--bg-surface-elevated);
-      border: 1px solid var(--border-subtle);
-      color: var(--text-muted);
-      font-size: 9.5px;
-      font-weight: 600;
-      padding: 2px 7px;
-      border-radius: 3px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      padding: 3px 8px;
+      border-radius: var(--radius-xs);
+      font-size: 10.5px;
+      font-weight: 500;
       cursor: pointer;
       white-space: nowrap;
       transition: all 0.15s ease;
     }
-    .scenario-btn:hover { color: var(--text-main); border-color: var(--border-medium); }
+    .scenario-btn:hover {
+      border-color: var(--border-strong);
+      color: var(--text-primary);
+    }
     .scenario-btn.active {
-      background: var(--cyan-dim);
-      color: var(--cyan);
-      border-color: var(--cyan);
+      background: var(--action-primary);
+      color: #FFFFFF;
+      border-color: var(--action-primary);
+      font-weight: 600;
     }
 
-    /* Primary Viewport Area */
+    /* Viewport Canvas Container */
     .twin-viewport-container {
       flex: 1;
       position: relative;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
+      background: #111720;
       min-height: 0;
-      min-width: 0;
-      height: 100%;
+      overflow: hidden;
     }
 
     #mine3DCard {
-      flex: 1;
       width: 100%;
       height: 100%;
       position: relative;
       display: flex;
       flex-direction: column;
-      min-height: 0;
-      min-width: 0;
     }
 
     #threeCanvasWrap {
       width: 100%;
       height: 100%;
       position: absolute;
-      inset: 0;
+      top: 0;
+      left: 0;
     }
 
-    /* 2D Leaflet Container (Hidden by default or split) */
-    #fleetMapCard {
+    /* View Options Floating Popover */
+    .view-options-popover {
       display: none;
-      flex: 1;
+      position: absolute;
+      top: 10px;
+      right: 14px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-lg);
+      border-radius: var(--radius-md);
+      padding: 12px 14px;
+      width: 240px;
+      z-index: 40;
+    }
+    .view-options-popover.open { display: block; }
+
+    .popover-header {
+      font-weight: 700;
+      font-size: 11px;
+      color: var(--text-primary);
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      margin-bottom: 8px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .popover-close {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 12px;
+    }
+
+    .popover-checkbox-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 11.5px;
+      color: var(--text-primary);
+      margin-bottom: 10px;
+    }
+
+    .popover-checkbox-group label {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .popover-slider-row {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      margin-top: 8px;
+      font-size: 11px;
+    }
+
+    .popover-slider-hdr {
+      display: flex;
+      justify-content: space-between;
+      color: var(--text-secondary);
+      font-size: 10.5px;
+    }
+
+    /* Digital-Twin Sync Validator HUD Overlay (Restrained technical card) */
+    #syncValidatorOverlay {
+      position: absolute;
+      bottom: 12px;
+      left: 12px;
+      background: rgba(255, 255, 255, 0.94);
+      backdrop-filter: blur(8px);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 8px 10px;
+      width: 230px;
+      z-index: 15;
+      font-family: var(--font-mono);
+      font-size: 8.5px;
+      color: var(--text-secondary);
+      box-shadow: var(--shadow-md);
+      pointer-events: auto;
+    }
+
+    #syncValidatorOverlay strong, #syncValidatorOverlay b {
+      color: var(--text-primary);
+    }
+
+    /* 2D Leaflet Fleet GIS Map Container */
+    #fleetMapCard {
       width: 100%;
       height: 100%;
       position: relative;
-      flex-direction: column;
-      border-top: 1px solid var(--border-subtle);
-      min-height: 0;
-      min-width: 0;
+      display: none;
     }
 
     #fleetMap {
       width: 100%;
       height: 100%;
-      background: #090e18;
     }
 
-    /* Minimal Overlays on 3D Canvas */
-    .twin-floating-layers {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      z-index: 10;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      background: rgba(14, 20, 30, 0.88);
-      border: 1px solid var(--border-subtle);
-      padding: 5px 10px;
-      border-radius: 4px;
-      backdrop-filter: blur(4px);
-      font-size: 9.5px;
-      color: var(--text-muted);
-      max-width: calc(100% - 20px);
-      flex-wrap: wrap;
-    }
-
-    .twin-floating-layers label {
-      display: flex;
-      align-items: center;
-      gap: 4px;
+    .map-toggle-btn {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px 8px;
+      border-radius: var(--radius-xs);
       cursor: pointer;
+      box-shadow: var(--shadow-sm);
     }
-
-    /* Sync Validator HUD Overlay */
-    #syncValidatorOverlay {
-      position: absolute;
-      bottom: 34px;
-      left: 10px;
-      z-index: 10;
-      background: rgba(10, 14, 22, 0.94);
-      border: 1px solid var(--border-medium);
-      padding: 8px 12px;
-      border-radius: 4px;
-      font-size: 9px;
-      font-family: var(--font-mono);
-      width: 320px;
-      max-width: 90vw;
-      backdrop-filter: blur(6px);
-      pointer-events: none;
-      line-height: 1.35;
+    .map-toggle-btn.active {
+      background: var(--action-primary);
+      color: #FFFFFF;
+      border-color: var(--action-primary);
     }
 
     /* Twin Lower Telemetry Strip */
     .twin-telemetry-bar {
-      height: 28px;
-      background: rgba(10, 14, 22, 0.95);
-      border-top: 1px solid var(--border-subtle);
+      height: 30px;
+      min-height: 30px;
+      padding: 0 14px;
+      background: var(--bg-surface);
+      border-top: 1px solid var(--border);
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      padding: 0 12px;
-      font-size: 9.5px;
+      gap: 16px;
+      font-size: 10.5px;
+      color: var(--text-secondary);
       font-family: var(--font-mono);
-      color: var(--text-dim);
-      z-index: 12;
-      flex-shrink: 0;
     }
 
-    .tt-item span:last-child {
-      color: var(--text-main);
-      font-weight: 600;
+    .tt-item {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .tt-item span:first-child {
+      color: var(--text-muted);
+      font-size: 9.5px;
     }
 
     /* ==========================================================================
        ZONE 3: RIGHT SELECTED VEHICLE OPERATIONS PANEL
+       Clear hierarchy: Level 1 (Identity & Safety) -> Level 2 -> Level 3
        ========================================================================== */
     .operations-panel {
       background: var(--bg-surface);
-      border-left: 1px solid var(--border-subtle);
+      border-left: 1px solid var(--border);
       display: flex;
       flex-direction: column;
       height: 100%;
       overflow-y: auto;
     }
 
-    /* Hero Vehicle Card */
+    /* Sticky Hero Vehicle Card */
     .ops-hero-card {
-      padding: 12px;
-      background: var(--bg-surface-elevated);
-      border-bottom: 1px solid var(--border-subtle);
-      position: sticky;
-      top: 0;
-      z-index: 15;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-surface);
+    }
+
+    .ops-label-dim {
+      font-size: 9.5px;
+      font-weight: 700;
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 4px;
     }
 
     .ops-hero-top {
       display: flex;
       align-items: flex-start;
       justify-content: space-between;
-      gap: 8px;
+      margin-bottom: 8px;
     }
 
     .ops-v-title {
-      font-family: var(--font-heading);
+      font-size: 18px;
       font-weight: 700;
-      font-size: 16px;
-      color: #fff;
+      color: var(--text-primary);
+      letter-spacing: -0.3px;
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 8px;
+    }
+
+    .source-tag {
+      font-size: 9px;
+      font-family: var(--font-mono);
+      font-weight: 600;
+      padding: 1px 5px;
+      border-radius: var(--radius-xs);
+      border: 1px solid var(--border);
+    }
+    .source-tag.real {
+      background: var(--status-safe-bg);
+      color: var(--status-safe);
+      border-color: var(--status-safe-border);
+    }
+    .source-tag.sim {
+      background: var(--bg-surface-secondary);
+      color: var(--text-secondary);
     }
 
     .ops-hero-badge {
-      display: none; /* hidden helper */
+      display: none;
     }
 
     .ops-v-model {
-      font-size: 10px;
-      color: var(--text-muted);
+      font-size: 12px;
+      color: var(--text-secondary);
+      font-weight: 500;
       margin-top: 1px;
     }
 
+    .hero-del-btn {
+      background: var(--bg-surface-secondary);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      border-radius: var(--radius-xs);
+      padding: 3px 7px;
+      font-size: 10.5px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .hero-del-btn:hover {
+      background: var(--status-critical-bg);
+      color: var(--status-critical);
+      border-color: var(--status-critical-border);
+    }
+
+    /* Status Pills Row */
     .ops-pills-row {
       display: flex;
-      flex-wrap: wrap;
-      gap: 4px;
-      margin-top: 6px;
+      gap: 6px;
+      margin-bottom: 12px;
     }
 
     .hero-status-pill {
-      font-size: 8.5px;
-      font-family: var(--font-mono);
-      font-weight: 700;
-      padding: 2px 6px;
-      border-radius: 2px;
-      display: inline-flex;
+      font-size: 10.5px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: var(--radius-xs);
+      border: 1px solid var(--border);
+      display: flex;
       align-items: center;
       gap: 4px;
-      text-transform: uppercase;
     }
-    .hero-status-pill.connected { background: var(--green-dim); color: var(--green); border: 1px solid rgba(16,185,129,0.3); }
-    .hero-status-pill.disconnected { background: var(--red-dim); color: var(--red); border: 1px solid rgba(239,68,68,0.3); }
-    .hero-status-pill.moving { background: var(--cyan-dim); color: var(--cyan); border: 1px solid rgba(56,189,248,0.3); }
-    .hero-status-pill.stopped { background: var(--amber-dim); color: var(--amber); border: 1px solid rgba(245,158,11,0.3); }
-    .hero-status-pill.dsr-pill { background: rgba(56, 189, 248, 0.1); border: 1px solid var(--cyan); color: var(--cyan); }
+    .hero-status-pill.connected {
+      background: var(--status-safe-bg);
+      color: var(--status-safe);
+      border-color: var(--status-safe-border);
+    }
+    .hero-status-pill.disconnected {
+      background: var(--bg-surface-secondary);
+      color: var(--text-muted);
+    }
+    .hero-status-pill.moving {
+      background: var(--bg-surface-secondary);
+      color: var(--text-primary);
+    }
+    .hero-status-pill.stopped {
+      background: var(--status-critical-bg);
+      color: var(--status-critical);
+      border-color: var(--status-critical-border);
+    }
+    .hero-status-pill.dsr-pill {
+      background: var(--status-safe-bg);
+      color: var(--status-safe);
+      border-color: var(--status-safe-border);
+    }
 
     .status-beacon {
-      width: 5px; height: 5px; border-radius: 50%;
-    }
-    .status-beacon.beacon-online { background: var(--green); }
-    .status-beacon.beacon-offline { background: var(--red); }
-
-    /* Core Metrics Grid (2x3 High Density) */
-    .ops-metrics-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 6px;
-      margin-top: 10px;
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: currentColor;
     }
 
-    .ops-metric-cell {
-      background: var(--bg-surface);
-      border: 1px solid var(--border-subtle);
-      border-radius: 3px;
-      padding: 6px 8px;
+    /* CURRENT SITUATION SECTION (LEVEL 1 / 2) */
+    .ops-section-block {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
     }
 
-    .ops-m-label {
-      font-size: 8px;
-      font-family: var(--font-mono);
-      color: var(--text-dim);
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-
-    .ops-m-val {
-      font-family: var(--font-mono);
-      font-size: 15px;
-      font-weight: 700;
-      color: #fff;
-      display: flex;
-      align-items: baseline;
-      gap: 4px;
-    }
-    .ops-m-val small { font-size: 9px; font-weight: normal; color: var(--text-dim); }
-
-    /* Zone & DFRI Strip */
-    .ops-zone-strip {
-      margin-top: 8px;
-      padding: 6px 8px;
-      background: rgba(16, 24, 36, 0.85);
-      border: 1px solid var(--border-subtle);
-      border-radius: 3px;
-    }
-
-    .dfri-tiers-bar {
-      display: grid;
-      grid-template-columns: repeat(5, 1fr);
-      gap: 3px;
-      margin: 4px 0 2px;
-    }
-
-    .dfri-tier-step {
-      padding: 3px 2px;
-      border-radius: 2px;
-      text-align: center;
-      background: rgba(255, 255, 255, 0.02);
-      border: 1px solid rgba(255, 255, 255, 0.05);
-      font-size: 7px;
-    }
-    .dfri-tier-step .t-lbl { color: var(--text-dim); }
-    .dfri-tier-step .t-name { font-weight: 700; margin-top: 1px; }
-    .dfri-tier-step.tier-normal { color: #10b981; }
-    .dfri-tier-step.tier-caution { color: #f59e0b; }
-    .dfri-tier-step.tier-low { color: #f97316; }
-    .dfri-tier-step.tier-severe { color: #ef4444; }
-    .dfri-tier-step.tier-critical { color: #dc2626; }
-    .dfri-tier-step.active {
-      background: rgba(255, 255, 255, 0.08);
-      border-color: currentColor;
-    }
-
-    /* Accordions for Progressive Disclosure */
-    .ops-accordion {
-      border-bottom: 1px solid var(--border-subtle);
-    }
-
-    .ops-accordion-hdr {
-      padding: 8px 12px;
+    .ops-block-title {
       font-size: 10px;
       font-weight: 700;
       letter-spacing: 0.6px;
       text-transform: uppercase;
       color: var(--text-muted);
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .situation-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .situation-item {
+      background: var(--bg-surface-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 7px 9px;
+    }
+
+    .situation-lbl {
+      font-size: 9.5px;
+      color: var(--text-muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      margin-bottom: 2px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .situation-val {
+      font-family: var(--font-mono);
+      font-weight: 700;
+      font-size: 13px;
+      color: var(--text-primary);
+    }
+    .situation-val small { font-size: 9.5px; font-weight: 500; color: var(--text-muted); }
+
+    /* PROMINENT ROUTE SAFETY BLOCK */
+    .command-card {
+      margin-top: 4px;
+      padding: 10px 12px;
+      border-radius: var(--radius-sm);
+      background: var(--status-safe-bg);
+      border: 1px solid var(--status-safe-border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      transition: all 0.2s ease;
+    }
+
+    .cmd-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--status-safe);
+      color: #FFFFFF;
+      display: grid;
+      place-items: center;
+      font-size: 13px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .cmd-text-col {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .cmd-value {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--status-safe);
+      letter-spacing: 0.2px;
+    }
+
+    .cmd-desc {
+      font-size: 10.5px;
+      color: var(--text-secondary);
+      margin-top: 1px;
+    }
+
+    .command-card.slow {
+      background: var(--status-caution-bg);
+      border-color: var(--status-caution-border);
+    }
+    .command-card.slow .cmd-icon { background: var(--status-caution); }
+    .command-card.slow .cmd-value { color: var(--status-caution); }
+
+    .command-card.stop {
+      background: var(--status-critical-bg);
+      border-color: var(--status-critical-border);
+    }
+    .command-card.stop .cmd-icon { background: var(--status-critical); }
+    .command-card.stop .cmd-value { color: var(--status-critical); }
+
+    /* DFRI Fog Severity Tiers */
+    .dfri-tiers-bar {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 2px;
+      margin: 6px 0 3px;
+    }
+
+    .dfri-tier-step {
+      background: var(--bg-surface-secondary);
+      border: 1px solid var(--border);
+      padding: 4px 2px;
+      text-align: center;
+      border-radius: 2px;
+      font-family: var(--font-mono);
+      font-size: 8.5px;
+      color: var(--text-muted);
+    }
+    .dfri-tier-step .t-lbl { font-size: 7.5px; opacity: 0.8; }
+    .dfri-tier-step .t-name { font-weight: 700; margin-top: 1px; }
+
+    .dfri-tier-step.tier-normal.active { background: var(--status-safe-bg); border-color: var(--status-safe-border); color: var(--status-safe); }
+    .dfri-tier-step.tier-caution.active { background: var(--status-caution-bg); border-color: var(--status-caution-border); color: var(--status-caution); }
+    .dfri-tier-step.tier-low.active { background: #FEF3C7; border-color: #FCD34D; color: #B45309; }
+    .dfri-tier-step.tier-severe.active { background: #FFEDD5; border-color: #FDBA74; color: #C2410C; }
+    .dfri-tier-step.tier-critical.active { background: var(--status-critical-bg); border-color: var(--status-critical-border); color: var(--status-critical); }
+
+    /* PROGRESSIVE DISCLOSURE ACCORDIONS */
+    .ops-accordion {
+      border-bottom: 1px solid var(--border);
+    }
+
+    .ops-accordion-hdr {
+      padding: 10px 16px;
+      background: var(--bg-surface);
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: space-between;
       user-select: none;
-      background: var(--bg-surface);
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--text-primary);
+      transition: background 0.15s ease;
     }
-    .ops-accordion-hdr:hover { color: var(--text-main); background: var(--bg-surface-elevated); }
-    .ops-accordion-hdr::after {
-      content: '▾';
-      font-size: 11px;
-      transition: transform 0.2s;
+    .ops-accordion-hdr:hover {
+      background: var(--bg-surface-secondary);
     }
-    .ops-accordion.closed .ops-accordion-hdr::after {
+
+    .ops-accordion-arrow {
+      font-size: 10px;
+      color: var(--text-muted);
+      transition: transform 0.2s ease;
+    }
+    .ops-accordion.closed .ops-accordion-arrow {
       transform: rotate(-90deg);
+    }
+
+    .ops-accordion-body {
+      padding: 12px 16px;
+      background: var(--bg-surface-secondary);
+      border-top: 1px solid var(--border-subtle);
     }
     .ops-accordion.closed .ops-accordion-body {
       display: none;
     }
 
-    .ops-accordion-body {
-      padding: 10px 12px;
+    /* Vehicle-Relative Sensor Layout */
+    .sensor-vehicle-layout {
       background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 12px;
       display: flex;
       flex-direction: column;
-      gap: 10px;
-    }
-
-    /* Safety Command Banner */
-    .command-card {
-      padding: 8px 10px;
-      border-radius: 3px;
-      background: var(--bg-surface-elevated);
-      border: 1px solid var(--border-subtle);
-      display: flex;
       align-items: center;
       gap: 8px;
     }
-    .cmd-left { display: flex; align-items: center; gap: 8px; }
-    .cmd-icon {
-      width: 22px; height: 22px; border-radius: 3px;
-      display: grid; place-items: center; font-size: 12px; font-weight: 700;
-    }
-    .cmd-value { font-family: var(--font-heading); font-weight: 700; font-size: 12px; }
-    .command-card.stop { border-color: var(--red); background: var(--red-dim); }
-    .command-card.slow { border-color: var(--amber); background: var(--amber-dim); }
 
-    /* Ultrasonic Sensors */
-    .sensor-item {
+    .sensor-side-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+    }
+
+    .sensor-item-block {
       display: flex;
       flex-direction: column;
-      gap: 2px;
-      font-family: var(--font-mono);
-      font-size: 10px;
+      align-items: center;
+      min-width: 75px;
     }
-    .sensor-header { display: flex; justify-content: space-between; }
-    .sensor-bar-bg { height: 4px; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden; }
-    .sensor-bar-fill { height: 100%; transition: width 0.2s; }
 
-    /* Cameras */
+    .sensor-item-label {
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    .sensor-item-val {
+      font-family: var(--font-mono);
+      font-weight: 700;
+      font-size: 13px;
+      color: var(--text-primary);
+    }
+
+    .sensor-truck-silhouette {
+      width: 70px;
+      height: 90px;
+      background: var(--bg-surface-secondary);
+      border: 2px solid var(--border-strong);
+      border-radius: var(--radius-xs);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-size: 9px;
+      font-weight: 700;
+      color: var(--text-muted);
+      letter-spacing: 0.5px;
+    }
+
+    .sensor-bar-bg {
+      width: 100%;
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      overflow: hidden;
+      margin-top: 3px;
+    }
+    .sensor-bar-fill {
+      height: 100%;
+      transition: width 0.3s ease, background-color 0.3s ease;
+    }
+
+    /* Vision AI Viewports */
+    .cam-viewport-pair {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin: 8px 0;
+    }
+
     .cam-viewport {
       position: relative;
-      background: #000;
-      border-radius: 3px;
+      background: #111720;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xs);
       overflow: hidden;
-      aspect-ratio: 16 / 9;
-      border: 1px solid var(--border-subtle);
+      aspect-ratio: 4 / 3;
     }
-    .cam-viewport img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+    .cam-viewport img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
     .cam-tag {
       position: absolute;
       top: 4px;
       left: 4px;
+      background: rgba(30, 36, 33, 0.85);
+      color: #FFFFFF;
       font-family: var(--font-mono);
       font-size: 8px;
-      background: rgba(0,0,0,0.75);
-      color: #fff;
+      font-weight: 600;
       padding: 1px 4px;
       border-radius: 2px;
     }
-    .cam-tag.dehazed { color: var(--cyan); }
+    .cam-tag.dehazed {
+      background: var(--status-safe);
+    }
 
     .cam-preset-chip {
-      background: var(--bg-surface-elevated);
-      border: 1px solid var(--border-medium);
-      color: var(--text-muted);
-      font-size: 9px;
-      padding: 2px 6px;
-      border-radius: 2px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      padding: 3px 7px;
+      border-radius: var(--radius-xs);
+      font-size: 10.5px;
+      font-weight: 500;
       cursor: pointer;
     }
-    .cam-preset-chip:hover { color: var(--cyan); border-color: var(--cyan); }
+    .cam-preset-chip:hover { border-color: var(--border-strong); color: var(--text-primary); }
+    .cam-preset-chip.active { background: var(--action-primary); color: #FFFFFF; border-color: var(--action-primary); }
 
     /* Diagnostics Cluster */
     .diagnostics-cluster {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
       gap: 6px;
+      margin-bottom: 10px;
     }
+
     .diag-gauge-card {
-      background: var(--bg-surface-elevated);
-      border: 1px solid var(--border-subtle);
-      border-radius: 3px;
-      padding: 6px;
-      text-align: center;
-      font-family: var(--font-mono);
-    }
-    .diag-lbl { font-size: 7.5px; color: var(--text-dim); text-transform: uppercase; }
-    .diag-val { font-size: 13px; font-weight: 700; color: #fff; margin-top: 2px; }
-
-    /* Hardware Mode Toggle */
-    .hardware-toggle-banner {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 8px 10px;
-      background: var(--bg-surface-elevated);
-      border: 1px solid var(--border-subtle);
-      border-radius: 3px;
-      font-size: 10px;
-    }
-    .mode-switch-btn {
       background: var(--bg-surface);
-      border: 1px solid var(--border-medium);
-      color: var(--cyan);
-      padding: 4px 8px;
-      border-radius: 3px;
-      cursor: pointer;
-      font-size: 9px;
-      font-weight: 600;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xs);
+      padding: 7px 6px;
+      text-align: center;
+    }
+    .diag-lbl {
+      font-size: 8.5px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+    }
+    .diag-val {
+      font-family: var(--font-mono);
+      font-weight: 700;
+      font-size: 12.5px;
+      color: var(--text-primary);
+      margin-top: 2px;
     }
 
-    /* Log Entries */
+    .hardware-toggle-banner {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xs);
+      padding: 8px 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 8px;
+    }
+
+    .mode-switch-btn {
+      background: var(--bg-surface-secondary);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      padding: 3px 8px;
+      border-radius: var(--radius-xs);
+      font-size: 10.5px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .mode-switch-btn:hover { background: var(--bg-surface-hover); border-color: var(--border-strong); }
+
+    /* Operational Timeline / Event Log */
     .log-list {
-      max-height: 140px;
-      overflow-y: auto;
       display: flex;
       flex-direction: column;
       gap: 4px;
-      font-family: var(--font-mono);
-      font-size: 9.5px;
+      max-height: 140px;
+      overflow-y: auto;
     }
+
     .log-entry {
-      background: var(--bg-surface-elevated);
-      padding: 4px 6px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--border-strong);
+      padding: 5px 8px;
       border-radius: 2px;
-      border-left: 2px solid var(--cyan);
+      font-size: 10.5px;
+      line-height: 1.35;
     }
-    .log-dot { width: 5px; height: 5px; border-radius: 50%; display: inline-block; }
 
     /* ==========================================================================
-       BOTTOM INFORMATION STRIP
+       BOTTOM OPERATIONAL STATUS STRIP
        ========================================================================== */
     .bottom-info-strip {
       height: var(--strip-h);
       min-height: var(--strip-h);
       background: var(--bg-surface);
-      border-top: 1px solid var(--border-subtle);
+      border-top: 1px solid var(--border);
+      padding: 0 16px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0 16px;
-      font-size: 10px;
-      font-family: var(--font-mono);
-      color: var(--text-dim);
-      z-index: 40;
+      font-size: 11px;
+      color: var(--text-secondary);
       user-select: none;
-      overflow-x: auto;
-      white-space: nowrap;
     }
 
     .b-strip-left, .b-strip-right {
@@ -1164,25 +1574,302 @@
       align-items: center;
       gap: 5px;
     }
-    .b-stat-lbl { color: var(--text-dim); text-transform: uppercase; font-size: 8.5px; }
-    .b-stat-val { font-weight: 700; color: var(--text-main); }
-    .b-stat-val.cyan { color: var(--cyan); }
-    .b-stat-val.green { color: var(--green); }
-    .b-stat-val.amber { color: var(--amber); }
-    .b-stat-val.red { color: var(--red); }
 
-    /* Mobile Bottom Navigation (Hidden on desktop) */
+    .b-stat-lbl {
+      font-size: 9.5px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+
+    .b-stat-val {
+      font-family: var(--font-mono);
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+    .b-stat-val.green { color: var(--status-safe); }
+    .b-stat-val.amber { color: var(--status-caution); }
+    .b-stat-val.red { color: var(--status-critical); }
+
+    /* ==========================================================================
+       MODALS & DIALOGS (CLEAN OPERATIONAL MODALS)
+       ========================================================================== */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(30, 36, 33, 0.45);
+      backdrop-filter: blur(4px);
+      z-index: 100;
+      place-items: center;
+    }
+    .modal-overlay.open { display: grid; }
+
+    .modal-box {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-lg);
+      padding: 20px;
+      width: 90%;
+      max-width: 440px;
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .modal-title {
+      font-weight: 700;
+      font-size: 14px;
+      color: var(--text-primary);
+    }
+
+    .modal-close-btn {
+      background: none;
+      border: none;
+      font-size: 15px;
+      color: var(--text-muted);
+      cursor: pointer;
+    }
+    .modal-close-btn:hover { color: var(--text-primary); }
+
+    .form-group {
+      margin-bottom: 12px;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin-bottom: 4px;
+    }
+
+    .form-input, .form-select {
+      width: 100%;
+      padding: 7px 10px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      font-size: 12.5px;
+      color: var(--text-primary);
+      background: var(--bg-surface);
+      outline: none;
+    }
+    .form-input:focus, .form-select:focus {
+      border-color: var(--action-primary);
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 16px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border-subtle);
+    }
+
+    .btn-cancel {
+      background: var(--bg-surface-secondary);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      padding: 6px 12px;
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .btn-submit {
+      background: var(--action-primary);
+      border: 1px solid var(--action-primary);
+      color: #FFFFFF;
+      padding: 6px 14px;
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn-submit:hover { background: var(--action-primary-hover); }
+
+    .btn-danger {
+      background: var(--status-critical);
+      border: 1px solid var(--status-critical);
+      color: #FFFFFF;
+      padding: 6px 14px;
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    /* ==========================================================================
+       FIRST-TIME OPERATOR ORIENTATION ONBOARDING OVERLAY
+       ========================================================================== */
+    .orientation-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(30, 36, 33, 0.65);
+      backdrop-filter: blur(4px);
+      z-index: 200;
+      place-items: center;
+    }
+    .orientation-overlay.open { display: grid; }
+
+    .orientation-card {
+      background: #FFFFFF;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      box-shadow: 0 12px 36px rgba(0,0,0,0.18);
+      width: 90%;
+      max-width: 500px;
+      padding: 24px 26px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      position: relative;
+    }
+
+    .orientation-badge {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: var(--action-primary);
+      background: var(--status-safe-bg);
+      border: 1px solid var(--status-safe-border);
+      padding: 3px 8px;
+      border-radius: var(--radius-xs);
+      align-self: flex-start;
+    }
+
+    .orientation-title {
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: -0.3px;
+    }
+
+    .orientation-body {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.55;
+    }
+
+    .orientation-progress {
+      display: flex;
+      gap: 6px;
+      margin: 8px 0;
+    }
+
+    .orientation-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--border-medium);
+      transition: all 0.2s ease;
+    }
+    .orientation-dot.active {
+      background: var(--action-primary);
+      width: 20px;
+      border-radius: 4px;
+    }
+
+    .orientation-actions {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 6px;
+      padding-top: 14px;
+      border-top: 1px solid var(--border-subtle);
+    }
+
+    .orientation-btn-primary {
+      background: var(--action-primary);
+      color: #FFFFFF;
+      border: none;
+      padding: 8px 16px;
+      border-radius: var(--radius-sm);
+      font-size: 12.5px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .orientation-btn-primary:hover { background: var(--action-primary-hover); }
+
+    .orientation-btn-secondary {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      padding: 7px 14px;
+      border-radius: var(--radius-sm);
+      font-size: 12.5px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    .orientation-btn-secondary:hover { background: var(--bg-surface-secondary); color: var(--text-primary); }
+
+    /* Highlight ring for active orientation target */
+    .orientation-target-highlight {
+      outline: 3px solid var(--action-primary) !important;
+      outline-offset: 2px !important;
+      transition: outline 0.2s ease;
+    }
+
+    /* Contextual Tooltip Component */
+    .has-tooltip {
+      position: relative;
+      cursor: help;
+      display: inline-flex;
+      align-items: center;
+    }
+    .tooltip-icon {
+      font-size: 9.5px;
+      color: var(--text-muted);
+      margin-left: 3px;
+      font-weight: 700;
+      opacity: 0.8;
+    }
+    .has-tooltip:hover::after {
+      content: attr(data-tooltip);
+      position: absolute;
+      bottom: calc(100% + 6px);
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1E2421;
+      color: #FFFFFF;
+      font-size: 11px;
+      line-height: 1.4;
+      padding: 5px 9px;
+      border-radius: var(--radius-sm);
+      white-space: normal;
+      width: max-content;
+      max-width: 220px;
+      z-index: 100;
+      box-shadow: var(--shadow-md);
+      pointer-events: none;
+      font-weight: 400;
+      font-family: var(--font-sans);
+    }
+
+    /* Mobile Bottom Navigation */
     .mobile-bottom-nav {
       display: none;
+      height: var(--mobile-nav-h);
+      background: var(--bg-surface);
+      border-top: 1px solid var(--border);
       position: fixed;
       bottom: 0;
       left: 0;
       right: 0;
-      height: var(--mobile-nav-h);
-      background: rgba(14, 20, 30, 0.96);
-      border-top: 1px solid var(--border-medium);
-      backdrop-filter: blur(8px);
-      z-index: 1000;
+      z-index: 60;
+      display: none;
       grid-template-columns: repeat(4, 1fr);
     }
 
@@ -1191,269 +1878,133 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 3px;
-      color: var(--text-muted);
-      font-size: 9px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
+      gap: 2px;
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--text-secondary);
       cursor: pointer;
-      user-select: none;
-      min-height: 48px;
     }
-    .mob-nav-item span:first-child { font-size: 15px; }
-    .mob-nav-item.active { color: var(--cyan); }
-
-    /* ==========================================================================
-       MODALS & DIALOGS
-       ========================================================================== */
-    .modal-overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(4, 7, 12, 0.85);
-      backdrop-filter: blur(6px);
-      z-index: 2000;
-      display: none;
-      align-items: center;
-      justify-content: center;
-      padding: 16px;
-    }
-    .modal-overlay.open { display: flex; }
-
-    .modal-box {
-      width: 100%;
-      max-width: 460px;
-      background: var(--bg-surface-elevated);
-      border: 1px solid var(--border-medium);
-      border-radius: 4px;
-      padding: 18px;
-      box-shadow: 0 16px 40px rgba(0,0,0,0.8);
+    .mob-nav-item.active {
+      color: var(--action-primary);
     }
 
-    .modal-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      border-bottom: 1px solid var(--border-subtle);
-      padding-bottom: 10px;
-      margin-bottom: 14px;
-    }
-    .modal-title { font-family: var(--font-heading); font-weight: 700; font-size: 14px; }
-    .modal-close-btn { background: none; border: none; color: var(--text-muted); font-size: 18px; cursor: pointer; }
-
-    .form-group { margin-bottom: 12px; }
-    .form-label { display: block; font-size: 9.5px; color: var(--text-dim); text-transform: uppercase; margin-bottom: 4px; font-weight: 600; }
-    .form-input, .form-select {
-      width: 100%;
-      background: var(--bg-surface);
-      border: 1px solid var(--border-subtle);
-      color: #fff;
-      padding: 7px 10px;
-      border-radius: 3px;
-      font-size: 12px;
-      font-family: inherit;
-      outline: none;
-    }
-    .form-input:focus, .form-select:focus { border-color: var(--cyan); }
-
-    .modal-actions {
-      display: flex;
-      justify-content: flex-end;
-      gap: 8px;
-      margin-top: 16px;
-      border-top: 1px solid var(--border-subtle);
-      padding-top: 12px;
-    }
-    .btn-cancel {
-      background: transparent;
-      border: 1px solid var(--border-medium);
-      color: var(--text-muted);
-      padding: 6px 12px;
-      border-radius: 3px;
-      cursor: pointer;
-      font-size: 11px;
-    }
-    .btn-submit {
-      background: #0284c7;
-      border: none;
-      color: #fff;
-      padding: 6px 16px;
-      border-radius: 3px;
-      font-weight: 700;
-      cursor: pointer;
-      font-size: 11px;
-    }
-    .btn-danger {
-      background: var(--red);
-      border: none;
-      color: #fff;
-      padding: 6px 14px;
-      border-radius: 3px;
-      font-weight: 700;
-      cursor: pointer;
-      font-size: 11px;
-    }
-
-    /* Helper styles for existing IDs */
-    .source-tag { font-size: 9px; font-weight: 600; padding: 1px 4px; border-radius: 2px; }
-    .source-tag.real { color: var(--green); }
-    .source-tag.sim { color: var(--cyan); }
-    .hero-del-btn { background: none; border: 1px solid rgba(239,68,68,0.3); color: #fca5a5; font-size: 9px; padding: 2px 6px; border-radius: 2px; cursor: pointer; display: flex; align-items: center; gap: 4px; }
-    .hero-del-btn:hover { background: var(--red-dim); }
-
-    /* Mobile Drawer Backdrop (Base Style) */
     .rail-drawer-backdrop {
+      display: none;
       position: fixed;
       inset: 0;
-      background: rgba(0, 0, 0, 0.75);
-      z-index: 1400;
-      display: none;
-      backdrop-filter: blur(2px);
-    }
-    .rail-drawer-backdrop.open { display: block; }
-
-    /* ==========================================================================
-       RESPONSIVE BREAKPOINTS (1200px, 860px, 768px, 576px, 400px)
-       ========================================================================== */
-    @media (max-width: 1200px) {
-      :root {
-        --rail-w: 230px;
-        --ops-w: 300px;
-      }
+      background: rgba(0,0,0,0.3);
+      z-index: 45;
     }
 
-    @media (max-width: 860px) {
+    /* Responsive Breakpoints */
+    @media (max-width: 1080px) {
       .workspace-grid {
-        grid-template-columns: 210px 1fr;
-      }
-      .operations-panel {
-        display: none;
+        grid-template-columns: 240px 1fr 310px;
       }
     }
 
-    @media (max-width: 768px) {
-      html, body {
-        overflow-y: auto;
-        height: auto;
-      }
-      .app-root {
-        height: auto;
-        min-height: 100vh;
-        padding-bottom: calc(var(--mobile-nav-h) + 16px);
-      }
+    @media (max-width: 900px) {
       .workspace-grid {
         display: flex;
         flex-direction: column;
         height: auto;
-        overflow: visible;
+        overflow-y: auto;
       }
-      .topbar-left .sys-pulse-indicator { display: none; }
-      .mobile-menu-btn { display: block; }
-
-      /* Fleet Rail as Slide-Out Drawer on Mobile */
       .fleet-rail {
+        display: none;
         position: fixed;
-        top: 0;
-        bottom: 0;
+        top: var(--header-h);
+        bottom: var(--mobile-nav-h);
         left: 0;
         width: 280px;
-        z-index: 1500;
-        transform: translateX(-100%);
-        transition: transform 0.25s ease;
-        box-shadow: 10px 0 30px rgba(0,0,0,0.8);
+        z-index: 50;
+        box-shadow: var(--shadow-lg);
       }
-      .fleet-rail.drawer-open {
-        transform: translateX(0);
-      }
-
-      /* 3D Digital Twin as Top Primary Screen */
-      .digital-twin-zone {
-        height: 48vh;
-        min-height: 320px;
-      }
-      .twin-header-bar { padding: 0 8px; }
-      .twin-tools-group .cam-mode-buttons { display: none; } /* keep dropdown or reset */
-
-      /* Operations Panel Stacks Below Digital Twin */
-      .operations-panel {
-        display: flex;
-        width: 100%;
-        height: auto;
-        overflow: visible;
-        border-left: none;
-        border-top: 1px solid var(--border-subtle);
-      }
-
-      /* Fixed Mobile Bottom Nav */
-      .mobile-bottom-nav {
-        display: grid;
-      }
-      .bottom-info-strip {
-        display: none; /* replaced by mobile nav */
-      }
-    }
-
-    @media (max-width: 480px) {
-      .brand-badge { display: none; }
-      .ops-metrics-grid {
-        grid-template-columns: 1fr 1fr;
-      }
-      .digital-twin-zone {
-        height: 42vh;
-        min-height: 280px;
-      }
+      .fleet-rail.drawer-open { display: flex; }
+      .rail-drawer-backdrop.open { display: block; }
+      .mobile-menu-btn { display: inline-flex; }
+      .mobile-bottom-nav { display: grid; }
+      .digital-twin-zone { height: 50vh; min-height: 350px; }
+      .operations-panel { height: auto; }
     }
   </style>
 </head>
-<body>
 
+<body>
 <div class="app-root">
 
-  <!-- TOP STATUS BAR -->
+  <!-- ====================================================================
+       TOP NAVIGATION BAR
+       ==================================================================== -->
   <header class="topbar">
     <div class="topbar-left">
       <button type="button" class="mobile-menu-btn" id="mobileDrawerBtn" onclick="toggleMobileDrawer()">
         ☰ FLEET
       </button>
+
       <a href="/" class="brand-mark">
-        <div class="brand-icon-box">R</div>
-        <div class="brand-name">RESURGENCE</div>
+        <div class="brand-icon-box">HF</div>
+        <div class="brand-text-col">
+          <div class="brand-name">HAUL FLEET</div>
+          <div class="brand-subtitle">Bailadila Operations</div>
+        </div>
       </a>
-      <div class="brand-badge">DEPOSIT-14 COMMAND</div>
-      <div class="sys-pulse-indicator">
-        <span class="sys-pulse-dot"></span>
-        <span>LIVE TELEMETRY</span>
+
+      <div class="topbar-divider"></div>
+
+      <div class="operational-context">
+        <span>Site:</span>
+        <strong>Bailadila Deposit 14</strong>
       </div>
     </div>
 
     <div class="topbar-right">
-      <span class="status-pill" id="topRoleBadge" style="background:var(--cyan-dim);color:var(--cyan);border:1px solid rgba(56,189,248,0.25)">
-        DISPATCH: CONTROL ROOM
-      </span>
+      <div class="sys-pulse-indicator">
+        <span class="sys-pulse-dot"></span>
+        <span>Live Telemetry</span>
+      </div>
+
       <div class="top-clock-group">
         <span id="liveDate">--</span>
-        <strong id="liveClock" style="color:var(--text-main)">--:--:--</strong>
+        <strong id="liveClock">--:--:--</strong>
       </div>
+
+      <button type="button" class="btn-help" onclick="openOrientation(1)" title="Open control room operator orientation">
+        <span>?</span>
+        <span>HELP</span>
+      </button>
+
+      <span class="status-pill topbar-role-badge" id="topRoleBadge">
+        Dispatch: Control Room
+      </span>
     </div>
   </header>
 
-  <!-- MAIN THREE-ZONE WORKSPACE -->
+  <!-- ====================================================================
+       MAIN THREE-ZONE WORKSPACE
+       ==================================================================== -->
   <div class="workspace-grid">
 
     <!-- ====================================================================
-         ZONE 1: LEFT FLEET NAVIGATION RAIL
+         ZONE 1: LEFT FLEET SIDEBAR
          ==================================================================== -->
     <aside class="fleet-rail" id="fleetRail">
       <div class="rail-section-header">
-        <span class="rail-section-title">Fleet Units</span>
-        <button type="button" class="mobile-menu-btn" onclick="toggleMobileDrawer()" style="display:none;padding:2px 6px" id="drawerCloseBtn">✕</button>
+        <div class="rail-header-top">
+          <span class="rail-section-title">Fleet</span>
+          <span class="rail-total-count" id="fleetHeaderCount">6 vehicles</span>
+          <button type="button" class="mobile-menu-btn" onclick="toggleMobileDrawer()" style="display:none;padding:2px 6px" id="drawerCloseBtn">✕</button>
+        </div>
+        <div class="rail-summary-line" id="fleetSummaryLine">
+          <span class="stat-dot dot-online"></span> 5 Online &nbsp;·&nbsp; <span class="stat-dot dot-warn"></span> 1 Attention
+        </div>
       </div>
 
-      <!-- Overview Button & Source Filter Tabs -->
+      <!-- Overview Button & Source Filter Segmented Control -->
       <div class="rail-toolbar">
         <button type="button" class="overview-map-btn" id="fleetOverviewBtn" onclick="showAllTruckLocations()">
           <span>🗺️</span>
-          <span>ALL UNITS OVERVIEW</span>
+          <span>All Units Overview</span>
         </button>
 
         <div class="source-filter-tabs">
@@ -1487,78 +2038,53 @@
           <span>Inject Hazard on Unit</span>
         </button>
 
-        <button type="button" class="test-obs-btn" style="background:rgba(239,68,68,0.18);border-color:#ef4444;color:#fca5a5;font-weight:700" onclick="triggerV2VDemoCascade()">
-          <span>📡</span>
-          <span>Trigger V2V Demo</span>
-        </button>
-
         <button type="button" class="add-device-btn" id="addDeviceBtn" onclick="openAddDeviceModal()">
           <span>➕</span>
           <span>Register Telemetry Node</span>
         </button>
       </div>
-
-      <!-- V2V Safety Mesh Summary Card (Section 17) -->
-      <div class="v2v-network-card" id="v2vNetworkCard" style="margin:6px 8px;padding:8px 10px;background:var(--bg-surface-elevated);border:1px solid rgba(6,182,212,0.3);border-radius:4px;font-family:var(--font-mono)">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-          <span style="font-weight:700;font-size:10px;color:var(--cyan);letter-spacing:0.5px">📡 V2V SAFETY NETWORK</span>
-          <span id="v2vNetStatusBadge" class="status-pill" style="font-size:8px;background:rgba(16,185,129,0.15);color:var(--green);border:1px solid var(--green)">CONNECTED</span>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;font-size:9px;text-align:center;margin-bottom:6px">
-          <div style="background:rgba(19,28,42,0.6);padding:3px;border-radius:2px">
-            <div style="color:var(--text-dim);font-size:7.5px">ACTIVE LINKS</div>
-            <div id="v2vStatLinks" style="font-weight:700;color:var(--cyan)">--</div>
-          </div>
-          <div style="background:rgba(19,28,42,0.6);padding:3px;border-radius:2px">
-            <div style="color:var(--text-dim);font-size:7.5px">ALERTS</div>
-            <div id="v2vStatAlerts" style="font-weight:700;color:var(--green)">0</div>
-          </div>
-          <div style="background:rgba(19,28,42,0.6);padding:3px;border-radius:2px">
-            <div style="color:var(--text-dim);font-size:7.5px">MESSAGES</div>
-            <div id="v2vStatMsgRate" style="font-weight:700;color:var(--text-main)">--/s</div>
-          </div>
-        </div>
-        <div style="font-size:8.5px;color:var(--text-dim);margin-bottom:3px">ACTIVE PEER LINKS:</div>
-        <div id="v2vLinksList" style="max-height:68px;overflow-y:auto;display:flex;flex-direction:column;gap:2px;font-size:8.5px">
-          <div style="color:var(--text-dim);font-style:italic">Discovering peer links...</div>
-        </div>
-      </div>
     </aside>
 
     <!-- ====================================================================
-         ZONE 2: CENTER DIGITAL TWIN (DOMINANT CENTERPIECE)
+         ZONE 2: CENTER DIGITAL TWIN (DOMINANT VISUAL HERO)
          ==================================================================== -->
     <section class="digital-twin-zone">
 
-      <!-- Twin Toolbar -->
+      <!-- Twin Header Bar -->
       <div class="twin-header-bar">
         <div class="twin-title-group">
           <span class="twin-badge-live">
-            <span class="sys-pulse-dot" style="width:4px;height:4px"></span>
-            LIVE TWIN
+            <span class="sys-pulse-dot" style="width:5px;height:5px"></span>
+            LIVE
           </span>
-          <span class="twin-title-text" id="activeZoneTitle">Bailadila Deposit 14 Open-Cast Pit</span>
+          <span class="twin-title-text" id="activeZoneTitle">Bailadila Deposit 14 — Digital Twin</span>
         </div>
 
         <div class="twin-tools-group">
-          <!-- Camera Modes -->
-          <div class="cam-mode-buttons">
-            <button type="button" class="mine3d-cam-btn active" id="btnCamOrbit" onclick="set3DCameraMode('orbit')">ORBIT</button>
-            <button type="button" class="mine3d-cam-btn" id="btnCamFollow" onclick="set3DCameraMode('follow')">FOLLOW</button>
-            <button type="button" class="mine3d-cam-btn" id="btnCamChase" onclick="set3DCameraMode('chase')">CHASE</button>
-            <button type="button" class="mine3d-cam-btn" id="btnCamCockpit" onclick="set3DCameraMode('cockpit')">COCKPIT</button>
+          <!-- View Switcher: 3D Twin vs 2D GIS Map vs Dual -->
+          <div class="segmented-control view-mode-tabs">
+            <button type="button" class="segmented-btn view-tab-btn active" id="tabView3D" onclick="setCenterViewMode('3d')">3D TWIN</button>
+            <button type="button" class="segmented-btn view-tab-btn" id="tabViewMap" onclick="setCenterViewMode('map')">2D MAP</button>
+            <button type="button" class="segmented-btn view-tab-btn" id="tabViewSplit" onclick="setCenterViewMode('split')">SPLIT</button>
           </div>
 
-          <button type="button" class="ctrl-btn" style="flex:none;padding:3px 8px;font-size:9.5px" onclick="reset3DCameraTarget()">
+          <!-- Camera Modes -->
+          <div class="segmented-control cam-mode-buttons">
+            <button type="button" class="segmented-btn mine3d-cam-btn active" id="btnCamOrbit" onclick="set3DCameraMode('orbit')">Orbit</button>
+            <button type="button" class="segmented-btn mine3d-cam-btn" id="btnCamFollow" onclick="set3DCameraMode('follow')">Follow</button>
+            <button type="button" class="segmented-btn mine3d-cam-btn" id="btnCamChase" onclick="set3DCameraMode('chase')">Chase</button>
+            <button type="button" class="segmented-btn mine3d-cam-btn" id="btnCamCockpit" onclick="set3DCameraMode('cockpit')">Cockpit</button>
+          </div>
+
+          <button type="button" class="ctrl-btn" style="flex:none;padding:3px 8px;font-size:10.5px" onclick="reset3DCameraTarget()">
             🔄 Reset
           </button>
 
-          <!-- View Switcher: 3D Twin vs 2D GIS Map vs Split -->
-          <div class="view-mode-tabs">
-            <button type="button" class="view-tab-btn active" id="tabView3D" onclick="setCenterViewMode('3d')">3D TWIN</button>
-            <button type="button" class="view-tab-btn" id="tabViewMap" onclick="setCenterViewMode('map')">2D MAP</button>
-            <button type="button" class="view-tab-btn" id="tabViewSplit" onclick="setCenterViewMode('split')">DUAL</button>
-          </div>
+          <!-- Compact View Options Popover Trigger -->
+          <button type="button" class="btn-view-options" id="btnViewOptions" onclick="toggleViewOptionsPopover(event)">
+            <span>⚙</span>
+            <span>View Options ▾</span>
+          </button>
 
           <a href="/mine3d" target="_blank" class="twin-link-btn" title="Open Fullscreen 3D Twin">⛶ Fullscreen ↗</a>
         </div>
@@ -1572,7 +2098,7 @@
         <button type="button" class="scenario-btn" data-scenario="OBSTACLE_AHEAD" onclick="applyScenario('OBSTACLE_AHEAD')">🛑 Boulder Hazard</button>
         <button type="button" class="scenario-btn" data-scenario="HAIRPIN_CAUTION" onclick="applyScenario('HAIRPIN_CAUTION')">⚠️ Hairpin Caution</button>
         <button type="button" class="scenario-btn" data-scenario="TRAFFIC_CLOSE" onclick="applyScenario('TRAFFIC_CLOSE')">🚛 Convoy Headway</button>
-        <span id="activeScenarioBadge" class="status-pill" style="margin-left:auto;font-size:8.5px;background:var(--cyan-dim);color:var(--cyan);border:1px solid rgba(56,189,248,0.3)">
+        <span id="activeScenarioBadge" class="status-pill" style="margin-left:auto;font-size:9.5px;background:var(--bg-surface);color:var(--text-secondary);border:1px solid var(--border)">
           CLEAR RUN
         </span>
       </div>
@@ -1584,37 +2110,49 @@
         <div id="mine3DCard">
           <div id="threeCanvasWrap"></div>
 
-          <!-- Minimal Floating Layer Toggles on 3D View -->
-          <div class="twin-floating-layers">
-            <label><input type="checkbox" id="dashChkTerrain" checked onchange="window.dashBailadilaEngine && window.dashBailadilaEngine.setTerrainVisible(this.checked)" style="accent-color:#38bdf8"> Terrain</label>
-            <label><input type="checkbox" id="dashChkPit" checked onchange="window.dashBailadilaEngine && window.dashBailadilaEngine.setMineVisible(scene3D, this.checked)" style="accent-color:#38bdf8"> Mine Pit</label>
-            <label><input type="checkbox" id="dashChkRoads" checked onchange="window.dashBailadilaEngine && window.dashBailadilaEngine.setRoadsVisible(this.checked)" style="accent-color:#38bdf8"> Haul Loop</label>
-            <label><input type="checkbox" id="dashChkTrucks" checked onchange="window.dashBailadilaEngine && window.dashBailadilaEngine.setTrucksVisible(this.checked)" style="accent-color:#38bdf8"> Fleet</label>
-            <label><input type="checkbox" id="dashChkHazards" checked onchange="window.dashBailadilaEngine && window.dashBailadilaEngine.setHazardsVisible(this.checked)" style="accent-color:#38bdf8"> Hazards</label>
-            <div style="display:flex;align-items:center;gap:4px;margin-left:4px">
-              <span style="font-size:8.5px;color:var(--text-dim)">V.Scale:</span>
-              <input type="range" id="dashVscaleSlider" min="70" max="220" step="5" value="150" style="width:55px;cursor:pointer" oninput="onDashVscaleChange(this.value)">
-              <span id="dashVscaleLabel" style="font-size:8.5px;color:var(--cyan)">1.50×</span>
+          <!-- View Options Popover Dropdown (Section 8) -->
+          <div class="view-options-popover" id="viewOptionsPopover">
+            <div class="popover-header">
+              <span>Visualization Layers</span>
+              <button type="button" class="popover-close" onclick="toggleViewOptionsPopover(event)">✕</button>
             </div>
-            <div style="display:flex;align-items:center;gap:4px">
-              <span style="font-size:8.5px;color:var(--text-dim)">Fog:</span>
-              <input type="range" id="dashboardFogSlider" min="0" max="100" value="0" style="width:55px;cursor:pointer" oninput="onDashboardFogSliderChange(this.value)">
-              <span id="dashboardFogLabel" style="font-size:8.5px;color:var(--cyan)">Clear</span>
+            <div class="popover-checkbox-group">
+              <label><input type="checkbox" id="dashChkTerrain" checked onchange="window.dashBailadilaEngine && window.dashBailadilaEngine.setTerrainVisible(this.checked)"> Terrain Surface</label>
+              <label><input type="checkbox" id="dashChkPit" checked onchange="window.dashBailadilaEngine && window.dashBailadilaEngine.setMineVisible(scene3D, this.checked)"> Open-Cast Pit Floor</label>
+              <label><input type="checkbox" id="dashChkRoads" checked onchange="window.dashBailadilaEngine && window.dashBailadilaEngine.setRoadsVisible(this.checked)"> Haul Road Circuit</label>
+              <label><input type="checkbox" id="dashChkTrucks" checked onchange="window.dashBailadilaEngine && window.dashBailadilaEngine.setTrucksVisible(this.checked)"> Fleet Vehicles</label>
+              <label><input type="checkbox" id="dashChkHazards" checked onchange="window.dashBailadilaEngine && window.dashBailadilaEngine.setHazardsVisible(this.checked)"> Hazard Overlays</label>
+            </div>
+
+            <div class="popover-slider-row">
+              <div class="popover-slider-hdr">
+                <span>Vertical Scale</span>
+                <span id="dashVscaleLabel" style="font-weight:700">1.50×</span>
+              </div>
+              <input type="range" id="dashVscaleSlider" min="70" max="220" step="5" value="150" oninput="onDashVscaleChange(this.value)">
+            </div>
+
+            <div class="popover-slider-row">
+              <div class="popover-slider-hdr">
+                <span>Simulated Fog</span>
+                <span id="dashboardFogLabel" style="font-weight:700">Clear</span>
+              </div>
+              <input type="range" id="dashboardFogSlider" min="0" max="100" value="0" oninput="onDashboardFogSliderChange(this.value)">
             </div>
           </div>
 
-          <!-- Digital-Twin Sync Validator HUD Overlay -->
+          <!-- Digital-Twin Sync Validator HUD Overlay (Preserves all required audit tokens) -->
           <div id="syncValidatorOverlay">
-            <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border-subtle);padding-bottom:2px">
-              <span style="font-weight:700;color:var(--cyan);letter-spacing:0.5px">DIGITAL-TWIN SYNC VALIDATOR</span>
-              <span id="syncOverallStatus" style="color:var(--green);font-weight:700">DIGITAL TWIN SYNCED</span>
+            <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);padding-bottom:3px;margin-bottom:3px">
+              <span style="font-weight:700;color:var(--text-primary);letter-spacing:0.3px">DIGITAL-TWIN SYNC VALIDATOR</span>
+              <span id="syncOverallStatus" style="color:var(--status-safe);font-weight:700">DIGITAL TWIN SYNCED</span>
             </div>
             <div style="display:flex;justify-content:space-between;padding:1px 0">
-              <span style="color:var(--text-dim)">Vehicle ID:</span>
-              <span id="syncValVehicleId" style="font-weight:700;color:#fde047">TRUCK_01</span>
+              <span style="color:var(--text-muted)">Vehicle ID:</span>
+              <span id="syncValVehicleId" style="font-weight:700;color:var(--text-primary)">TRUCK_01</span>
             </div>
-            <div style="border-top:1px solid var(--border-subtle);padding-top:2px">
-              <div style="color:var(--cyan);font-weight:600">Backend:</div>
+            <div style="border-top:1px solid var(--border-subtle);padding-top:2px;margin-top:2px">
+              <div style="font-weight:600;color:var(--text-secondary)">Backend:</div>
               <div style="display:flex;justify-content:space-between">
                 <span>Lat: <b id="syncValBackendLat">--</b></span>
                 <span>Lng: <b id="syncValBackendLng">--</b></span>
@@ -1624,8 +2162,8 @@
                 <span>Heading: <b id="syncValBackendHeading">--</b></span>
               </div>
             </div>
-            <div style="border-top:1px solid var(--border-subtle);padding-top:2px">
-              <div style="color:var(--cyan);font-weight:600">Three.js:</div>
+            <div style="border-top:1px solid var(--border-subtle);padding-top:2px;margin-top:2px">
+              <div style="font-weight:600;color:var(--text-secondary)">Three.js:</div>
               <div style="display:flex;justify-content:space-between">
                 <span>Lat: <b id="syncValThreeLat">--</b></span>
                 <span>Lng: <b id="syncValThreeLng">--</b></span>
@@ -1635,8 +2173,8 @@
                 <span>Heading: <b id="syncValThreeHeading">--</b></span>
               </div>
             </div>
-            <div style="border-top:1px solid var(--border-subtle);padding-top:2px">
-              <div style="color:var(--cyan);font-weight:600">Differences:</div>
+            <div style="border-top:1px solid var(--border-subtle);padding-top:2px;margin-top:2px">
+              <div style="font-weight:600;color:var(--text-secondary)">Differences:</div>
               <div style="display:flex;justify-content:space-between">
                 <span>Position difference: <b id="syncValPosDiff">0.00 m</b></span>
                 <span>Elevation difference: <b id="syncValElevDiff">0.0 m</b></span>
@@ -1645,12 +2183,12 @@
                 <span>Heading difference: <b id="syncValHeadingDiff">0.0°</b></span>
               </div>
             </div>
-            <div style="border-top:1px solid var(--border-subtle);padding-top:2px">
-              <div style="color:var(--cyan);font-weight:600">Status:</div>
+            <div style="border-top:1px solid var(--border-subtle);padding-top:2px;margin-top:2px">
+              <div style="font-weight:600;color:var(--text-secondary)">Status:</div>
               <div style="display:flex;justify-content:space-between;font-weight:600;font-size:8px">
-                <span id="syncValPosStatus" style="color:var(--green)">POSITION: SYNCED</span>
-                <span id="syncValElevStatus" style="color:var(--green)">ELEVATION: SYNCED</span>
-                <span id="syncValHeadingStatus" style="color:var(--green)">HEADING: SYNCED</span>
+                <span id="syncValPosStatus" style="color:var(--status-safe)">POSITION: SYNCED</span>
+                <span id="syncValElevStatus" style="color:var(--status-safe)">ELEVATION: SYNCED</span>
+                <span id="syncValHeadingStatus" style="color:var(--status-safe)">HEADING: SYNCED</span>
               </div>
             </div>
           </div>
@@ -1661,8 +2199,7 @@
           <div id="fleetMap"></div>
           <div style="position:absolute;top:10px;right:10px;z-index:400;display:flex;gap:4px">
             <button type="button" class="btn-map-street map-toggle-btn active" id="btnStreetLayer" onclick="switchMapLayer('street')">Map</button>
-            <button type="button" class="btn-map-sat map-toggle-btn" id="btnSatLayer" onclick="switchMapLayer('satellite')">Sat</button>
-            <!-- Hidden elements to preserve ID queries -->
+            <button type="button" class="btn-map-sat map-toggle-btn" id="btnSatLayer" onclick="switchMapLayer('satellite')">Satellite</button>
             <button type="button" id="pillStreet" style="display:none"></button>
             <button type="button" id="pillSat" style="display:none"></button>
           </div>
@@ -1678,13 +2215,13 @@
         </div>
         <div class="tt-item">
           <span>TRACKING: </span>
-          <span id="threeDTargetLabel" style="color:var(--cyan)">TRUCK_01</span>
+          <span id="threeDTargetLabel" style="font-weight:700;color:var(--text-primary)">TRUCK_01</span>
         </div>
         <div class="tt-item">
           <span>RADAR: </span>
-          <span id="threeDRadarLabel" style="color:var(--green)">CLEAR</span>
+          <span id="threeDRadarLabel" style="font-weight:700;color:var(--status-safe)">CLEAR</span>
         </div>
-        <div class="tt-item" style="color:var(--amber)">
+        <div class="tt-item" style="color:var(--text-muted)">
           <span>ROUTE: </span>
           <span>Conceptual Deposit-14 Loop</span>
         </div>
@@ -1693,11 +2230,13 @@
 
     <!-- ====================================================================
          ZONE 3: RIGHT SELECTED VEHICLE OPERATIONS PANEL
+         Clear hierarchy: Level 1 (Immediate) -> Level 2 -> Level 3 (Expandable)
          ==================================================================== -->
     <aside class="operations-panel" id="operationsPanel">
 
       <!-- Sticky Hero Vehicle Card -->
       <div class="ops-hero-card">
+        <div class="ops-label-dim">Selected Vehicle</div>
         <div class="ops-hero-top">
           <div>
             <div class="ops-v-title">
@@ -1706,7 +2245,7 @@
               <span class="ops-hero-badge" id="heroBadge">1</span>
             </div>
             <div class="ops-v-model">
-              <span id="heroModel">Caterpillar 797F</span> • <span id="heroZoneTag" style="color:var(--cyan)">Pit Bottom</span>
+              <span id="heroModel">Caterpillar 797F</span> • <span id="heroZoneTag">Pit Bottom</span>
             </div>
           </div>
           <button type="button" class="hero-del-btn" id="heroDeregisterBtn" title="Deregister this unit" onclick="confirmDeleteVehicle(selectedVehicleId, document.getElementById('heroName').textContent, event)">
@@ -1717,7 +2256,7 @@
         <!-- Status Pills -->
         <div class="ops-pills-row">
           <span class="hero-status-pill connected" id="heroConnPill">
-            <span class="status-beacon beacon-online"></span>
+            <span class="status-beacon"></span>
             <span id="heroConnText">ONLINE</span>
           </span>
           <span class="hero-status-pill moving" id="heroMotionPill">
@@ -1727,37 +2266,51 @@
             <span id="heroDsrText">✓ SAFE SPEED</span>
           </span>
         </div>
+      </div>
 
-        <!-- 2x2 Core Telemetry Grid -->
-        <div class="ops-metrics-grid">
-          <div class="ops-metric-cell">
-            <div class="ops-m-label">Current Velocity</div>
-            <div class="ops-m-val"><span id="heroSpeed">0.0</span> <small>km/h</small></div>
+      <!-- CURRENT SITUATION SECTION -->
+      <div class="ops-section-block">
+        <div class="ops-block-title">
+          <span>Current Situation</span>
+          <span style="font-size:9.5px;color:var(--text-muted);font-weight:500">Live Telemetry</span>
+        </div>
+
+        <div class="situation-grid">
+          <div class="situation-item">
+            <div class="situation-lbl">Current Speed</div>
+            <div class="situation-val"><span id="heroSpeed">0.0</span> <small>km/h</small></div>
           </div>
-          <div class="ops-metric-cell" id="heroSafeSpeedItem">
-            <div class="ops-m-label">Safe Rec (DSR)</div>
-            <div class="ops-m-val" style="color:var(--cyan)"><span id="heroSafeSpeed">18.0</span> <small>km/h</small></div>
+
+          <div class="situation-item" id="heroSafeSpeedItem">
+            <div class="situation-lbl has-tooltip" data-tooltip="Dynamic Speed Recommendation — recommended operating speed based on current risk conditions">
+              Safe Rec (DSR) <span class="tooltip-icon">ⓘ</span>
+            </div>
+            <div class="situation-val" style="color:var(--status-safe)"><span id="heroSafeSpeed">18.0</span> <small>km/h</small></div>
           </div>
-          <div class="ops-metric-cell" id="heroRiskScoreItem">
-            <div class="ops-m-label">Risk Severity</div>
-            <div class="ops-m-val" style="color:var(--green)">
+
+          <div class="situation-item" id="heroRiskScoreItem">
+            <div class="situation-lbl">Risk Severity</div>
+            <div class="situation-val" style="color:var(--status-safe)">
               <span id="heroRiskScore">24</span>
-              <small id="riskScoreLevelBadge" style="color:inherit">LOW</small>
+              <small id="riskScoreLevelBadge" style="color:inherit;font-weight:700">LOW</small>
             </div>
           </div>
-          <div class="ops-metric-cell" id="heroPayloadItem">
-            <div class="ops-m-label">Payload / Heartbeat</div>
-            <div class="ops-m-val" style="font-size:12px">
-              <span id="heroPayload">--</span>t • <span id="heroLastUpdate" style="color:var(--text-dim)">--</span>
+
+          <div class="situation-item" id="heroPayloadItem">
+            <div class="situation-lbl">Payload / Heartbeat</div>
+            <div class="situation-val" style="font-size:11px">
+              <span id="heroPayload">--</span>t • <span id="heroLastUpdate" style="color:var(--text-muted)">--</span>
             </div>
           </div>
         </div>
 
         <!-- Visibility / DFRI Strip -->
-        <div class="ops-zone-strip" id="fogGovernorPanel">
-          <div style="display:flex;justify-content:space-between;align-items:center;font-size:9.5px;font-family:var(--font-mono)">
-            <span style="color:var(--text-dim)">FOG SEVERITY (DFRI)</span>
-            <span id="activeZoneVis" style="color:var(--red);font-weight:700">18 m — SEVERE</span>
+        <div style="margin-top:8px" id="fogGovernorPanel">
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:10px;font-family:var(--font-mono)">
+            <span class="has-tooltip" data-tooltip="Dynamic Fog Risk Index — 5-tier atmospheric hazard measurement system" style="color:var(--text-muted)">
+              FOG SEVERITY (DFRI) <span class="tooltip-icon">ⓘ</span>
+            </span>
+            <span id="activeZoneVis" style="color:var(--status-critical);font-weight:700">18 m — SEVERE</span>
           </div>
 
           <div class="dfri-tiers-bar">
@@ -1783,134 +2336,97 @@
             </div>
           </div>
 
-          <div style="display:flex;justify-content:space-between;font-size:9px;font-family:var(--font-mono);margin-top:2px">
-            <span style="color:var(--text-dim)">GOVERNOR LIMIT:</span>
-            <span id="activeSafeSpeedText" style="color:var(--cyan);font-weight:700">10.0 km/h</span>
+          <div style="display:flex;justify-content:space-between;font-size:9.5px;font-family:var(--font-mono);margin-top:2px">
+            <span style="color:var(--text-muted)">Governor Limit:</span>
+            <span id="activeSafeSpeedText" style="color:var(--text-primary);font-weight:700">10.0 km/h</span>
           </div>
         </div>
       </div>
 
-      <!-- ACCORDION: VEHICLE-TO-VEHICLE (V2V) SAFETY STATUS (Section 18) -->
-      <div class="ops-accordion" id="accV2V">
-        <div class="ops-accordion-hdr" onclick="toggleOpsAccordion('accV2V')">
-          <span>📡 V2V Safety & Neighbor Discovery</span>
-          <span id="v2vHeroStatusBadge" style="font-size:8px;padding:1px 5px;background:rgba(16,185,129,0.15);color:var(--green);border-radius:3px;font-family:var(--font-mono)">CONNECTED</span>
+      <!-- PROMINENT SAFETY STATUS SECTION (Level 1) -->
+      <div class="ops-section-block">
+        <div class="ops-block-title">
+          <span>Route Safety</span>
+          <span style="font-size:9.5px;color:var(--text-muted);font-weight:500">Autonomous Governor</span>
         </div>
-        <div class="ops-accordion-body">
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;font-family:var(--font-mono);font-size:9px;margin-bottom:6px">
-            <div style="background:var(--bg-surface-elevated);padding:4px 6px;border-radius:3px">
-              <span style="color:var(--text-dim);font-size:7.5px">COMMUNICATION</span>
-              <div id="v2vDetailComm" style="color:var(--green);font-weight:700">CONNECTED (SIM)</div>
-            </div>
-            <div style="background:var(--bg-surface-elevated);padding:4px 6px;border-radius:3px">
-              <span style="color:var(--text-dim);font-size:7.5px">NEARBY PEERS</span>
-              <div id="v2vDetailNearbyCount" style="color:var(--cyan);font-weight:700">-- in range</div>
-            </div>
-            <div style="background:var(--bg-surface-elevated);padding:4px 6px;border-radius:3px">
-              <span style="color:var(--text-dim);font-size:7.5px">NEAREST VEHICLE</span>
-              <div id="v2vDetailNearest" style="color:var(--text-main);font-weight:700">--</div>
-            </div>
-            <div style="background:var(--bg-surface-elevated);padding:4px 6px;border-radius:3px">
-              <span style="color:var(--text-dim);font-size:7.5px">DISTANCE</span>
-              <div id="v2vDetailDistance" style="color:var(--text-main);font-weight:700">-- m</div>
-            </div>
-            <div style="background:var(--bg-surface-elevated);padding:4px 6px;border-radius:3px">
-              <span style="color:var(--text-dim);font-size:7.5px">CLOSING SPEED</span>
-              <div id="v2vDetailRelSpeed" style="color:var(--text-main);font-weight:700">-- km/h</div>
-            </div>
-            <div style="background:var(--bg-surface-elevated);padding:4px 6px;border-radius:3px">
-              <span style="color:var(--text-dim);font-size:7.5px">APPROACH STATE</span>
-              <div id="v2vDetailApproach" style="color:var(--cyan);font-weight:700">--</div>
-            </div>
-            <div style="background:var(--bg-surface-elevated);padding:4px 6px;border-radius:3px">
-              <span style="color:var(--text-dim);font-size:7.5px">ESTIMATED TTC</span>
-              <div id="v2vDetailTTC" style="color:var(--text-main);font-weight:700">-- s</div>
-            </div>
-            <div style="background:var(--bg-surface-elevated);padding:4px 6px;border-radius:3px">
-              <span style="color:var(--text-dim);font-size:7.5px">LAST V2V PACKET</span>
-              <div id="v2vDetailLastMsg" style="color:var(--text-dim);font-weight:600">-- s ago</div>
-            </div>
-          </div>
-          <div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);border-radius:3px;padding:5px 7px;font-family:var(--font-mono);font-size:9px">
-            <div style="display:flex;justify-content:space-between;margin-bottom:2px">
-              <span style="color:var(--text-dim);font-size:7.5px">ACTIVE V2V ADVISORY:</span>
-              <span id="v2vDetailActiveAlert" style="font-weight:700;color:var(--green)">NONE (CLEAR)</span>
-            </div>
-            <div style="display:flex;justify-content:space-between">
-              <span style="color:var(--text-dim);font-size:7.5px">RECOMMENDED ACTION:</span>
-              <span id="v2vDetailRecAction" style="font-weight:700;color:var(--cyan)">NOMINAL CRUISE</span>
-            </div>
+
+        <div class="command-card" id="commandCard">
+          <div class="cmd-icon" id="cmdIcon">✓</div>
+          <div class="cmd-text-col">
+            <div class="cmd-value" id="cmdValue">ROUTE CLEAR</div>
+            <div class="cmd-desc" id="cmdDesc">Corridors clear. Operating under nominal speed governor.</div>
           </div>
         </div>
       </div>
 
-      <!-- ACCORDION 1: SITUATIONAL RADAR & COLLISION AVOIDANCE -->
+      <!-- PROGRESSIVE DISCLOSURE ACCORDIONS -->
+
+      <!-- ACCORDION: SENSORS & PROXIMITY RADAR -->
       <div class="ops-accordion" id="accRadar">
         <div class="ops-accordion-hdr" onclick="toggleOpsAccordion('accRadar')">
-          <span>🧭 Situational Radar & Obstacles</span>
+          <span>🧭 Sensors & Collision Avoidance</span>
+          <span class="ops-accordion-arrow">▼</span>
         </div>
         <div class="ops-accordion-body">
-          <!-- Active Safety Command Banner -->
-          <div class="command-card" id="commandCard">
-            <div class="cmd-icon" id="cmdIcon" style="background:var(--green-dim);color:var(--green)">✓</div>
-            <div>
-              <div class="cmd-value" id="cmdValue" style="color:var(--green)">CLEAR ROUTE</div>
-              <div style="font-size:9px;color:var(--text-dim)" id="cmdDesc">Corridors clear. Operating under cruise limits.</div>
+          <div class="sensor-vehicle-layout">
+            <!-- Front Sensor -->
+            <div class="sensor-item-block" id="frontSensorBox" style="width:100%">
+              <div class="sensor-item-label">▲ Front Range</div>
+              <div class="sensor-item-val"><b id="frontVal">--</b> <small>cm</small></div>
+              <div class="sensor-bar-bg" style="width:60%"><div class="sensor-bar-fill" id="frontBar" style="width:80%;background:var(--status-safe)"></div></div>
             </div>
-          </div>
 
-          <!-- Ultrasonic Radar Bars -->
-          <div class="sensor-item" id="frontSensorBox">
-            <div class="sensor-header">
-              <span style="color:var(--cyan)">▲ Front Range</span>
-              <span><b id="frontVal">--</b> <small>cm</small></span>
+            <!-- Middle Row: Left, Truck Silhouette, Right -->
+            <div class="sensor-side-row">
+              <div class="sensor-item-block" id="leftSensorBox">
+                <div class="sensor-item-label">◀ Left</div>
+                <div class="sensor-item-val"><b id="leftVal">--</b> <small>cm</small></div>
+                <div class="sensor-bar-bg"><div class="sensor-bar-fill" id="leftBar" style="width:75%;background:var(--status-safe)"></div></div>
+              </div>
+
+              <div class="sensor-truck-silhouette">
+                <span>HAUL</span>
+                <span>TRUCK</span>
+              </div>
+
+              <div class="sensor-item-block" id="rightSensorBox">
+                <div class="sensor-item-label">Right ▶</div>
+                <div class="sensor-item-val"><b id="rightVal">--</b> <small>cm</small></div>
+                <div class="sensor-bar-bg"><div class="sensor-bar-fill" id="rightBar" style="width:75%;background:var(--status-safe)"></div></div>
+              </div>
             </div>
-            <div class="sensor-bar-bg"><div class="sensor-bar-fill" id="frontBar" style="width:80%;background:var(--cyan)"></div></div>
-          </div>
 
-          <div class="sensor-item" id="leftSensorBox">
-            <div class="sensor-header">
-              <span>◀ Left Lateral</span>
-              <span><b id="leftVal">--</b> <small>cm</small></span>
+            <!-- Top-down Proximity Radar Graphic -->
+            <div style="display:flex;justify-content:center;padding:4px 0">
+              <svg class="radar-svg" viewBox="0 0 200 170" style="width:130px;height:110px">
+                <circle cx="100" cy="85" r="75" fill="none" stroke="rgba(0,0,0,0.08)" stroke-width="1" stroke-dasharray="3 3"/>
+                <circle cx="100" cy="85" r="50" fill="none" stroke="rgba(0,0,0,0.12)" stroke-width="1"/>
+                <circle cx="100" cy="85" r="25" fill="none" stroke="rgba(0,0,0,0.16)" stroke-width="1"/>
+                
+                <polygon id="radarFrontCone" points="100,55 75,15 125,15" fill="rgba(46,125,91,0.20)" stroke="var(--status-safe)" stroke-width="1"/>
+                <polygon id="radarLeftCone" points="80,85 25,60 25,110" fill="rgba(46,125,91,0.20)" stroke="var(--status-safe)" stroke-width="1"/>
+                <polygon id="radarRightCone" points="120,85 175,60 175,110" fill="rgba(46,125,91,0.20)" stroke="var(--status-safe)" stroke-width="1"/>
+
+                <rect x="86" y="62" width="28" height="46" rx="4" fill="#FFFFFF" stroke="var(--border-strong)" stroke-width="1.5"/>
+              </svg>
             </div>
-            <div class="sensor-bar-bg"><div class="sensor-bar-fill" id="leftBar" style="width:75%;background:var(--cyan)"></div></div>
-          </div>
-
-          <div class="sensor-item" id="rightSensorBox">
-            <div class="sensor-header">
-              <span>▶ Right Lateral</span>
-              <span><b id="rightVal">--</b> <small>cm</small></span>
-            </div>
-            <div class="sensor-bar-bg"><div class="sensor-bar-fill" id="rightBar" style="width:75%;background:var(--cyan)"></div></div>
-          </div>
-
-          <!-- Top-down Proximity Radar Graphic -->
-          <div style="display:flex;justify-content:center;padding:4px 0">
-            <svg class="radar-svg" viewBox="0 0 200 170" style="width:140px;height:120px">
-              <circle cx="100" cy="85" r="75" fill="none" stroke="rgba(56,189,248,0.12)" stroke-width="1" stroke-dasharray="3 3"/>
-              <circle cx="100" cy="85" r="50" fill="none" stroke="rgba(56,189,248,0.18)" stroke-width="1"/>
-              <circle cx="100" cy="85" r="25" fill="none" stroke="rgba(56,189,248,0.22)" stroke-width="1"/>
-              
-              <polygon id="radarFrontCone" points="100,55 75,15 125,15" fill="rgba(56,189,248,0.20)" stroke="rgba(56,189,248,0.5)" stroke-width="1"/>
-              <polygon id="radarLeftCone" points="80,85 25,60 25,110" fill="rgba(56,189,248,0.20)" stroke="rgba(56,189,248,0.5)" stroke-width="1"/>
-              <polygon id="radarRightCone" points="120,85 175,60 175,110" fill="rgba(56,189,248,0.20)" stroke="rgba(56,189,248,0.5)" stroke-width="1"/>
-
-              <rect x="85" y="60" width="30" height="50" rx="4" fill="#131c2a" stroke="var(--cyan)" stroke-width="1.5"/>
-            </svg>
           </div>
         </div>
       </div>
 
-      <!-- ACCORDION 2: VISION AI & DE-WEATHERING CHANNEL -->
+      <!-- ACCORDION: VISION AI & DE-WEATHERING -->
       <div class="ops-accordion" id="accVision">
         <div class="ops-accordion-hdr" onclick="toggleOpsAccordion('accVision')">
-          <span>📷 Vision AI & De-Weathering Channel</span>
+          <span class="has-tooltip" data-tooltip="Dark Channel Prior (DCP) — image dehazing technique used to restore visibility in dense pit fog">
+            📷 Vision AI & De-Weathering <span class="tooltip-icon">ⓘ</span>
+          </span>
+          <span class="ops-accordion-arrow">▼</span>
         </div>
         <div class="ops-accordion-body">
-          <div style="display:flex;justify-content:space-between;align-items:center">
-            <span id="camTargetBadge" style="font-size:9px;font-family:var(--font-mono);color:var(--cyan)">TRUCK 2 (TRUCK_02)</span>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <span id="camTargetBadge" style="font-size:10px;font-family:var(--font-mono);font-weight:700;color:var(--text-primary)">TRUCK 2 (TRUCK_02)</span>
             <div style="display:flex;gap:4px">
-              <select id="camVehicleSelect" onchange="onCamVehicleSelectChange(this.value)" class="form-select" style="padding:2px 6px;font-size:9.5px;height:22px;width:auto">
+              <select id="camVehicleSelect" onchange="onCamVehicleSelectChange(this.value)" class="form-select" style="padding:2px 6px;font-size:10px;height:24px;width:auto">
                 <option value="TRUCK_02" selected>Truck 2 (Target Channel)</option>
                 <option value="TRUCK_01">Truck 1 (Hardware)</option>
                 <option value="TRUCK_03">Truck 3 (Caterpillar)</option>
@@ -1925,47 +2441,50 @@
           </div>
 
           <!-- Custom Image Active Status Banner -->
-          <div id="customCamBanner" style="display:none;padding:5px 8px;background:var(--cyan-dim);border:1px solid rgba(56,189,248,0.3);border-radius:3px;font-size:9.5px;justify-content:space-between;align-items:center">
-            <span>Image Active: <b id="customCamSourceName" style="color:var(--cyan)">Sample</b></span>
-            <button onclick="resetCameraStream()" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:9px;font-weight:700">Restore Live</button>
+          <div id="customCamBanner" style="display:none;padding:5px 8px;background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-xs);font-size:10px;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <span>Image Active: <b id="customCamSourceName">Sample</b></span>
+            <button onclick="resetCameraStream()" style="background:none;border:none;color:var(--status-critical);cursor:pointer;font-size:10px;font-weight:600">Restore Live</button>
           </div>
 
           <!-- Quick Presets -->
-          <div style="display:flex;gap:4px;flex-wrap:wrap">
+          <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px">
             <button type="button" class="cam-preset-chip" onclick="quickInsertPreset('pit_dense_fog')">Pit Fog</button>
             <button type="button" class="cam-preset-chip" onclick="quickInsertPreset('mountain_switchback')">Ridge Mist</button>
             <button type="button" class="cam-preset-chip" onclick="document.getElementById('directFileInput').click()">Upload...</button>
             <input type="file" id="directFileInput" accept="image/*" style="display:none" onchange="handleDirectFileUpload(event)">
           </div>
 
-          <!-- Video Viewports -->
-          <div class="cam-viewport">
-            <div class="cam-tag" id="rawCamTag">CAM RAW</div>
-            <img id="rawCameraFeedImg" src="/raw_feed?v=TRUCK_02" alt="Raw Camera Feed">
+          <!-- Video Viewports: RAW vs DEHAZED -->
+          <div class="cam-viewport-pair">
+            <div class="cam-viewport">
+              <div class="cam-tag" id="rawCamTag">CAM RAW</div>
+              <img id="rawCameraFeedImg" src="/raw_feed?v=TRUCK_02" alt="Raw Camera Feed">
+            </div>
+
+            <div class="cam-viewport">
+              <div class="cam-tag dehazed" id="dehazedCamTag">CAM DEHAZED (DCP)</div>
+              <img id="dehazedCameraFeedImg" src="/dehazed_feed?v=TRUCK_02" alt="Dehazed Camera Feed">
+            </div>
           </div>
 
-          <div class="cam-viewport">
-            <div class="cam-tag dehazed" id="dehazedCamTag">CAM DEHAZED (DCP)</div>
-            <img id="dehazedCameraFeedImg" src="/dehazed_feed?v=TRUCK_02" alt="Dehazed Camera Feed">
-          </div>
-
-          <div style="display:flex;justify-content:space-between;font-size:9px;font-family:var(--font-mono);color:var(--text-dim)">
-            <span id="camClarityGain" style="color:var(--green)">+92% Visibility</span>
+          <div style="display:flex;justify-content:space-between;font-size:9.5px;font-family:var(--font-mono);color:var(--text-muted)">
+            <span id="camClarityGain" style="color:var(--status-safe);font-weight:700">+92% Visibility</span>
             <span id="camChannelId">Truck 2 Primary</span>
           </div>
         </div>
       </div>
 
-      <!-- ACCORDION 3: VEHICLE DIAGNOSTICS & HARDWARE MODE -->
+      <!-- ACCORDION: DIAGNOSTICS & HARDWARE -->
       <div class="ops-accordion" id="accDiagnostics">
         <div class="ops-accordion-hdr" onclick="toggleOpsAccordion('accDiagnostics')">
           <span>⚙️ Diagnostics & Hardware</span>
+          <span class="ops-accordion-arrow">▼</span>
         </div>
         <div class="ops-accordion-body" id="diagnosticsCard">
           <div class="diagnostics-cluster">
             <div class="diag-gauge-card">
-              <div class="diag-lbl">Gear</div>
-              <div class="diag-val" id="diagGear" style="color:var(--cyan)">D3</div>
+              <div class="diag-lbl">Transmission</div>
+              <div class="diag-val" id="diagGear">D3</div>
             </div>
             <div class="diag-gauge-card">
               <div class="diag-lbl">Coolant</div>
@@ -1978,21 +2497,21 @@
           </div>
 
           <!-- Payload Bar -->
-          <div style="display:flex;flex-direction:column;gap:3px;font-family:var(--font-mono);font-size:9.5px">
+          <div style="display:flex;flex-direction:column;gap:3px;font-family:var(--font-mono);font-size:10px">
             <div style="display:flex;justify-content:space-between">
-              <span style="color:var(--text-dim)">PAYLOAD</span>
-              <span id="payloadPctText">75%</span>
+              <span style="color:var(--text-muted)">PAYLOAD</span>
+              <span id="payloadPctText" style="font-weight:600">75%</span>
             </div>
-            <div class="sensor-bar-bg" style="height:5px">
-              <div class="sensor-bar-fill" id="payloadBar" style="width:75%;background:var(--cyan)"></div>
+            <div class="sensor-bar-bg" style="height:6px">
+              <div class="sensor-bar-fill" id="payloadBar" style="width:75%;background:var(--action-primary)"></div>
             </div>
           </div>
 
           <!-- Hardware Prototype Switcher -->
           <div class="hardware-toggle-banner">
             <div>
-              <div style="font-weight:700;font-size:10px" id="hwStatusBadge">🟢 ESP32 LIVE ACTIVE</div>
-              <div style="font-size:8.5px;color:var(--text-dim)">Post to /update</div>
+              <div style="font-weight:700;font-size:11px" id="hwStatusBadge">🟢 ESP32 LIVE ACTIVE</div>
+              <div style="font-size:9px;color:var(--text-muted)">Telemetry uplink on /update</div>
             </div>
             <button type="button" class="mode-switch-btn" id="hwToggleModeBtn" onclick="toggleTruckHardwareMode()">
               Switch Mode
@@ -2001,39 +2520,30 @@
         </div>
       </div>
 
-      <!-- ACCORDION 4: WEATHER FORECAST & TELEMETRY LOG -->
+      <!-- ACCORDION: FORECAST & EVENT AUDIT LOG -->
       <div class="ops-accordion closed" id="accForecastLog">
         <div class="ops-accordion-hdr" onclick="toggleOpsAccordion('accForecastLog')">
           <span>📋 Forecast & Event Audit Log</span>
+          <span class="ops-accordion-arrow">▼</span>
         </div>
         <div class="ops-accordion-body">
-          <!-- 10-Minute Forecast Panel -->
-          <div id="fogPredictivePanel" style="padding:6px 8px;background:var(--bg-surface-elevated);border-radius:3px;font-size:9.5px;font-family:var(--font-mono)">
+          <!-- 10-Minute Atmospheric Forecast -->
+          <div id="fogPredictivePanel" style="padding:8px 10px;background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-xs);font-size:10px;font-family:var(--font-mono);margin-bottom:8px">
             <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:4px;text-align:center;margin-bottom:6px">
-              <div><small style="color:var(--text-dim)">TEMP</small><div id="weatherTemp">18.2°C</div></div>
-              <div><small style="color:var(--text-dim)">HUM</small><div id="weatherHum">91%</div></div>
-              <div><small style="color:var(--text-dim)">DEW</small><div id="weatherDew">16.7°C</div></div>
-              <div><small style="color:var(--text-dim)">WIND</small><div id="weatherWind">4 km/h</div></div>
+              <div><small style="color:var(--text-muted)">TEMP</small><div id="weatherTemp" style="font-weight:600">18.2°C</div></div>
+              <div><small style="color:var(--text-muted)">HUM</small><div id="weatherHum" style="font-weight:600">91%</div></div>
+              <div><small style="color:var(--text-muted)">DEW</small><div id="weatherDew" style="font-weight:600">16.7°C</div></div>
+              <div><small style="color:var(--text-muted)">WIND</small><div id="weatherWind" style="font-weight:600">4 km/h</div></div>
             </div>
-            <div style="color:var(--red);border-left:2px solid var(--red);padding-left:6px" id="predictionAdvisory">
+            <div style="color:var(--status-critical);border-left:2px solid var(--status-critical);padding-left:6px;font-size:9.5px" id="predictionAdvisory">
               Moisture inversion condensation warning.
             </div>
           </div>
 
           <!-- Audit Log Card -->
-          <div id="vehicleLogCard">
+          <div id="vehicleLogCard" style="margin-bottom:8px">
+            <div class="ops-label-dim">Operational Events</div>
             <div class="log-list" id="vehicleLogContainer">
-              <!-- Entries populated via JS -->
-            </div>
-          </div>
-
-          <!-- V2V Safety Event Log (Section 19: Rolling 30-50 events) -->
-          <div style="margin-top:6px;border-top:1px solid var(--border-subtle);padding-top:6px">
-            <div style="display:flex;justify-content:space-between;align-items:center;font-size:9px;font-family:var(--font-mono);margin-bottom:4px">
-              <span style="color:var(--cyan);font-weight:700">📡 V2V EVENT LOG</span>
-              <span id="v2vEventCountBadge" style="color:var(--text-dim);font-size:8px">-- events</span>
-            </div>
-            <div class="log-list" id="v2vEventLogContainer" style="max-height:100px;overflow-y:auto;font-family:var(--font-mono);font-size:8.5px">
               <!-- Populated dynamically via JS -->
             </div>
           </div>
@@ -2067,31 +2577,31 @@
   <footer class="bottom-info-strip">
     <div class="b-strip-left">
       <div class="b-stat">
-        <span class="b-stat-lbl">FLEET</span>
-        <span class="b-stat-val cyan" id="fstatTotal">6</span>
+        <span class="b-stat-lbl">Fleet</span>
+        <span class="b-stat-val" id="fstatTotal">6</span>
       </div>
       <div class="b-stat">
-        <span class="b-stat-lbl">ACTIVE</span>
+        <span class="b-stat-lbl">Active</span>
         <span class="b-stat-val green" id="fstatClear">6</span>
       </div>
       <div class="b-stat">
-        <span class="b-stat-lbl">ALERTS</span>
+        <span class="b-stat-lbl">Alerts</span>
         <span class="b-stat-val amber" id="fstatAlerts">0</span>
       </div>
       <div class="b-stat">
-        <span class="b-stat-lbl">HIGH RISK</span>
+        <span class="b-stat-lbl">High Risk</span>
         <span class="b-stat-val red" id="fstatHighRisk">0</span>
       </div>
     </div>
 
     <div class="b-strip-right">
       <div class="b-stat">
-        <span class="b-stat-lbl">ZONE</span>
-        <span class="b-stat-val" style="color:var(--text-main)">Deposit 14 Loop</span>
+        <span class="b-stat-lbl">Zone</span>
+        <span class="b-stat-val">Deposit 14 Loop</span>
       </div>
       <div class="b-stat">
-        <span class="b-stat-lbl">DISCLAIMER</span>
-        <span style="color:var(--text-dim);font-style:italic">Conceptual Deposit-14 simulation route (Copernicus DEM)</span>
+        <span class="b-stat-lbl">Disclaimer</span>
+        <span style="color:var(--text-muted);font-style:italic">Conceptual Deposit-14 simulation route (Copernicus DEM - not official NMDC data)</span>
       </div>
     </div>
   </footer>
@@ -2124,7 +2634,7 @@
 </div>
 
 <!-- ====================================================================
-     ADD DEVICE MODAL DIALOG
+     REGISTER TELEMETRY DEVICE MODAL DIALOG
      ==================================================================== -->
 <div class="modal-overlay" id="addDeviceModal">
   <div class="modal-box">
@@ -2170,8 +2680,8 @@
         <div class="form-group">
           <label class="form-label" for="devSource">Source</label>
           <select id="devSource" class="form-select">
-            <option value="REAL_HARDWARE">🟢 REAL ESP32</option>
-            <option value="SIMULATED">🔷 SIMULATION</option>
+            <option value="REAL_HARDWARE">🟢 Real ESP32</option>
+            <option value="SIMULATED">🔷 Simulation</option>
           </select>
         </div>
 
@@ -2182,8 +2692,8 @@
       </div>
 
       <div class="form-group">
-        <label class="form-label">Theme Color</label>
-        <input type="color" id="devColor" value="#38bdf8" style="background:none;border:none;width:34px;height:28px;cursor:pointer">
+        <label class="form-label">Avatar Color</label>
+        <input type="color" id="devColor" value="#2A6E55" style="background:none;border:none;width:34px;height:28px;cursor:pointer">
       </div>
 
       <div class="modal-actions">
@@ -2195,18 +2705,18 @@
 </div>
 
 <!-- ====================================================================
-     REMOVE / DEREGISTER DEVICE CONFIRMATION MODAL
+     DEREGISTER UNIT CONFIRMATION MODAL
      ==================================================================== -->
 <div class="modal-overlay" id="deleteConfirmModal">
-  <div class="modal-box" style="max-width:380px;border-color:rgba(239,68,68,0.4)">
+  <div class="modal-box" style="max-width:380px">
     <div class="modal-header">
-      <div class="modal-title" style="color:var(--red)">⚠️ Deregister Unit</div>
+      <div class="modal-title" style="color:var(--status-critical)">⚠️ Deregister Unit</div>
       <button type="button" class="modal-close-btn" onclick="closeDeleteConfirmModal()">✕</button>
     </div>
 
-    <div style="font-size:12px;color:var(--text-main);line-height:1.5">
-      Are you sure you want to remove <strong id="deleteTargetVehicleName" style="color:var(--cyan)">--</strong> (<span id="deleteTargetVehicleId" style="font-family:var(--font-mono)">--</span>)?
-      <div style="margin-top:8px;padding:8px;background:var(--red-dim);border-radius:3px;font-size:11px;color:var(--text-muted)">
+    <div style="font-size:12px;color:var(--text-primary);line-height:1.5">
+      Are you sure you want to remove <strong id="deleteTargetVehicleName">--</strong> (<span id="deleteTargetVehicleId" style="font-family:var(--font-mono)">--</span>)?
+      <div style="margin-top:8px;padding:8px;background:var(--status-critical-bg);border-radius:var(--radius-xs);font-size:11px;color:var(--status-critical)">
         This terminates live telemetry mapping and tracking for this unit.
       </div>
     </div>
@@ -2244,8 +2754,8 @@
 
     <div class="form-group">
       <label class="form-label">Upload File (JPG / PNG)</label>
-      <div id="imageDropzone" onclick="document.getElementById('modalImageFileInput').click()" style="border:1px dashed var(--border-medium);padding:14px;text-align:center;cursor:pointer;background:var(--bg-surface);border-radius:3px">
-        <span id="dropzoneText" style="font-size:11px;color:var(--text-main)">Click to browse or drop foggy image</span>
+      <div id="imageDropzone" onclick="document.getElementById('modalImageFileInput').click()" style="border:1px dashed var(--border-strong);padding:14px;text-align:center;cursor:pointer;background:var(--bg-surface-secondary);border-radius:var(--radius-sm)">
+        <span id="dropzoneText" style="font-size:11px;color:var(--text-secondary)">Click to browse or drop foggy image</span>
       </div>
       <input type="file" id="modalImageFileInput" accept="image/*" style="display:none" onchange="handleModalFilePicked(event)">
     </div>
@@ -2254,19 +2764,53 @@
       <label class="form-label">Or Pick Scenario</label>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
         <button type="button" class="cam-preset-chip active" id="presetPit" onclick="selectPresetOption('pit_dense_fog')" style="padding:6px;text-align:left">
-          <b>Pit Fog</b><br><small style="color:var(--text-dim)">Cloud inversion</small>
+          <b>Pit Fog</b><br><small style="color:var(--text-muted)">Cloud inversion</small>
         </button>
         <button type="button" class="cam-preset-chip" id="presetMountain" onclick="selectPresetOption('mountain_switchback')" style="padding:6px;text-align:left">
-          <b>Ridge Mist</b><br><small style="color:var(--text-dim)">Slope hazard</small>
+          <b>Ridge Mist</b><br><small style="color:var(--text-muted)">Slope hazard</small>
         </button>
       </div>
     </div>
 
-    <div id="insertModalFeedback" style="display:none;padding:6px;border-radius:3px;font-size:10.5px"></div>
+    <div id="insertModalFeedback" style="display:none;padding:6px;border-radius:var(--radius-xs);font-size:10.5px"></div>
 
     <div class="modal-actions">
       <button type="button" class="btn-cancel" onclick="closeInsertImageModal()">Cancel</button>
       <button type="button" class="btn-submit" id="btnSubmitInsertImage" onclick="executeImageInsertion()">⚡ Process & Dehaze</button>
+    </div>
+  </div>
+</div>
+
+<!-- ====================================================================
+     OPERATOR ORIENTATION ONBOARDING OVERLAY (Section 17)
+     ==================================================================== -->
+<div class="orientation-overlay" id="orientationOverlay">
+  <div class="orientation-card">
+    <div class="orientation-badge" id="orientStepBadge">ORIENTATION 1 OF 5</div>
+    <div class="orientation-title" id="orientStepTitle">WELCOME TO HAUL FLEET CONTROL ROOM</div>
+    <div class="orientation-body" id="orientStepText">
+      Monitor mine vehicles, terrain, hazards and fleet safety from one control room.
+    </div>
+
+    <div class="orientation-progress" id="orientProgressDots">
+      <span class="orientation-dot active"></span>
+      <span class="orientation-dot"></span>
+      <span class="orientation-dot"></span>
+      <span class="orientation-dot"></span>
+      <span class="orientation-dot"></span>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-secondary);margin-top:2px">
+      <input type="checkbox" id="orientDontShowCheck" style="accent-color:var(--action-primary);cursor:pointer">
+      <label for="orientDontShowCheck" style="cursor:pointer">Don't show this orientation again</label>
+    </div>
+
+    <div class="orientation-actions">
+      <button type="button" class="orientation-btn-secondary" id="orientPrevBtn" onclick="prevOrientationStep()" style="visibility:hidden">Back</button>
+      <div style="display:flex;gap:6px">
+        <button type="button" class="orientation-btn-secondary" onclick="finishOrientation()">Skip</button>
+        <button type="button" class="orientation-btn-primary" id="orientNextBtn" onclick="nextOrientationStep()">START ORIENTATION</button>
+      </div>
     </div>
   </div>
 </div>
@@ -2281,7 +2825,6 @@
 let selectedVehicleId = "TRUCK_01";
 let fleetList = [];
 let currentFleetObstacles = [];
-let currentV2VData = null;
 let fogZones = [];
 let sourceFilter = "ALL";
 let simRunning = true;
@@ -2324,7 +2867,25 @@ function toggleOpsAccordion(id) {
   if (el) el.classList.toggle('closed');
 }
 
-// Center View Mode Switcher: 3D Twin vs 2D GIS Map vs Dual
+// Compact View Options Popover Toggle (Section 8)
+function toggleViewOptionsPopover(e) {
+  if (e) e.stopPropagation();
+  const popover = document.getElementById('viewOptionsPopover');
+  if (popover) popover.classList.toggle('open');
+}
+
+// Close popover on document click
+document.addEventListener('click', function(e) {
+  const popover = document.getElementById('viewOptionsPopover');
+  const btn = document.getElementById('btnViewOptions');
+  if (popover && popover.classList.contains('open')) {
+    if (!popover.contains(e.target) && e.target !== btn && !btn.contains(e.target)) {
+      popover.classList.remove('open');
+    }
+  }
+});
+
+// Center View Mode Switcher: 3D Twin vs 2D GIS Map vs Split
 function setCenterViewMode(mode) {
   const twinCard = document.getElementById('mine3DCard');
   const mapCard = document.getElementById('fleetMapCard');
@@ -2352,7 +2913,7 @@ function setCenterViewMode(mode) {
 }
 
 // =============================================================================
-// LEAFLET MAP & FOG HEATMAP SETUP (DEPOSIT 14 & KIRANDUL COMPLEX)
+// LEAFLET MAP SETUP (DEPOSIT 14 & KIRANDUL COMPLEX)
 // =============================================================================
 const map = L.map('fleetMap', {
   center: [18.5850, 81.2200],
@@ -2400,180 +2961,136 @@ let canonicalHaulRoadLayer = null;
 // Draw canonical 16-waypoint Deposit-14 simulation haul loop
 async function loadAndDrawSimulationRoute() {
   try {
-    const res = await fetch('/api/simulation_route', { cache: 'no-store' });
+    const res = await fetch('/api/simulation_route');
     if (!res.ok) return;
     const data = await res.json();
-    const waypoints = data.waypoints || [];
-    if (!waypoints.length) return;
+    const wps = data.waypoints || [];
+    if (!wps.length) return;
 
-    const latLngs = waypoints.map(wp => [wp.lat, wp.lng]);
-    latLngs.push(latLngs[0]);
+    const latlngs = wps.map(w => [w.lat, w.lng]);
+    latlngs.push(latlngs[0]); // closed circuit
 
-    if (canonicalHaulRoadLayer) {
-      map.removeLayer(canonicalHaulRoadLayer);
-    }
-
-    const roadCasing = L.polyline(latLngs, {
-      color: '#0a0e17',
-      weight: 6,
-      opacity: 0.9,
-      lineCap: 'round',
-      lineJoin: 'round'
-    });
-
-    const roadCenter = L.polyline(latLngs, {
-      color: '#f59e0b',
-      weight: 2,
-      dashArray: '5, 7',
-      opacity: 0.85
-    });
-
-    canonicalHaulRoadLayer = L.layerGroup([roadCasing, roadCenter]).addTo(map);
+    canonicalHaulRoadLayer = L.polyline(latlngs, {
+      color: '#C2673B',
+      weight: 3.5,
+      opacity: 0.85,
+      dashArray: '6, 6'
+    }).addTo(map);
+    canonicalHaulRoadLayer.bindTooltip("Conceptual Deposit-14 simulation route", { sticky: true });
   } catch (err) {
-    console.warn('loadAndDrawSimulationRoute err:', err);
+    console.error("Route load error:", err);
   }
 }
 
-let selectedTrailPolyline = L.polyline([], {
-  color: '#38bdf8',
-  weight: 3,
-  opacity: 0.85
-}).addTo(map);
-
-function createVehicleIcon(v, isSelected) {
-  const num = v.id.replace('TRUCK_0', '').replace('TRUCK_', '');
-  const borderCol = isSelected ? '#ffffff' : v.avatar_color;
-  const headingDeg = (v.heading !== undefined && v.heading !== null) ? v.heading : 0;
-
-  return L.divIcon({
-    className: 'custom-vehicle-marker',
-    html: `
-      <div style="position: relative; width: 32px; height: 32px; cursor: pointer; ${isSelected ? 'transform: scale(1.2); z-index: 1000;' : ''}" title="${v.name}">
-        <div style="position: absolute; inset: 0; display: flex; align-items: flex-start; justify-content: center; transform: rotate(${headingDeg}deg); pointer-events: none;">
-          <div style="width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-bottom: 7px solid ${borderCol}; margin-top: -5px;"></div>
-        </div>
-        <div style="width: 28px; height: 28px; margin: 2px; background: #070b12; border: 2px solid ${borderCol}; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: ${v.avatar_color}; font-family: 'Space Grotesk', sans-serif; font-size: 10px; font-weight: 700;">
-          ${num}
-        </div>
-      </div>
-    `,
-    iconSize: [32, 32],
-    iconAnchor: [16, 16]
-  });
-}
-
-function renderFogZones(zones) {
-  zones.forEach(z => {
-    if (!zoneLayers[z.id]) {
-      const polygon = L.polygon(z.polygon, {
-        color: z.color,
-        fillColor: z.color,
-        fillOpacity: 0.16,
-        weight: 1.5,
-        dashArray: '4, 5'
-      }).addTo(map);
-
-      polygon.bindTooltip(`<b>${z.name}</b><br>Visibility: ${z.visibility_m}m (${z.severity})`, {
-        permanent: false,
-        direction: 'center',
-        className: 'fog-zone-tooltip'
-      });
-      zoneLayers[z.id] = polygon;
-    } else {
-      zoneLayers[z.id].setStyle({ color: z.color, fillColor: z.color });
-    }
-  });
-}
-
+// Fetch fog hazard zones
 async function fetchFogZones() {
   try {
-    const res = await fetch('/api/fog_zones', { cache: 'no-store' });
+    const res = await fetch('/api/zones');
     if (!res.ok) return;
     const data = await res.json();
     fogZones = data.zones || [];
-    renderFogZones(fogZones);
+
+    fogZones.forEach(z => {
+      if (zoneLayers[z.id]) {
+        map.removeLayer(zoneLayers[z.id]);
+      }
+      const poly = L.polygon(z.polygon, {
+        color: z.color || '#C58A18',
+        weight: 1.5,
+        fillColor: z.color || '#C58A18',
+        fillOpacity: 0.12
+      }).addTo(map);
+
+      poly.bindTooltip(`<b>${z.name}</b><br>Visibility: ${z.visibility_m}m | Max Safe: ${z.max_safe_speed}km/h`, { sticky: true });
+      zoneLayers[z.id] = poly;
+    });
   } catch (err) {
-    console.error('fetchFogZones err:', err);
+    console.error("fetchFogZones err:", err);
   }
 }
 
-// =============================================================================
-// VEHICLE SELECTION & FILTERING
-// =============================================================================
-function selectVehicle(id) {
-  selectedVehicleId = id;
-  window.location.hash = id;
+function createVehicleIcon(v, isSelected) {
+  const isReal = v.source_type === 'REAL_HARDWARE';
+  const color = v.avatar_color || '#2E7D5B';
+  const num = v.id.replace('TRUCK_0', '').replace('TRUCK_', '');
+  const borderStyle = isSelected ? '3px solid #1E2421' : '1.5px solid #FFFFFF';
+
+  return L.divIcon({
+    className: 'custom-vehicle-icon',
+    html: `
+      <div style="
+        background: ${color};
+        color: #FFFFFF;
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: var(--font-mono);
+        font-weight: 700;
+        font-size: 11px;
+        border: ${borderStyle};
+        box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      ">
+        ${num}
+      </div>
+    `,
+    iconSize: [26, 26],
+    iconAnchor: [13, 13]
+  });
+}
+
+const selectedTrailPolyline = L.polyline([], {
+  color: '#1E2421',
+  weight: 2,
+  opacity: 0.7,
+  dashArray: '3, 4'
+}).addTo(map);
+
+// Select vehicle
+function selectVehicle(vid) {
+  selectedVehicleId = vid;
   isFleetOverviewMode = false;
+  window.location.hash = vid;
 
-  const btn = document.getElementById('fleetOverviewBtn');
-  if (btn) btn.classList.remove('active');
-
-  // Close mobile drawer upon vehicle selection
-  const rail = document.getElementById('fleetRail');
-  const backdrop = document.getElementById('railDrawerBackdrop');
-  if (rail) rail.classList.remove('drawer-open');
-  if (backdrop) backdrop.classList.remove('open');
-
-  fetchVehicleDetails();
   renderSidebar();
+  fetchVehicleDetails();
 
-  if (activeCameraVid !== id) {
-    activeCameraVid = id;
-    updateCameraFeedUrls();
+  if (vehicleMarkers[vid]) {
+    const m = vehicleMarkers[vid].marker;
+    map.panTo(m.getLatLng());
   }
 
-  // Smoothly center Three.js OrbitControls on selected vehicle & update active route visual
-  if (dashBailadilaEngine) {
-    if (dashBailadilaEngine.setSelectedVehicle) {
-      dashBailadilaEngine.setSelectedVehicle(id);
-    }
-    if (controls3D) {
-      dashBailadilaEngine.focusVehicle(id, controls3D);
-    }
-  }
-
-  centerOnSelected();
+  // Update 3D target label
+  const lbl = document.getElementById('threeDTargetLabel');
+  if (lbl) lbl.textContent = vid;
 }
 
-function setSourceFilter(type) {
-  sourceFilter = type;
-  document.getElementById('tabAll').classList.toggle('active', type === 'ALL');
-  document.getElementById('tabReal').classList.toggle('active', type === 'REAL');
-  document.getElementById('tabSim').classList.toggle('active', type === 'SIM');
+function setSourceFilter(src) {
+  sourceFilter = src;
+  document.querySelectorAll('.filter-tab-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.id === `tab${src.charAt(0).toUpperCase() + src.slice(1).toLowerCase()}`);
+  });
   renderSidebar();
 }
 
 function showAllTruckLocations() {
   isFleetOverviewMode = true;
-  document.getElementById('fleetOverviewBtn').classList.add('active');
-
-  const visibleVehicles = fleetList.filter(v => {
-    if (sourceFilter === 'REAL') return v.source_type === 'REAL_HARDWARE';
-    if (sourceFilter === 'SIM') return v.source_type === 'SIMULATED';
-    return true;
-  });
-
-  if (visibleVehicles.length > 0) {
-    const bounds = L.latLngBounds(visibleVehicles.map(v => [v.lat, v.lng]));
-    map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 });
+  const bounds = L.latLngBounds(fleetList.map(v => [v.lat, v.lng]));
+  if (bounds.isValid()) {
+    map.fitBounds(bounds, { padding: [40, 40] });
   }
-
-  if (dashBailadilaEngine && camera3D && controls3D) {
-    reset3DCameraTarget();
-  }
-
-  renderSidebar();
 }
 
 function centerOnSelected() {
-  const v = fleetList.find(x => x.id === selectedVehicleId);
-  if (v && map) {
-    map.panTo([v.lat, v.lng], { animate: true, duration: 0.6 });
+  if (vehicleMarkers[selectedVehicleId]) {
+    map.panTo(vehicleMarkers[selectedVehicleId].marker.getLatLng());
   }
 }
 
 // =============================================================================
-// RENDER SIDEBAR (COMPACT OPERATIONAL CARDS)
+// RENDER SIDEBAR VEHICLE LIST (Section 6)
 // =============================================================================
 function renderSidebar() {
   const container = document.getElementById('vehicleListContainer');
@@ -2581,60 +3098,68 @@ function renderSidebar() {
 
   const filtered = fleetList.filter(v => {
     if (sourceFilter === 'REAL') return v.source_type === 'REAL_HARDWARE';
-    if (sourceFilter === 'SIM') return v.source_type === 'SIMULATED';
+    if (sourceFilter === 'SIM') return v.source_type !== 'REAL_HARDWARE';
     return true;
   });
 
-  container.innerHTML = filtered.map(v => {
-    const isSel = v.id === selectedVehicleId && !isFleetOverviewMode;
-    const num = v.id.replace('TRUCK_0', '').replace('TRUCK_', '');
+  const tabAll = document.getElementById('tabAll');
+  if (tabAll) tabAll.textContent = `ALL (${fleetList.length})`;
+
+  // Summary counts
+  let onlineCount = 0;
+  let attentionCount = 0;
+  fleetList.forEach(v => {
     const isReal = v.source_type === 'REAL_HARDWARE';
+    const isConn = v.is_connected !== undefined ? v.is_connected : (isReal ? v.hardware_status === 'CONNECTED_LIVE' : simRunning);
+    if (isConn) onlineCount++;
+    if (v.action === 'STOP' || v.action === 'SLOW DOWN' || (v.risk_score && v.risk_score.total >= 60)) {
+      attentionCount++;
+    }
+  });
+
+  const headerCountEl = document.getElementById('fleetHeaderCount');
+  if (headerCountEl) headerCountEl.textContent = `${fleetList.length} vehicles`;
+
+  const summaryEl = document.getElementById('fleetSummaryLine');
+  if (summaryEl) {
+    summaryEl.innerHTML = `<span class="stat-dot dot-online"></span> ${onlineCount} Online &nbsp;·&nbsp; <span class="stat-dot dot-warn"></span> ${attentionCount} Attention`;
+  }
+
+  container.innerHTML = filtered.map(v => {
+    const isSel = (v.id === selectedVehicleId);
+    const isReal = (v.source_type === 'REAL_HARDWARE');
     const isTruck1 = (v.id === 'TRUCK_01');
     const speed = isTruck1 ? 0.0 : (v.speed_kmh || 0.0);
-    const risk = v.risk_score ? v.risk_score.total : null;
     const dsr = v.dsr || {};
     const safeSpeed = dsr.safe_speed_kmh !== undefined ? dsr.safe_speed_kmh : 18.0;
     const isOverspeed = !isTruck1 && (speed > safeSpeed + 1.0);
-
     const isConnected = v.is_connected !== undefined ? v.is_connected : (isReal ? v.hardware_status === 'CONNECTED_LIVE' : simRunning);
 
-    let riskClass = 'low';
-    if (risk !== null) {
-      if (risk >= 80) riskClass = 'critical';
-      else if (risk >= 60) riskClass = 'high';
-      else if (risk >= 35) riskClass = 'moderate';
-    }
-
-    const visM = (v.dfri && v.dfri.visibility_m) || (v.current_zone && v.current_zone.visibility_m) || 50;
-    const fogSev = (v.dfri && v.dfri.severity) || (v.current_zone && v.current_zone.severity) || 'NORMAL';
+    const actionText = (v.action === 'STOP') ? 'STOP' : (v.action === 'SLOW DOWN') ? 'CAUTION' : 'SAFE';
+    const actionClass = (v.action === 'STOP') ? 'stop' : (v.action === 'SLOW DOWN') ? 'slow' : 'clear';
 
     return `
       <div class="fleet-rail-card ${isSel ? 'selected' : ''}" onclick="selectVehicle('${v.id}')">
-        <div class="frc-header">
-          <div class="frc-id-group">
-            <span class="frc-num-badge" style="color:${v.avatar_color}; border-color:${v.avatar_color}55">#${num}</span>
-            <span class="frc-name">${v.name}</span>
-            <span class="frc-source-chip ${isReal ? 'real' : 'sim'}">${isReal ? 'ESP32' : 'SIM'}</span>
+        <div class="frc-top">
+          <div class="frc-identity">
+            <span class="frc-id">${v.id.replace('_', ' ')}</span>
+            <span class="frc-model">${v.model || 'Haul Truck'}</span>
           </div>
-          <div class="frc-status-tag ${isConnected ? 'online' : 'offline'}">
+          <span class="frc-status-tag ${isConnected ? 'online' : 'offline'}">
             <span class="frc-dot"></span>
-            <span>${isConnected ? 'ONLINE' : 'OFFLINE'}</span>
-          </div>
+            ${isConnected ? 'ONLINE' : 'OFFLINE'}
+          </span>
         </div>
 
-        <div class="frc-metrics-row">
-          <div class="frc-metric">
-            <span class="frc-m-label">SPEED</span>
-            <span class="frc-m-val">${speed.toFixed(0)} <small>km/h</small></span>
+        <div class="frc-bottom">
+          <div class="frc-speed-box">
+            <span class="frc-speed-val">${speed.toFixed(0)}</span>
+            <span class="frc-speed-unit">km/h</span>
           </div>
-          <div class="frc-metric">
-            <span class="frc-m-label">RISK</span>
-            <span class="frc-m-val ${riskClass}">${risk !== null ? risk : '--'}</span>
+          <div class="frc-action-tag ${actionClass}">
+            ${actionText}
           </div>
-          <div class="frc-metric" style="text-align:right">
-            <span class="frc-m-label">VISIBILITY</span>
-            <span class="frc-m-val vis">${visM}m <small>${fogSev.split(' ')[0]}</small></span>
-          </div>
+          <span class="frc-source-chip ${isReal ? 'real' : 'sim'}">${isReal ? 'ESP32' : 'SIM'}</span>
         </div>
 
         ${isOverspeed ? `<div class="frc-alert-strip">⚠ REDUCE SPEED (${safeSpeed.toFixed(0)} km/h Limit)</div>` : ''}
@@ -2652,7 +3177,6 @@ async function fetchFleet() {
     const data = await res.json();
     fleetList = data.vehicles || [];
     currentFleetObstacles = data.obstacles || [];
-    currentV2VData = data.v2v || null;
 
     const stats = data.fleet_stats || {};
     const elTot = document.getElementById('fstatTotal');
@@ -2698,110 +3222,21 @@ async function fetchFleet() {
         marker.on('click', () => selectVehicle(v.id));
         vehicleMarkers[v.id] = { marker, v };
       } else {
-        const entry = vehicleMarkers[v.id];
-        entry.marker.setLatLng([v.lat, v.lng]);
-        entry.marker.setIcon(createVehicleIcon(v, isSel));
-        entry.v = v;
+        vehicleMarkers[v.id].marker.setLatLng([v.lat, v.lng]);
+        vehicleMarkers[v.id].marker.setIcon(createVehicleIcon(v, isSel));
+        vehicleMarkers[v.id].v = v;
       }
     });
 
     renderSidebar();
     update3DMine(fleetList);
-
-    if (currentV2VData) {
-      updateV2VUI(currentV2VData);
-    }
-
-    const selV = fleetList.find(x => x.id === selectedVehicleId);
-    if (selV) applyVehicleToUI(selV);
-
   } catch (err) {
     console.error('fetchFleet err:', err);
   }
 }
 
 // =============================================================================
-// UPDATE V2V SAFETY NETWORK UI (Sections 17, 19)
-// =============================================================================
-function updateV2VUI(v2v) {
-  if (!v2v) return;
-
-  const badge = document.getElementById('v2vNetStatusBadge');
-  if (badge) {
-    badge.textContent = v2v.status || 'CONNECTED';
-    badge.style.color = (v2v.status === 'CONNECTED') ? 'var(--green)' : 'var(--red)';
-  }
-
-  const elLinks = document.getElementById('v2vStatLinks');
-  if (elLinks) elLinks.textContent = v2v.active_links_count !== undefined ? v2v.active_links_count : (v2v.active_links ? v2v.active_links.length : '--');
-
-  const elAlerts = document.getElementById('v2vStatAlerts');
-  if (elAlerts) {
-    const alertCount = v2v.active_alerts_count !== undefined ? v2v.active_alerts_count : (v2v.active_alerts ? v2v.active_alerts.length : 0);
-    elAlerts.textContent = alertCount;
-    elAlerts.style.color = alertCount > 0 ? 'var(--red)' : 'var(--green)';
-  }
-
-  const elMsgRate = document.getElementById('v2vStatMsgRate');
-  if (elMsgRate) elMsgRate.textContent = `${v2v.messages_per_sec || 0}/s`;
-
-  // Render peer links list
-  const listEl = document.getElementById('v2vLinksList');
-  if (listEl) {
-    const links = v2v.active_links || [];
-    if (links.length === 0) {
-      listEl.innerHTML = '<div style="color:var(--text-dim);font-style:italic">No active direct links in range</div>';
-    } else {
-      listEl.innerHTML = links.map(l => {
-        let statusColor = '#06b6d4';
-        if (l.status === 'HIGH_RISK') statusColor = '#ef4444';
-        else if (l.status === 'CAUTION') statusColor = '#f59e0b';
-
-        return `<div style="display:flex;justify-content:space-between;padding:1px 0;border-bottom:1px solid rgba(255,255,255,0.05)">
-          <span><b>${l.source}</b> → <b>${l.target}</b></span>
-          <span style="color:var(--text-dim)">${Math.round(l.distance_m)}m</span>
-          <span style="color:${statusColor};font-weight:700">${l.status}</span>
-        </div>`;
-      }).join('');
-    }
-  }
-
-  // Render V2V event log
-  const eventContainer = document.getElementById('v2vEventLogContainer');
-  const countBadge = document.getElementById('v2vEventCountBadge');
-  if (eventContainer && v2v.recent_events) {
-    if (countBadge) countBadge.textContent = `${v2v.recent_events.length} events`;
-    eventContainer.innerHTML = v2v.recent_events.map(ev => {
-      let col = 'var(--text-dim)';
-      if (ev.severity === 'CRITICAL') col = 'var(--red)';
-      else if (ev.severity === 'WARNING') col = 'var(--amber)';
-      else if (ev.severity === 'INFO') col = 'var(--cyan)';
-
-      return `<div class="log-entry" style="border-left:2px solid ${col};padding:2px 4px;margin-bottom:2px">
-        <span class="log-time" style="color:${col}">${ev.timestamp}</span>
-        <b style="color:var(--text-main)">[${ev.source}]</b> ${ev.event}
-      </div>`;
-    }).join('');
-  }
-}
-
-async function triggerV2VDemoCascade() {
-  try {
-    const res = await fetch('/api/v2v/simulate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ vehicle_id: 'TRUCK_01', duration: 2.0 })
-    });
-    const d = await res.json();
-    console.log('[V2V Demo] Cascade Activated:', d);
-    fetchFleet();
-  } catch (err) {
-    console.error('triggerV2VDemoCascade err:', err);
-  }
-}
-
-// =============================================================================
-// APPLY SELECTED VEHICLE TO UI
+// APPLY SELECTED VEHICLE TO UI (Section 9)
 // =============================================================================
 function applyVehicleToUI(v) {
   if (!v) return;
@@ -2831,14 +3266,12 @@ function applyVehicleToUI(v) {
   const isConnected = v.is_connected !== undefined ? v.is_connected : (isReal ? v.hardware_status === 'CONNECTED_LIVE' : simRunning);
   const isMoving = isTruck1 ? false : (v.is_moving !== undefined ? v.is_moving : (speedVal > 0.5 && v.action !== 'STOP'));
 
-  // Update Hero Status Pills
+  // Update Status Pills
   const heroConnPill = document.getElementById('heroConnPill');
   if (heroConnPill) {
     heroConnPill.className = 'hero-status-pill ' + (isConnected ? 'connected' : 'disconnected');
     const connText = document.getElementById('heroConnText');
     if (connText) connText.textContent = isConnected ? 'ONLINE' : 'OFFLINE';
-    const beacon = heroConnPill.querySelector('.status-beacon');
-    if (beacon) beacon.className = 'status-beacon ' + (isConnected ? 'beacon-online' : 'beacon-offline');
   }
 
   const heroMotionPill = document.getElementById('heroMotionPill');
@@ -2850,7 +3283,7 @@ function applyVehicleToUI(v) {
     } else {
       heroMotionPill.className = 'hero-status-pill ' + (isMoving ? 'moving' : 'stopped');
       const motionText = document.getElementById('heroMotionText');
-      if (motionText) motionText.textContent = isMoving ? `MOVING (${speedVal.toFixed(1)} km/h)` : `STOPPED (0.0 km/h)`;
+      if (motionText) motionText.textContent = isMoving ? `${speedVal.toFixed(1)} km/h` : `STOPPED`;
     }
   }
 
@@ -2863,7 +3296,7 @@ function applyVehicleToUI(v) {
   const hwStatusBadge = document.getElementById('hwStatusBadge');
   if (hwStatusBadge) {
     hwStatusBadge.textContent = isReal ? `🟢 ESP32 LIVE (${v.packet_count || 0} pkts)` : `🔷 SIMULATED AUTONOMOUS`;
-    hwStatusBadge.style.color = isReal ? 'var(--green)' : 'var(--cyan)';
+    hwStatusBadge.style.color = isReal ? 'var(--status-safe)' : 'var(--text-primary)';
   }
 
   const hwToggleBtn = document.getElementById('hwToggleModeBtn');
@@ -2880,7 +3313,6 @@ function applyVehicleToUI(v) {
   const dsr = v.dsr || {};
   const dfri = v.dfri || (zone.dfri || {});
   const safeSpeedVal = dsr.safe_speed_kmh !== undefined ? dsr.safe_speed_kmh : (zone.max_safe_speed || 18.0);
-  const curSpeedVal = isTruck1 ? 0.0 : (dsr.current_speed_kmh !== undefined ? dsr.current_speed_kmh : speedVal);
   const advisoryBadge = dsr.advisory_badge || '✓ SAFE SPEED';
   const bottleneck = dsr.primary_constraint || 'Normal Haul Speed';
 
@@ -2893,29 +3325,30 @@ function applyVehicleToUI(v) {
   if (heroDsrPill && heroDsrText) {
     heroDsrText.textContent = advisoryBadge;
     if (advisoryBadge.includes('CRITICAL')) {
-      heroDsrPill.style.background = 'var(--red-dim)';
-      heroDsrPill.style.borderColor = 'var(--red)';
-      heroDsrPill.style.color = '#fca5a5';
+      heroDsrPill.style.background = 'var(--status-critical-bg)';
+      heroDsrPill.style.borderColor = 'var(--status-critical-border)';
+      heroDsrPill.style.color = 'var(--status-critical)';
     } else if (advisoryBadge.includes('REDUCE')) {
-      heroDsrPill.style.background = 'var(--amber-dim)';
-      heroDsrPill.style.borderColor = 'var(--amber)';
-      heroDsrPill.style.color = 'var(--amber)';
+      heroDsrPill.style.background = 'var(--status-caution-bg)';
+      heroDsrPill.style.borderColor = 'var(--status-caution-border)';
+      heroDsrPill.style.color = 'var(--status-caution)';
     } else {
-      heroDsrPill.style.background = 'var(--green-dim)';
-      heroDsrPill.style.borderColor = 'var(--green)';
-      heroDsrPill.style.color = 'var(--green)';
+      heroDsrPill.style.background = 'var(--status-safe-bg)';
+      heroDsrPill.style.borderColor = 'var(--status-safe-border)';
+      heroDsrPill.style.color = 'var(--status-safe)';
     }
   }
 
   const activeZoneTitle = document.getElementById('activeZoneTitle');
-  if (activeZoneTitle) activeZoneTitle.textContent = zone.name || 'Bailadila Deposit 14 Open-Cast Pit';
+  if (activeZoneTitle) activeZoneTitle.textContent = `${zone.name || 'Bailadila Deposit 14 Open-Cast Pit'} — Digital Twin`;
 
   const activeZoneVis = document.getElementById('activeZoneVis');
   if (activeZoneVis) {
     const visDist = dfri.visibility_m !== undefined ? dfri.visibility_m : (zone.visibility_m || 50);
     const visSeverity = dfri.severity || zone.severity || 'NORMAL';
     activeZoneVis.textContent = `${visDist} m — ${visSeverity}`;
-    activeZoneVis.style.color = dfri.color || zone.color || 'var(--green)';
+    activeZoneVis.style.color = (visSeverity === 'CRITICAL' || visSeverity === 'SEVERE FOG') ? 'var(--status-critical)' :
+                                (visSeverity === 'CAUTION' || visSeverity === 'LOW VISIBILITY') ? 'var(--status-caution)' : 'var(--status-safe)';
   }
 
   const activeSafeSpeedText = document.getElementById('activeSafeSpeedText');
@@ -2963,10 +3396,10 @@ function applyVehicleToUI(v) {
   if (heroRiskScore) heroRiskScore.textContent = risk.total;
   if (riskBadge) {
     riskBadge.textContent = risk.level;
-    riskBadge.style.color = (risk.total >= 80) ? 'var(--red)' : ((risk.total >= 35) ? 'var(--amber)' : 'var(--green)');
+    riskBadge.style.color = (risk.total >= 80) ? 'var(--status-critical)' : ((risk.total >= 35) ? 'var(--status-caution)' : 'var(--status-safe)');
   }
 
-  // Command Banner
+  // Prominent Safety Route Status Block (Section 11)
   const cmdCard = document.getElementById('commandCard');
   const cmdVal = document.getElementById('cmdValue');
   const cmdIcon = document.getElementById('cmdIcon');
@@ -2976,18 +3409,18 @@ function applyVehicleToUI(v) {
     cmdCard.className = 'command-card';
     if (v.action === 'STOP') {
       cmdCard.classList.add('stop');
-      if (cmdVal) { cmdVal.textContent = 'EMERGENCY STOP'; cmdVal.style.color = 'var(--red)'; }
-      if (cmdIcon) { cmdIcon.textContent = '⛔'; cmdIcon.style.color = 'var(--red)'; cmdIcon.style.background = 'var(--red-dim)'; }
-      if (cmdDesc) cmdDesc.textContent = `Immediate hazard ahead (${v.dist_front} cm). Emergency brakes locked.`;
+      if (cmdVal) cmdVal.textContent = 'STOP REQUIRED';
+      if (cmdIcon) cmdIcon.textContent = '!';
+      if (cmdDesc) cmdDesc.textContent = `Immediate hazard detected ahead (${v.dist_front} cm). Emergency braking active.`;
     } else if (v.action === 'SLOW DOWN') {
       cmdCard.classList.add('slow');
-      if (cmdVal) { cmdVal.textContent = 'SLOW DOWN (CAUTION)'; cmdVal.style.color = 'var(--amber)'; }
-      if (cmdIcon) { cmdIcon.textContent = '⚠️'; cmdIcon.style.color = 'var(--amber)'; cmdIcon.style.background = 'var(--amber-dim)'; }
-      if (cmdDesc) cmdDesc.textContent = `Caution envelope: Obstacle at ${v.dist_front} cm or severe fog.`;
+      if (cmdVal) cmdVal.textContent = '⚠ CAUTION / SLOW DOWN';
+      if (cmdIcon) cmdIcon.textContent = '▲';
+      if (cmdDesc) cmdDesc.textContent = `Proximity warning or dense fog active. Speed governed to safe envelope.`;
     } else {
-      if (cmdVal) { cmdVal.textContent = 'CLEAR ROUTE'; cmdVal.style.color = 'var(--green)'; }
-      if (cmdIcon) { cmdIcon.textContent = '✓'; cmdIcon.style.color = 'var(--green)'; cmdIcon.style.background = 'var(--green-dim)'; }
-      if (cmdDesc) cmdDesc.textContent = 'Corridors clear. Operating under nominal speed governor.';
+      if (cmdVal) cmdVal.textContent = '✓ ROUTE CLEAR';
+      if (cmdIcon) cmdIcon.textContent = '✓';
+      if (cmdDesc) cmdDesc.textContent = 'All corridors clear. Operating under nominal speed governor.';
     }
   }
 
@@ -3020,15 +3453,14 @@ function applyVehicleToUI(v) {
   const logContainer = document.getElementById('vehicleLogContainer');
   if (logContainer && v.log && v.log.length) {
     logContainer.innerHTML = v.log.map(item => {
-      const dotColor = item.action === 'STOP' ? 'var(--red)' : item.action !== 'CLEAR' ? 'var(--amber)' : 'var(--green)';
+      const dotColor = item.action === 'STOP' ? 'var(--status-critical)' : item.action !== 'CLEAR' ? 'var(--status-caution)' : 'var(--status-safe)';
       return `
         <div class="log-entry" style="border-left-color:${dotColor}">
           <div style="display:flex;align-items:center;gap:6px">
-            <span class="log-dot" style="background:${dotColor}"></span>
-            <span style="color:var(--text-dim)">${item.time}</span>
+            <span style="font-family:var(--font-mono);color:var(--text-muted);font-size:10px">${item.time}</span>
             <strong style="color:${dotColor}">${item.action}</strong>
           </div>
-          <div style="color:var(--text-muted);margin-top:1px">${item.note || ''}</div>
+          <div style="color:var(--text-secondary);margin-top:1px">${item.note || ''}</div>
         </div>
       `;
     }).join('');
@@ -3039,62 +3471,9 @@ function applyVehicleToUI(v) {
     selectedTrailPolyline.setLatLngs(v.trail);
     if (v.avatar_color) selectedTrailPolyline.setStyle({ color: v.avatar_color });
   }
-
-  // V2V Operational Details (Section 18)
-  const v2v = v.v2v || {};
-  const v2vComm = document.getElementById('v2vDetailComm');
-  if (v2vComm) v2vComm.textContent = v2v.communication_status ? `${v2v.communication_status} (SIM)` : 'DISCONNECTED';
-
-  const v2vHeroStatus = document.getElementById('v2vHeroStatusBadge');
-  if (v2vHeroStatus) {
-    v2vHeroStatus.textContent = v2v.communication_status || 'CONNECTED';
-    v2vHeroStatus.style.color = (v2v.communication_status === 'CONNECTED') ? 'var(--green)' : 'var(--red)';
-  }
-
-  const v2vNearby = document.getElementById('v2vDetailNearbyCount');
-  if (v2vNearby) v2vNearby.textContent = `${v2v.nearby_count || 0} in range`;
-
-  const v2vNearest = document.getElementById('v2vDetailNearest');
-  if (v2vNearest) v2vNearest.textContent = v2v.nearest_vehicle || 'NONE';
-
-  const v2vDistance = document.getElementById('v2vDetailDistance');
-  if (v2vDistance) v2vDistance.textContent = (v2v.nearest_distance_m !== undefined && v2v.nearest_distance_m !== null) ? `${Math.round(v2v.nearest_distance_m)} m` : '-- m';
-
-  const v2vRelSpeed = document.getElementById('v2vDetailRelSpeed');
-  if (v2vRelSpeed) v2vRelSpeed.textContent = (v2v.relative_speed_kmh !== undefined && v2v.relative_speed_kmh !== null) ? `${v2v.relative_speed_kmh.toFixed(1)} km/h` : '-- km/h';
-
-  const v2vApproach = document.getElementById('v2vDetailApproach');
-  if (v2vApproach) {
-    v2vApproach.textContent = v2v.approaching ? 'CLOSING' : 'RECEDING';
-    v2vApproach.style.color = v2v.approaching ? 'var(--amber)' : 'var(--cyan)';
-  }
-
-  const v2vTTC = document.getElementById('v2vDetailTTC');
-  if (v2vTTC) {
-    v2vTTC.textContent = (v2v.ttc_seconds !== undefined && v2v.ttc_seconds !== null) ? `${v2v.ttc_seconds.toFixed(1)} s` : '> 99 s';
-    v2vTTC.style.color = (v2v.ttc_seconds && v2v.ttc_seconds < 15.0) ? 'var(--red)' : 'var(--text-main)';
-  }
-
-  const v2vLastMsg = document.getElementById('v2vDetailLastMsg');
-  if (v2vLastMsg) v2vLastMsg.textContent = v2v.last_message_age_s !== undefined ? `${v2v.last_message_age_s}s ago` : '0.2s ago';
-
-  const v2vAlert = document.getElementById('v2vDetailActiveAlert');
-  if (v2vAlert) {
-    v2vAlert.textContent = v2v.active_alert_name || 'NONE (CLEAR)';
-    v2vAlert.style.color = (v2v.active_alert_name && v2v.active_alert_name !== 'NONE') ? 'var(--red)' : 'var(--green)';
-  }
-
-  const v2vAction = document.getElementById('v2vDetailRecAction');
-  if (v2vAction) {
-    v2vAction.textContent = v2v.recommended_action || 'NOMINAL CRUISE';
-    v2vAction.style.color = (v2v.recommended_action && v2v.recommended_action.includes('SLOW')) ? 'var(--amber)' :
-                           (v2v.recommended_action && v2v.recommended_action.includes('STOP')) ? 'var(--red)' : 'var(--cyan)';
-  }
 }
 
-// =============================================================================
-// FETCH SELECTED VEHICLE DETAILS
-// =============================================================================
+// Fetch selected vehicle details
 async function fetchVehicleDetails() {
   try {
     const res = await fetch(`/api/vehicle/${selectedVehicleId}`, { cache: 'no-store' });
@@ -3112,10 +3491,10 @@ function updateSensorBox(dir, dist) {
   if (!valEl || !bar) return;
 
   valEl.textContent = (dist !== undefined && dist !== null) ? dist : '--';
-  let color = 'var(--cyan)';
+  let color = 'var(--status-safe)';
   const d = parseInt(dist, 10) || 0;
-  if (d < 15) color = 'var(--red)';
-  else if (d < 40) color = 'var(--amber)';
+  if (d < 15) color = 'var(--status-critical)';
+  else if (d < 40) color = 'var(--status-caution)';
 
   const capped = Math.max(0, Math.min(d, 250));
   const widthPct = Math.min(100, Math.max(14, Math.round((capped / 250) * 100)));
@@ -3128,14 +3507,14 @@ function updateRadarCone(elementId, dist) {
   if (!cone) return;
   const d = parseInt(dist, 10) || 0;
   if (d < 15) {
-    cone.setAttribute('fill', 'rgba(239, 68, 68, 0.55)');
-    cone.setAttribute('stroke', 'var(--red)');
+    cone.setAttribute('fill', 'rgba(199, 70, 70, 0.45)');
+    cone.setAttribute('stroke', 'var(--status-critical)');
   } else if (d < 40) {
-    cone.setAttribute('fill', 'rgba(245, 158, 11, 0.40)');
-    cone.setAttribute('stroke', 'var(--amber)');
+    cone.setAttribute('fill', 'rgba(197, 138, 24, 0.35)');
+    cone.setAttribute('stroke', 'var(--status-caution)');
   } else {
-    cone.setAttribute('fill', 'rgba(56, 189, 248, 0.20)');
-    cone.setAttribute('stroke', 'rgba(56, 189, 248, 0.50)');
+    cone.setAttribute('fill', 'rgba(46, 125, 91, 0.20)');
+    cone.setAttribute('stroke', 'var(--status-safe)');
   }
 }
 
@@ -3196,8 +3575,9 @@ async function triggerTestObstacle() {
   const originalHtml = btn ? btn.innerHTML : '';
   if (btn) {
     btn.innerHTML = '<span>💥</span> <span>HAZARD TRIGGERED (10 cm)!</span>';
-    btn.style.background = 'var(--red-dim)';
-    btn.style.borderColor = 'var(--red)';
+    btn.style.background = 'var(--status-critical-bg)';
+    btn.style.borderColor = 'var(--status-critical-border)';
+    btn.style.color = 'var(--status-critical)';
   }
 
   try {
@@ -3229,6 +3609,7 @@ async function triggerTestObstacle() {
         btn.innerHTML = originalHtml;
         btn.style.background = '';
         btn.style.borderColor = '';
+        btn.style.color = '';
       }
     }, 2500);
   }
@@ -3585,10 +3966,10 @@ function onDashboardFogSliderChange(val) {
   }
   var labelEl = document.getElementById('dashboardFogLabel');
   if (labelEl) {
-    if (v > 70) { labelEl.textContent = 'Dense'; labelEl.style.color = '#ef4444'; }
-    else if (v > 35) { labelEl.textContent = 'Moderate'; labelEl.style.color = '#f97316'; }
-    else if (v > 5) { labelEl.textContent = 'Light'; labelEl.style.color = 'var(--amber)'; }
-    else { labelEl.textContent = 'Clear'; labelEl.style.color = 'var(--cyan)'; }
+    if (v > 70) { labelEl.textContent = 'Dense'; labelEl.style.color = 'var(--status-critical)'; }
+    else if (v > 35) { labelEl.textContent = 'Moderate'; labelEl.style.color = 'var(--status-warning)'; }
+    else if (v > 5) { labelEl.textContent = 'Light'; labelEl.style.color = 'var(--status-caution)'; }
+    else { labelEl.textContent = 'Clear'; labelEl.style.color = 'var(--status-safe)'; }
   }
 }
 
@@ -3656,14 +4037,14 @@ function updateSyncValidatorHUD() {
   const elElevStatus = document.getElementById('syncValElevStatus');
   const elHdgStatus = document.getElementById('syncValHeadingStatus');
 
-  if (elPosStatus) { elPosStatus.textContent = posOk ? 'POSITION: SYNCED' : 'POSITION: MISMATCH'; elPosStatus.style.color = posOk ? 'var(--green)' : 'var(--red)'; }
-  if (elElevStatus) { elElevStatus.textContent = elevOk ? 'ELEVATION: SYNCED' : 'ELEVATION: MISMATCH'; elElevStatus.style.color = elevOk ? 'var(--green)' : 'var(--red)'; }
-  if (elHdgStatus) { elHdgStatus.textContent = hdgOk ? 'HEADING: SYNCED' : 'HEADING: MISMATCH'; elHdgStatus.style.color = hdgOk ? 'var(--green)' : 'var(--red)'; }
+  if (elPosStatus) { elPosStatus.textContent = posOk ? 'POSITION: SYNCED' : 'POSITION: MISMATCH'; elPosStatus.style.color = posOk ? 'var(--status-safe)' : 'var(--status-critical)'; }
+  if (elElevStatus) { elElevStatus.textContent = elevOk ? 'ELEVATION: SYNCED' : 'ELEVATION: MISMATCH'; elElevStatus.style.color = elevOk ? 'var(--status-safe)' : 'var(--status-critical)'; }
+  if (elHdgStatus) { elHdgStatus.textContent = hdgOk ? 'HEADING: SYNCED' : 'HEADING: MISMATCH'; elHdgStatus.style.color = hdgOk ? 'var(--status-safe)' : 'var(--status-critical)'; }
 
   if (elOverall) {
     const allSynced = posOk && elevOk && hdgOk;
     elOverall.textContent = allSynced ? 'DIGITAL TWIN SYNCED' : 'DIGITAL TWIN MISMATCH';
-    elOverall.style.color = allSynced ? 'var(--green)' : 'var(--red)';
+    elOverall.style.color = allSynced ? 'var(--status-safe)' : 'var(--status-critical)';
   }
 }
 
@@ -3680,8 +4061,8 @@ async function initMine3DViewer() {
   const h = container.clientHeight || 500;
 
   scene3D = new THREE.Scene();
-  scene3D.background = new THREE.Color(0x0a0d12);
-  scene3D.fog = new THREE.FogExp2(0x0a0d12, 0.000028);
+  scene3D.background = new THREE.Color(0x0e141d);
+  scene3D.fog = new THREE.FogExp2(0x0e141d, 0.000028);
 
   camera3D = new THREE.PerspectiveCamera(50, w / h, 10, 100000);
 
@@ -3700,7 +4081,6 @@ async function initMine3DViewer() {
   controls3D.maxDistance = 45000;
   controls3D.maxPolarAngle = Math.PI * 0.495;
 
-  // Lighting matching mine3d.html
   const hemiLight = new THREE.HemisphereLight(0xdde3ea, 0x1a2128, 1.35);
   scene3D.add(hemiLight);
 
@@ -3738,7 +4118,7 @@ async function initMine3DViewer() {
   // Radar Cone
   const coneGeo = new THREE.ConeGeometry(35, 120, 16, 1, true);
   coneGeo.rotateX(Math.PI / 2);
-  const coneMat = new THREE.MeshBasicMaterial({ color: 0x10b981, wireframe: true, transparent: true, opacity: 0.5 });
+  const coneMat = new THREE.MeshBasicMaterial({ color: 0x2E7D5B, wireframe: true, transparent: true, opacity: 0.5 });
   selectedRadarCone3D = new THREE.Mesh(coneGeo, coneMat);
   scene3D.add(selectedRadarCone3D);
 
@@ -3831,9 +4211,6 @@ function update3DMine(fleet) {
   if (dashBailadilaEngine.updateObstacles && currentFleetObstacles) {
     dashBailadilaEngine.updateObstacles(currentFleetObstacles);
   }
-  if (dashBailadilaEngine.updateV2VNetwork && currentV2VData) {
-    dashBailadilaEngine.updateV2VNetwork(currentV2VData);
-  }
 
   const targetLbl = document.getElementById('threeDTargetLabel');
   if (targetLbl) targetLbl.textContent = selectedVehicleId;
@@ -3843,16 +4220,16 @@ function update3DMine(fleet) {
     if (selV) {
       if (selV.action === 'STOP' || selV.dist_front < 60) {
         radarLbl.textContent = `STOP (${selV.dist_front}cm)`;
-        radarLbl.style.color = 'var(--red)';
-        if (selectedRadarCone3D) selectedRadarCone3D.material.color.setHex(0xef4444);
+        radarLbl.style.color = 'var(--status-critical)';
+        if (selectedRadarCone3D) selectedRadarCone3D.material.color.setHex(0xC74646);
       } else if (selV.action === 'SLOW DOWN' || selV.dist_front < 150) {
         radarLbl.textContent = `SLOW (${selV.dist_front}cm)`;
-        radarLbl.style.color = 'var(--amber)';
-        if (selectedRadarCone3D) selectedRadarCone3D.material.color.setHex(0xf59e0b);
+        radarLbl.style.color = 'var(--status-caution)';
+        if (selectedRadarCone3D) selectedRadarCone3D.material.color.setHex(0xC58A18);
       } else {
         radarLbl.textContent = `CLEAR (${selV.dist_front}cm)`;
-        radarLbl.style.color = 'var(--green)';
-        if (selectedRadarCone3D) selectedRadarCone3D.material.color.setHex(0x10b981);
+        radarLbl.style.color = 'var(--status-safe)';
+        if (selectedRadarCone3D) selectedRadarCone3D.material.color.setHex(0x2E7D5B);
       }
     }
   }
@@ -3868,6 +4245,134 @@ function updateClock() {
 }
 setInterval(updateClock, 1000);
 updateClock();
+
+// =============================================================================
+// FIRST-TIME OPERATOR ORIENTATION STATE MACHINE (Section 17)
+// =============================================================================
+let currentOrientationStep = 1;
+const TOTAL_ORIENTATION_STEPS = 5;
+
+const orientationSteps = [
+  {
+    step: 1,
+    badge: "ORIENTATION 1 OF 5",
+    title: "WELCOME TO HAUL FLEET CONTROL ROOM",
+    text: "Monitor mine vehicles, terrain, hazards and fleet safety from one control room. This interface gives operators real-time operational awareness across the entire pit and haul roads.",
+    nextText: "START ORIENTATION",
+    targetId: null
+  },
+  {
+    step: 2,
+    badge: "ORIENTATION 2 OF 5",
+    title: "YOUR FLEET",
+    text: "Select a truck here to inspect its live status, route, speed and safety information. Filter by real hardware or simulated autonomous dumpers at any time.",
+    nextText: "NEXT",
+    targetId: "fleetRail"
+  },
+  {
+    step: 3,
+    badge: "ORIENTATION 3 OF 5",
+    title: "DIGITAL TWIN",
+    text: "This is the digital twin of the mine. Track haul roads, terrain, vehicles and detected hazards in full 3D, 2D GIS map, or split view. You can inspect camera views and adjust layer toggles via View Options.",
+    nextText: "NEXT",
+    targetId: "mine3DCard"
+  },
+  {
+    step: 4,
+    badge: "ORIENTATION 4 OF 5",
+    title: "OPERATIONS",
+    text: "Everything important about the selected truck appears here — velocity, recommended safe speed, risk factors, sensors, camera dehazing and mechanical diagnostics.",
+    nextText: "NEXT",
+    targetId: "operationsPanel"
+  },
+  {
+    step: 5,
+    badge: "ORIENTATION 5 OF 5",
+    title: "SAFETY & SENSORS",
+    text: "Safety alerts appear here first. Green indicates normal operation, amber requires attention, and red commands immediate braking when forward sensors or telemetry identify road obstacles.",
+    nextText: "FINISH",
+    targetId: "commandCard"
+  }
+];
+
+function openOrientation(step = 1) {
+  currentOrientationStep = step;
+  const overlay = document.getElementById('orientationOverlay');
+  if (overlay) overlay.classList.add('open');
+  renderOrientationStep();
+}
+
+function renderOrientationStep() {
+  const stepData = orientationSteps[currentOrientationStep - 1];
+  if (!stepData) return;
+
+  const badgeEl = document.getElementById('orientStepBadge');
+  const titleEl = document.getElementById('orientStepTitle');
+  const textEl = document.getElementById('orientStepText');
+  const nextBtn = document.getElementById('orientNextBtn');
+  const prevBtn = document.getElementById('orientPrevBtn');
+  const dots = document.querySelectorAll('.orientation-dot');
+
+  if (badgeEl) badgeEl.textContent = stepData.badge;
+  if (titleEl) titleEl.textContent = stepData.title;
+  if (textEl) textEl.textContent = stepData.text;
+  if (nextBtn) nextBtn.textContent = stepData.nextText;
+  if (prevBtn) prevBtn.style.visibility = (currentOrientationStep === 1) ? 'hidden' : 'visible';
+
+  dots.forEach((dot, idx) => {
+    dot.classList.toggle('active', idx === currentOrientationStep - 1);
+  });
+
+  // Remove previous highlights
+  document.querySelectorAll('.orientation-target-highlight').forEach(el => {
+    el.classList.remove('orientation-target-highlight');
+  });
+
+  // Highlight active target element
+  if (stepData.targetId) {
+    const target = document.getElementById(stepData.targetId);
+    if (target) target.classList.add('orientation-target-highlight');
+  }
+}
+
+function nextOrientationStep() {
+  if (currentOrientationStep < TOTAL_ORIENTATION_STEPS) {
+    currentOrientationStep++;
+    renderOrientationStep();
+  } else {
+    finishOrientation();
+  }
+}
+
+function prevOrientationStep() {
+  if (currentOrientationStep > 1) {
+    currentOrientationStep--;
+    renderOrientationStep();
+  }
+}
+
+function finishOrientation() {
+  const overlay = document.getElementById('orientationOverlay');
+  if (overlay) overlay.classList.remove('open');
+
+  document.querySelectorAll('.orientation-target-highlight').forEach(el => {
+    el.classList.remove('orientation-target-highlight');
+  });
+
+  const dontShow = document.getElementById('orientDontShowCheck');
+  if (dontShow && dontShow.checked) {
+    localStorage.setItem('haul_fleet_orientation_seen', 'true');
+  }
+}
+
+// Auto open orientation for first-time operators
+window.addEventListener('DOMContentLoaded', () => {
+  const isBypass = window.location.href.includes('clean') || window.location.href.includes('no_orient') || window.location.search.includes('clean');
+  const seen = localStorage.getItem('haul_fleet_orientation_seen') || isBypass;
+  if (!seen) {
+    setTimeout(() => openOrientation(1), 700);
+  }
+});
 
 // Polling intervals
 setInterval(() => {
