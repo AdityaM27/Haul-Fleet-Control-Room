@@ -4207,7 +4207,7 @@ async function initMine3DViewer() {
   scene3D.background = new THREE.Color(0x0e141d);
   scene3D.fog = new THREE.FogExp2(0x0e141d, 0.000028);
 
-  camera3D = new THREE.PerspectiveCamera(50, w / h, 0.5, 100000);
+  camera3D = new THREE.PerspectiveCamera(50, w / h, 0.2, 100000);
 
   renderer3D = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   renderer3D.setSize(w, h);
@@ -4216,14 +4216,14 @@ async function initMine3DViewer() {
   renderer3D.toneMappingExposure = 1.15;
   container.appendChild(renderer3D.domElement);
 
-  // Smooth Orbit Controls (Responsive Multi-Tier Zoom Range: 8m truck close-up -> 50,000m full mine overview)
+  // Smooth Orbit Controls (Responsive Multi-Tier Zoom Range: 1.5m close-up -> 75,000m full mine overview)
   controls3D = new THREE.OrbitControls(camera3D, renderer3D.domElement);
   controls3D.enableDamping = true;
   controls3D.dampingFactor = 0.08;
   controls3D.screenSpacePanning = true;
-  controls3D.minDistance = 8.0;
-  controls3D.maxDistance = 50000;
-  controls3D.zoomSpeed = 1.25;
+  controls3D.minDistance = 1.5;
+  controls3D.maxDistance = 75000;
+  controls3D.zoomSpeed = 1.35;
   controls3D.maxPolarAngle = Math.PI * 0.495;
 
   const hemiLight = new THREE.HemisphereLight(0xdde3ea, 0x1a2128, 1.35);

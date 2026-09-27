@@ -423,7 +423,7 @@
   // Fog-Guard Atmospheric Fog (Clear regional baseline, distant mountains in haze)
   scene.fog = new THREE.FogExp2(0x0a0d12, 0.000028);
 
-  const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.5, 100000);
+  const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.2, 100000);
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setSize(window.innerWidth, window.innerHeight);
@@ -443,14 +443,14 @@
   fill.position.set(4500, 5000, -6000);
   scene.add(fill);
 
-  // Smooth Orbit Controls (Responsive Multi-Tier Zoom Range: 8m truck close-up -> 50,000m full mine overview)
+  // Smooth Orbit Controls (Responsive Multi-Tier Zoom Range: 1.5m close-up -> 75,000m full mine overview)
   const controls = new THREE.OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
   controls.dampingFactor = 0.08;
   controls.screenSpacePanning = true;
-  controls.minDistance = 8.0;
-  controls.maxDistance = 50000;
-  controls.zoomSpeed = 1.25;
+  controls.minDistance = 1.5;
+  controls.maxDistance = 75000;
+  controls.zoomSpeed = 1.35;
   controls.maxPolarAngle = Math.PI * 0.495;
 
   // Load Copernicus GLO-30 DEM Heightmap & Metadata

@@ -2163,7 +2163,7 @@
     }
 
     /**
-     * Focus 3D camera / orbit controls on a vehicle
+     * Focus 3D camera / orbit controls on a vehicle without jarring camera jump
      */
     focusVehicle(vId, controls) {
       const item = this.truckObjects[vId];
@@ -2172,12 +2172,11 @@
       if (controls && controls.target) {
         // Truck centroid is around Y+3.8 (truck is 7.6m tall)
         controls.target.set(p.x, p.y + 3.8, p.z);
-        controls.update();
       }
     }
 
     /**
-     * Set up raycasting click & double-click interaction for trucks, roads, and terrain
+     * Set up raycasting click, double-click, and cursor-directed wheel zoom interaction
      */
     setupInteraction(camera, domElement, onSelectVehicle, controls = null) {
       if (!camera || !domElement) return;
@@ -2263,6 +2262,37 @@
           }
         }
       });
+
+      // Cursor-Directed Wheel Zoom: gently shifts orbit target toward cursor point of interest when zooming in
+      domElement.addEventListener('wheel', (event) => {
+        if (!controls || !controls.enabled) return;
+        const m = getNDC(event);
+        mouse.x = m.x;
+        mouse.y = m.y;
+        raycaster.setFromCamera(mouse, camera);
+
+        const targets = [];
+        if (this.truckGroup) targets.push(...this.truckGroup.children);
+        if (this.roadBaseMesh) targets.push(this.roadBaseMesh);
+        if (this.terrainMesh) targets.push(this.terrainMesh);
+
+        if (targets.length > 0) {
+          const hits = raycaster.intersectObjects(targets, true);
+          if (hits.length > 0) {
+            const hitPoint = hits[0].point;
+            // When zooming in (wheel forward / deltaY < 0), gently lerp controls.target towards cursor hit point
+            if (event.deltaY < 0) {
+              controls.target.lerp(hitPoint, 0.15);
+            }
+          } else if (this.selectedVehicleId && this.truckObjects[this.selectedVehicleId]) {
+            const trk = this.truckObjects[this.selectedVehicleId];
+            if (trk && trk.mesh && event.deltaY < 0) {
+              const tp = trk.mesh.position;
+              controls.target.lerp(new THREE.Vector3(tp.x, tp.y + 3.8, tp.z), 0.10);
+            }
+          }
+        }
+      }, { passive: true });
     }
 
     /**
