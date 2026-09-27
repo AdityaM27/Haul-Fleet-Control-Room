@@ -423,7 +423,7 @@
   // Fog-Guard Atmospheric Fog (Clear regional baseline, distant mountains in haze)
   scene.fog = new THREE.FogExp2(0x0a0d12, 0.000028);
 
-  const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 10, 100000);
+  const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.5, 100000);
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setSize(window.innerWidth, window.innerHeight);
@@ -443,13 +443,14 @@
   fill.position.set(4500, 5000, -6000);
   scene.add(fill);
 
-  // Smooth Orbit Controls
+  // Smooth Orbit Controls (Responsive Multi-Tier Zoom Range: 8m truck close-up -> 50,000m full mine overview)
   const controls = new THREE.OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
-  controls.dampingFactor = 0.06;
+  controls.dampingFactor = 0.08;
   controls.screenSpacePanning = true;
-  controls.minDistance = 150;
-  controls.maxDistance = 45000;
+  controls.minDistance = 8.0;
+  controls.maxDistance = 50000;
+  controls.zoomSpeed = 1.25;
   controls.maxPolarAngle = Math.PI * 0.495;
 
   // Load Copernicus GLO-30 DEM Heightmap & Metadata
@@ -563,7 +564,7 @@
     });
   }
 
-  // Raycast interaction: Clicking truck in 3D selects target
+  // Raycast interaction: Clicking / double-clicking in 3D selects and centers on target
   engine.setupInteraction(camera, renderer.domElement, (clickedVid) => {
     selectedVehicleId = clickedVid;
     if (engine && engine.setSelectedVehicle) {
@@ -573,7 +574,7 @@
     if (currentMode === 'orbit') {
       engine.focusVehicle(clickedVid, controls);
     }
-  });
+  }, controls);
 
   // Layer Toggles
   chkTerrain.addEventListener('change', (e) => engine.setTerrainVisible(e.target.checked));
@@ -819,6 +820,14 @@
 
     if (currentMode === 'orbit') {
       controls.update();
+      // Safe terrain collision check: prevents camera from clipping into/underneath terrain when zooming close
+      if (engine && engine.isLoaded) {
+        const groundH = engine.getRenderedTerrainHeight(camera.position.x, camera.position.z);
+        const minAllowedY = (groundH - engine.yMin) * currentVScale + 2.0;
+        if (camera.position.y < minAllowedY) {
+          camera.position.y = minAllowedY;
+        }
+      }
     } else if (currentMode === 'follow' || currentMode === 'chase' || currentMode === 'cockpit') {
       if (engine.truckObjects) {
         const item = engine.truckObjects[selectedVehicleId];
@@ -827,19 +836,20 @@
           const headingRad = item.mesh.rotation.y;
 
           if (currentMode === 'follow') {
-            const targetPos = new THREE.Vector3(truckPos.x + 140, truckPos.y + 80, truckPos.z + 140);
+            const targetPos = new THREE.Vector3(truckPos.x + 85, truckPos.y + 48, truckPos.z + 85);
             camera.position.lerp(targetPos, 0.08);
-            camera.lookAt(truckPos.x, truckPos.y + 12, truckPos.z);
+            camera.lookAt(truckPos.x, truckPos.y + 4.0, truckPos.z);
           } else if (currentMode === 'chase') {
-            const offsetX = -Math.sin(headingRad) * 110;
-            const offsetZ = -Math.cos(headingRad) * 110;
-            camera.position.lerp(new THREE.Vector3(truckPos.x + offsetX, truckPos.y + 45, truckPos.z + offsetZ), 0.08);
-            camera.lookAt(truckPos.x, truckPos.y + 12, truckPos.z);
+            const offsetX = -Math.sin(headingRad) * 65;
+            const offsetZ = -Math.cos(headingRad) * 65;
+            camera.position.lerp(new THREE.Vector3(truckPos.x + offsetX, truckPos.y + 24, truckPos.z + offsetZ), 0.08);
+            camera.lookAt(truckPos.x, truckPos.y + 5.0, truckPos.z);
           } else if (currentMode === 'cockpit') {
-            const cabX = Math.sin(headingRad) * 8;
-            const cabZ = Math.cos(headingRad) * 8;
-            camera.position.set(truckPos.x + cabX, truckPos.y + 20, truckPos.z + cabZ);
-            camera.lookAt(truckPos.x + Math.sin(headingRad) * 250, truckPos.y + 16, truckPos.z + Math.cos(headingRad) * 250);
+            const cabX = -Math.sin(headingRad) * 3.8 - Math.cos(headingRad) * 2.8;
+            const cabZ = -Math.cos(headingRad) * 3.8 + Math.sin(headingRad) * 2.8;
+            camera.position.set(truckPos.x + cabX, truckPos.y + 5.6, truckPos.z + cabZ);
+            const lookTarget = new THREE.Vector3(truckPos.x - Math.sin(headingRad) * 250, truckPos.y + 5.0, truckPos.z - Math.cos(headingRad) * 250);
+            camera.lookAt(lookTarget);
           }
           const elev = Math.round(truckPos.y / currentVScale + engine.yMin);
           statElev.textContent = elev + ' m ASL';

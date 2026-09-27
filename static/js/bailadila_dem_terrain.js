@@ -2170,23 +2170,32 @@
       if (!item || !item.mesh) return;
       const p = item.mesh.position;
       if (controls && controls.target) {
-        controls.target.set(p.x, p.y + 10, p.z);
+        // Truck centroid is around Y+3.8 (truck is 7.6m tall)
+        controls.target.set(p.x, p.y + 3.8, p.z);
         controls.update();
       }
     }
 
     /**
-     * Set up raycasting click selection for trucks in 3D scene
+     * Set up raycasting click & double-click interaction for trucks, roads, and terrain
      */
-    setupInteraction(camera, domElement, onSelectVehicle) {
+    setupInteraction(camera, domElement, onSelectVehicle, controls = null) {
       if (!camera || !domElement) return;
       const raycaster = new THREE.Raycaster();
       const mouse = new THREE.Vector2();
 
-      domElement.addEventListener('click', (event) => {
+      const getNDC = (event) => {
         const rect = domElement.getBoundingClientRect();
-        mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-        mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+        return {
+          x: ((event.clientX - rect.left) / rect.width) * 2 - 1,
+          y: -((event.clientY - rect.top) / rect.height) * 2 + 1
+        };
+      };
+
+      domElement.addEventListener('click', (event) => {
+        const m = getNDC(event);
+        mouse.x = m.x;
+        mouse.y = m.y;
 
         raycaster.setFromCamera(mouse, camera);
         if (!this.truckGroup) return;
@@ -2206,6 +2215,51 @@
                 break;
               }
             }
+          }
+        }
+      });
+
+      // Double-click to center OrbitControls target on any point of interest (truck, haul road, or terrain)
+      domElement.addEventListener('dblclick', (event) => {
+        const m = getNDC(event);
+        mouse.x = m.x;
+        mouse.y = m.y;
+        raycaster.setFromCamera(mouse, camera);
+
+        // 1. Check if clicked a truck
+        if (this.truckGroup) {
+          const truckHits = raycaster.intersectObjects(this.truckGroup.children, true);
+          if (truckHits.length > 0) {
+            let obj = truckHits[0].object;
+            while (obj && obj.parent && obj.parent !== this.truckGroup) {
+              obj = obj.parent;
+            }
+            if (obj) {
+              for (const [vId, entry] of Object.entries(this.truckObjects)) {
+                if (entry.mesh === obj || entry.idText === obj.name || vId === obj.name) {
+                  if (typeof onSelectVehicle === 'function') {
+                    onSelectVehicle(vId);
+                  }
+                  if (controls) {
+                    this.focusVehicle(vId, controls);
+                  }
+                  return;
+                }
+              }
+            }
+          }
+        }
+
+        // 2. Check if clicked road or terrain
+        const targets = [];
+        if (this.roadBaseMesh) targets.push(this.roadBaseMesh);
+        if (this.terrainMesh) targets.push(this.terrainMesh);
+        if (targets.length > 0 && controls && controls.target) {
+          const hits = raycaster.intersectObjects(targets, false);
+          if (hits.length > 0) {
+            const pt = hits[0].point;
+            controls.target.set(pt.x, pt.y, pt.z);
+            controls.update();
           }
         }
       });

@@ -3201,6 +3201,13 @@ function selectVehicle(vid) {
   // Update 3D target label
   const lbl = document.getElementById('threeDTargetLabel');
   if (lbl) lbl.textContent = vid;
+
+  if (dashBailadilaEngine && dashBailadilaEngine.setSelectedVehicle) {
+    dashBailadilaEngine.setSelectedVehicle(vid);
+  }
+  if (dashBailadilaEngine && cameraMode3D === 'orbit' && controls3D) {
+    dashBailadilaEngine.focusVehicle(vid, controls3D);
+  }
 }
 
 function setSourceFilter(src) {
@@ -4200,7 +4207,7 @@ async function initMine3DViewer() {
   scene3D.background = new THREE.Color(0x0e141d);
   scene3D.fog = new THREE.FogExp2(0x0e141d, 0.000028);
 
-  camera3D = new THREE.PerspectiveCamera(50, w / h, 10, 100000);
+  camera3D = new THREE.PerspectiveCamera(50, w / h, 0.5, 100000);
 
   renderer3D = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   renderer3D.setSize(w, h);
@@ -4209,12 +4216,14 @@ async function initMine3DViewer() {
   renderer3D.toneMappingExposure = 1.15;
   container.appendChild(renderer3D.domElement);
 
+  // Smooth Orbit Controls (Responsive Multi-Tier Zoom Range: 8m truck close-up -> 50,000m full mine overview)
   controls3D = new THREE.OrbitControls(camera3D, renderer3D.domElement);
   controls3D.enableDamping = true;
-  controls3D.dampingFactor = 0.06;
+  controls3D.dampingFactor = 0.08;
   controls3D.screenSpacePanning = true;
-  controls3D.minDistance = 150;
-  controls3D.maxDistance = 45000;
+  controls3D.minDistance = 8.0;
+  controls3D.maxDistance = 50000;
+  controls3D.zoomSpeed = 1.25;
   controls3D.maxPolarAngle = Math.PI * 0.495;
 
   const hemiLight = new THREE.HemisphereLight(0xdde3ea, 0x1a2128, 1.35);
@@ -4244,7 +4253,7 @@ async function initMine3DViewer() {
 
   dashBailadilaEngine.setupInteraction(camera3D, renderer3D.domElement, (clickedVid) => {
     selectVehicle(clickedVid);
-  });
+  }, controls3D);
 
   const camTarget = dashBailadilaEngine.getRecommendedCameraOverview();
   camera3D.position.copy(camTarget.position);
@@ -4261,15 +4270,23 @@ async function initMine3DViewer() {
   const clock3D = new THREE.Clock();
   function animate3D() {
     requestAnimationFrame(animate3D);
-    const dt = Math.min(clock3D.getDelta(), 0.1);
+    const dt = Math.min(clock3D.getDelta(), 0.05);
 
     if (dashBailadilaEngine) {
-      dashBailadilaEngine.stepInterpolation(dt);
+      dashBailadilaEngine.stepInterpolation(dt, camera3D);
     }
 
     if (scene3D && camera3D && renderer3D) {
       if (controls3D && controls3D.enabled) {
         controls3D.update();
+        // Safe terrain collision check: prevents camera from clipping into/underneath terrain when zooming close
+        if (dashBailadilaEngine && dashBailadilaEngine.isLoaded) {
+          const groundH = dashBailadilaEngine.getRenderedTerrainHeight(camera3D.position.x, camera3D.position.z);
+          const minAllowedY = (groundH - dashBailadilaEngine.yMin) * dashCurrentVscale + 2.0;
+          if (camera3D.position.y < minAllowedY) {
+            camera3D.position.y = minAllowedY;
+          }
+        }
       }
 
       if (dashBailadilaEngine && dashBailadilaEngine.truckObjects) {
@@ -4279,25 +4296,22 @@ async function initMine3DViewer() {
           const yaw = item.mesh.rotation.y;
 
           if (cameraMode3D === 'follow') {
-            camera3D.position.set(truckPos.x, truckPos.y + 400, truckPos.z + 550);
-            camera3D.lookAt(truckPos);
+            const targetPos = new THREE.Vector3(truckPos.x + 85, truckPos.y + 48, truckPos.z + 85);
+            camera3D.position.lerp(targetPos, 0.08);
+            camera3D.lookAt(truckPos.x, truckPos.y + 4.0, truckPos.z);
           } else if (cameraMode3D === 'chase') {
-            const chaseDist = 220;
-            const chaseHeight = 85;
-            const cx = truckPos.x + Math.sin(yaw) * chaseDist;
-            const cz = truckPos.z + Math.cos(yaw) * chaseDist;
-            camera3D.position.set(cx, truckPos.y + chaseHeight, cz);
-            camera3D.lookAt(truckPos.x, truckPos.y + 15, truckPos.z);
+            const offsetX = -Math.sin(yaw) * 65;
+            const offsetZ = -Math.cos(yaw) * 65;
+            camera3D.position.lerp(new THREE.Vector3(truckPos.x + offsetX, truckPos.y + 24, truckPos.z + offsetZ), 0.08);
+            camera3D.lookAt(truckPos.x, truckPos.y + 5.0, truckPos.z);
           } else if (cameraMode3D === 'cockpit') {
-            const cabForward = 10;
-            const cabHeight = 16;
-            const cx = truckPos.x - Math.sin(yaw) * cabForward;
-            const cz = truckPos.z - Math.cos(yaw) * cabForward;
-            camera3D.position.set(cx, truckPos.y + cabHeight, cz);
+            const cabX = -Math.sin(yaw) * 3.8 - Math.cos(yaw) * 2.8;
+            const cabZ = -Math.cos(yaw) * 3.8 + Math.sin(yaw) * 2.8;
+            camera3D.position.set(truckPos.x + cabX, truckPos.y + 5.6, truckPos.z + cabZ);
             const lookTarget = new THREE.Vector3(
-              truckPos.x - Math.sin(yaw) * 350,
-              truckPos.y + cabHeight - 2,
-              truckPos.z - Math.cos(yaw) * 350
+              truckPos.x - Math.sin(yaw) * 250,
+              truckPos.y + 5.0,
+              truckPos.z - Math.cos(yaw) * 250
             );
             camera3D.lookAt(lookTarget);
           }
