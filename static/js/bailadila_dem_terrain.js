@@ -102,6 +102,11 @@
       this.landmarkGroup = null;
       this.roadCurvePoints = [];
       this.sampledRoad = [];
+      this.stationIsSwitchback = [];
+      this.roadClearance = 0.58 * 1.5;
+      this.showRoadDebug = false;
+      this.roadDebugGroup = null;
+      this.activeCamera = null;
       this.truckObjects = {};
 
       // Multi-layer Haul Road & Vehicle Trails System
@@ -548,8 +553,9 @@
       const cDisturbedRock  = new THREE.Color(0x3a3028); // Broken perimeter spoil rock
 
       // 3. Active Open-Cast Pit & Stepped Benches (Predominantly dark exposed rock, weathered quarry stone)
-      const cBenchFloor     = new THREE.Color(0x2d2722); // Working horizontal bench floor (weathered dark rock)
-      const cRockFaceDark   = new THREE.Color(0x181412); // Steep excavated rock cut face (deep dark shadow rock)
+      const cBenchFloor     = new THREE.Color(0x3e352b); // Working horizontal bench floor (weathered quarry aggregate)
+      const cBenchCrest     = new THREE.Color(0x56493c); // Subtle bench crest rim highlight
+      const cRockFaceDark   = new THREE.Color(0x161311); // Steep excavated rock cut face (deep dark shadow rock)
       const cHematiteRich   = new THREE.Color(0x6a2517); // Banded hematite ore seam (rust-red, 10-20% coverage)
       const cIronbloomOre   = new THREE.Color(0x7a2f1b); // Oxidized earthy dark red iron ore lens
       const cPitSumpFloor   = new THREE.Color(0x161311); // Deep central pit loading sump floor
@@ -639,13 +645,14 @@
               const sumpVar = Math.sin(worldPos.x * 0.04 + worldPos.z * 0.04) * 0.02;
               col.offsetHSL(0, 0, sumpVar);
             } else {
-              // Stepped Terraces (10 Benches with Working Floors and Steep Cuts)
+              // Stepped Terraces (10 Benches with Working Floors, Crest Highlights, and Steep Cuts)
               const benchVal = (0.88 - uDist) / 0.73 * this.pitBenches;
               const benchIdx = Math.floor(benchVal);
               const benchFrac = benchVal - benchIdx; // 0.0 -> 1.0 within bench step
 
-              // Is this point on the steep rock cut face or on the horizontal bench floor?
-              const isSteepCut = (slopeMag > 0.35) || (benchFrac >= 0.70);
+              // Is this point on the steep rock cut face, crest lip, or horizontal bench floor?
+              const isSteepCut = (slopeMag > 0.30) || (benchFrac >= 0.65);
+              const isCrestLip = (benchFrac < 0.09) && (slopeMag > 0.18);
 
               if (isSteepCut) {
                 // Steep Rock Face Cut: Predominantly dark exposed quarry rock
@@ -654,8 +661,7 @@
                 // Strata Layering (horizontal banded iron formation)
                 const strataBand = Math.sin(finalH * 0.32) * 0.5 + 0.5;
 
-                // CRITICAL REQUIREMENT: Iron ore coloration covers only 10% to 20% of the mine's visible surface!
-                // Concentrated strictly along exposed East reef walls and selective lower cuts.
+                // Concentrated strictly along exposed East reef walls and selective lower cuts
                 const isEastOreZone = (worldPos.x > this.pitPos.x - 30) && (worldPos.z > this.pitPos.z - 320) && (worldPos.z < this.pitPos.z + 260);
                 const isOreSeam = isEastOreZone && (strataBand > 0.62);
 
@@ -669,10 +675,13 @@
                   col.lerp(new THREE.Color(0x26211c), strataBand * 0.35);
                 }
 
-                // Slope-based shading / contact shadows on steep cuts to make depth visually pop
-                col.multiplyScalar(0.70);
+                // Slope-based shading / contact shadows on steep cuts to make stepped terraces visually pop
+                col.multiplyScalar(0.65);
+              } else if (isCrestLip) {
+                // Subtle bench crest highlight (freshly blasted rock rim)
+                col.copy(cBenchCrest);
               } else {
-                // Horizontal Working Bench Floor: Dark crushed quarry aggregate & equipment tracks
+                // Horizontal Working Bench Floor: Weathered quarry aggregate & equipment tracks
                 col.copy(cBenchFloor);
 
                 // Subtle quarry dust variation along bench floor
@@ -686,10 +695,10 @@
               }
             }
 
-            // Haul Road bed cut staining (if directly beneath or adjacent to haul road)
-            if (distToRoadMin < 18.0) {
-              const roadStain = 1.0 - (distToRoadMin / 18.0);
-              col.lerp(new THREE.Color(0x14110f), roadStain * 0.82);
+            // Haul Road bed cut staining (if directly beneath or adjacent to haul road corridor)
+            if (distToRoadMin < 11.5) {
+              const roadStain = 1.0 - (distToRoadMin / 11.5);
+              col.lerp(new THREE.Color(0x14110f), roadStain * 0.85);
             }
 
           } else if (inDepotZone) {
@@ -816,6 +825,7 @@
      * Drapes tightly over the carved open-cast terrain benches with per-vertex elevation sampling.
      */
     buildHaulRoads(scene, vscale = 1.5, waypoints = null) {
+      if (scene) this.scene = scene;
       if (this.roadGroup && scene) {
         scene.remove(this.roadGroup);
       }
@@ -852,6 +862,8 @@
         }
       }
       this.sampledRoad = stations;
+      this.stationIsSwitchback = stationIsSwitchback;
+      this.roadClearance = 0.58 * Math.max(1.0, vscale);
       const numStations = stations.length;
 
       // 2. Compute smooth tangents and normals along the route stations
@@ -1219,6 +1231,7 @@
 
     /**
      * SELECT ACTIVE VEHICLE
+     * Updates selected state, ground halo, leader line color, and 3D DMP label border.
      */
     setSelectedVehicle(vId) {
       if (!vId) return;
@@ -1232,6 +1245,22 @@
         }
       }
       this.selectedVehicleId = matchedKey;
+
+      for (const k in this.truckObjects) {
+        const item = this.truckObjects[k];
+        if (!item || !item.mesh) continue;
+        const isSel = (k === matchedKey);
+        if (item.mesh.selectionRing) {
+          item.mesh.selectionRing.visible = isSel;
+        }
+        if (item.mesh.leaderLine && item.mesh.leaderLine.material) {
+          item.mesh.leaderLine.material.color.setHex(isSel ? 0x38bdf8 : 0xc9a227);
+        }
+        const bData = item.backendData || {};
+        const spd = bData.speed_kmh || (item.speedMps ? item.speedMps * 3.6 : 0);
+        const action = bData.action || (item.isMoving ? 'MOVING' : 'STOP');
+        this.drawTruckLabel(item.mesh, item.idText, k, spd, action, isSel);
+      }
     }
 
     recordVehicleTrail(vId, currentPos) {
@@ -1248,6 +1277,136 @@
 
     updateVehicleTrailsVisual() {
       // Clean physical road representation
+    }
+
+    /**
+     * Nearest Haul-Road Station & Segment Projection
+     * Finds the closest point on this.sampledRoad and computes local tangent,
+     * normal, lateral distance from centerline, and switchback status.
+     */
+    getNearestRoadPoint(x, z) {
+      if (!this.sampledRoad || !this.sampledRoad.length) {
+        return {
+          point: new THREE.Vector3(x, 0, z),
+          tangent: new THREE.Vector3(0, 0, 1),
+          normal: new THREE.Vector3(-1, 0, 0),
+          lateralDist: 999.0,
+          halfWidth: 14.0,
+          isSwitchback: false,
+          stationIdx: 0,
+          segmentT: 0
+        };
+      }
+
+      const stations = this.sampledRoad;
+      const numStations = stations.length;
+
+      // 1. Find nearest road station index
+      let closestIdx = 0;
+      let minStationDistSq = Infinity;
+      for (let i = 0; i < numStations; i++) {
+        const p = stations[i];
+        const dx = p.x - x;
+        const dz = p.z - z;
+        const dsq = dx * dx + dz * dz;
+        if (dsq < minStationDistSq) {
+          minStationDistSq = dsq;
+          closestIdx = i;
+        }
+      }
+
+      // 2. Test adjacent segments [closestIdx - 1, closestIdx] and [closestIdx, closestIdx + 1]
+      let bestDistSq = Infinity;
+      let bestProj = new THREE.Vector3();
+      let bestTangent = new THREE.Vector3(0, 0, 1);
+      let bestNormal = new THREE.Vector3(-1, 0, 0);
+      let bestT = 0;
+      let isSwitchback = (this.stationIsSwitchback && this.stationIsSwitchback[closestIdx]) || false;
+
+      for (let s = -2; s <= 2; s++) {
+        const i0 = (closestIdx + s + numStations) % numStations;
+        const i1 = (i0 + 1) % numStations;
+        const p0 = stations[i0];
+        const p1 = stations[i1];
+
+        const segDx = p1.x - p0.x;
+        const segDz = p1.z - p0.z;
+        const segLsq = segDx * segDx + segDz * segDz;
+        if (segLsq < 1e-6) continue;
+
+        let u = ((x - p0.x) * segDx + (z - p0.z) * segDz) / segLsq;
+        u = Math.max(0.0, Math.min(1.0, u));
+
+        const px = p0.x + u * segDx;
+        const pz = p0.z + u * segDz;
+        const py = p0.y + u * (p1.y - p0.y);
+
+        const dsq = (x - px) * (x - px) + (z - pz) * (z - pz);
+        if (dsq < bestDistSq) {
+          bestDistSq = dsq;
+          bestProj.set(px, py, pz);
+          bestT = u;
+          const tangL = Math.hypot(segDx, segDz);
+          if (tangL > 1e-4) {
+            bestTangent.set(segDx / tangL, 0, segDz / tangL);
+            bestNormal.set(-bestTangent.z, 0, bestTangent.x);
+          }
+          if (this.stationIsSwitchback) {
+            isSwitchback = this.stationIsSwitchback[i0] || this.stationIsSwitchback[i1];
+          }
+        }
+      }
+
+      const lateralDist = Math.sqrt(bestDistSq);
+      const halfWidth = isSwitchback ? 19.0 : 14.0;
+
+      return {
+        point: bestProj,
+        tangent: bestTangent,
+        normal: bestNormal,
+        lateralDist,
+        halfWidth,
+        isSwitchback,
+        stationIdx: closestIdx,
+        segmentT: bestT
+      };
+    }
+
+    /**
+     * Physical Haul-Road Surface Height Lookup (Requirement 2)
+     * Returns the exact Y coordinate of the rendered haul-road surface at (x, z).
+     * Inside the road corridor (14m standard, 19m switchback), elevation is strictly derived from the
+     * canonical haul-road station centerline elevation (info.point.y + clearance + crown)
+     * instead of raw DEM terrain facets.
+     * Outside the road corridor, smoothly falls back to rendered terrain elevation.
+     */
+    getHaulRoadSurfaceAt(x, z) {
+      if (!this.sampledRoad || !this.sampledRoad.length) {
+        return (this.getRenderedTerrainHeight(x, z) - this.yMin) * this.vscale;
+      }
+
+      const info = this.getNearestRoadPoint(x, z);
+      const clearance = (this.roadClearance !== undefined)
+        ? this.roadClearance
+        : (0.58 * Math.max(1.0, this.vscale));
+
+      const roadCenterY = info.point.y + clearance;
+      const halfW = info.halfWidth;
+      const dist = info.lateralDist;
+
+      if (dist <= halfW) {
+        // Road surface crown profile: parabolic crown up to +0.08m at centerline
+        const normD = dist / halfW;
+        const crown = 0.08 * (1.0 - normD * normD);
+        return roadCenterY + crown;
+      } else if (dist <= halfW + 4.0) {
+        // Shoulder transition blend down to natural terrain
+        const blend = (dist - halfW) / 4.0;
+        const naturalTerrainY = (this.getRenderedTerrainHeight(x, z) - this.yMin) * this.vscale;
+        return roadCenterY * (1.0 - blend) + naturalTerrainY * blend;
+      } else {
+        return (this.getRenderedTerrainHeight(x, z) - this.yMin) * this.vscale;
+      }
     }
 
     /**
@@ -1269,58 +1428,69 @@
     }
 
     /**
-     * PROCEDURAL HEAVY MINING HAUL TRUCK
-     * Visually prominent CAT/NMDC mining dump truck with 6 wheels, cabin, bed, grille & ID tag.
+     * PROCEDURAL HEAVY MINING HAUL TRUCK (CAT 797F / KOMATSU 930E CLASS)
+     * High-fidelity industrial digital-twin mining dump truck with sloped bed side walls (~18°),
+     * structural ribs, rock canopy, elevated cab, windshield, radiator grille, mudguards,
+     * planetary wheel hubs, contact shadow, vertical leader line, and high-visibility 3D DMP label.
      */
-    createMiningTruck(truckId, colorHex = 0xe5a93c) {
+    createMiningTruck(primaryId, secondaryId = 'TRUCK', colorHex = 0xd49b28) {
       const truck = new THREE.Group();
-      truck.name = truckId;
+      truck.name = primaryId;
 
-      // Ultra-class haul truck dimensions (CAT 797F / NMDC Class)
-      const L = 17.5;
-      const W = 11.2;
-      const H = 8.5;
-      const wheelR = 2.15;
-      const wheelW = 1.65;
+      // Realistic Mining Dump Truck Dimensions (proportional to 28m standard / 38m switchback haul road):
+      // Width = 9.8m, Length = 15.2m, Height = 7.6m
+      const wheelR = 2.0;
+      const wheelW = 1.45;
+      const Lhalf = 4.5;
+      const Whalf = 4.2;
 
-      // 1. Heavy Box-Section Chassis Frame
-      // Lower frame rails and deck sitting above axles
-      const chassisGeo = new THREE.BoxGeometry(5.2, 1.6, 14.5);
-      const chassisMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.8, metalness: 0.2 });
-      const chassis = new THREE.Mesh(chassisGeo, chassisMat);
-      chassis.position.set(0, 2.95, 0);
+      // Materials
+      const steelMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.85, metalness: 0.3 });
+      const darkMetalMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.9 });
+      const truckYellowMat = new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.45, metalness: 0.1 });
+      const tireMat = new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.94 });
+      const hubMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.5, metalness: 0.6 });
+      const glassMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.15, metalness: 0.85 });
+
+      // 1. Box-Section Ladder Chassis
+      const chassisGeo = new THREE.BoxGeometry(4.8, 1.4, 13.0);
+      const chassis = new THREE.Mesh(chassisGeo, steelMat);
+      chassis.position.set(0, 2.7, 0);
       truck.add(chassis);
 
-      // Heavy Front Bumper & Lower Grille Deflector
-      const bumperGeo = new THREE.BoxGeometry(10.2, 2.2, 2.2);
-      const bumperMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.85 });
-      const bumper = new THREE.Mesh(bumperGeo, bumperMat);
-      bumper.position.set(0, 2.4, 6.2);
+      // Heavy Front Bumper & Push Block
+      const bumperGeo = new THREE.BoxGeometry(9.4, 1.8, 2.0);
+      const bumper = new THREE.Mesh(bumperGeo, darkMetalMat);
+      bumper.position.set(0, 2.2, 5.8);
       truck.add(bumper);
 
-      // 2. Six Ultra-Class Mining Wheels (Front 2 steer, Rear 4 dual)
-      // Wheel centers at Y = wheelR (2.15m), so bottom of tire touches exact local Y = 0.0
+      // Front Access Diagonal Walkway & Steps
+      const stepGeo = new THREE.BoxGeometry(1.6, 2.2, 1.4);
+      const step = new THREE.Mesh(stepGeo, steelMat);
+      step.position.set(3.4, 2.2, 5.6);
+      truck.add(step);
+
+      // 2. Six Mining Wheels with Planetary Final-Drive Hubs
+      // Local Y of wheel center = wheelR (2.0m), so bottom of tire touches exact local Y = 0.0
       const wheelGeo = new THREE.CylinderGeometry(wheelR, wheelR, wheelW, 20);
       wheelGeo.rotateZ(Math.PI / 2);
-      const wheelMat = new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.94 });
-      const hubGeo = new THREE.CylinderGeometry(wheelR * 0.42, wheelR * 0.42, wheelW + 0.1, 16);
+      const hubGeo = new THREE.CylinderGeometry(wheelR * 0.44, wheelR * 0.44, wheelW + 0.12, 16);
       hubGeo.rotateZ(Math.PI / 2);
-      const hubMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.6, metalness: 0.5 });
 
       const wheelPositions = [
-        // Front Axle (Z = +4.8m)
-        [-4.8, wheelR, 4.8],
-        [ 4.8, wheelR, 4.8],
-        // Rear Axle Dual Outer & Inner (Z = -4.8m)
-        [-5.15, wheelR, -4.8],
-        [-3.45, wheelR, -4.8],
-        [ 3.45, wheelR, -4.8],
-        [ 5.15, wheelR, -4.8]
+        // Front Steer Axle (Z = +4.5m)
+        [-Whalf, wheelR, Lhalf],
+        [ Whalf, wheelR, Lhalf],
+        // Rear Dual Drive Axle (Z = -4.5m)
+        [-Whalf - 0.7, wheelR, -Lhalf],
+        [-Whalf + 0.9, wheelR, -Lhalf],
+        [ Whalf - 0.9, wheelR, -Lhalf],
+        [ Whalf + 0.7, wheelR, -Lhalf]
       ];
 
       wheelPositions.forEach(pos => {
         const wGroup = new THREE.Group();
-        const tire = new THREE.Mesh(wheelGeo, wheelMat);
+        const tire = new THREE.Mesh(wheelGeo, tireMat);
         const hub = new THREE.Mesh(hubGeo, hubMat);
         wGroup.add(tire);
         wGroup.add(hub);
@@ -1328,149 +1498,295 @@
         truck.add(wGroup);
       });
 
-      // 3. Operators Cabin (Elevated on Front-Left Deck)
-      const cabGeo = new THREE.BoxGeometry(3.6, 3.2, 3.8);
-      const cabMat = new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.45 });
-      const cab = new THREE.Mesh(cabGeo, cabMat);
-      cab.position.set(-3.2, 5.6, 4.2);
+      // Front & Rear Mudguards
+      const fgGeo = new THREE.BoxGeometry(1.8, 0.4, 4.2);
+      const fgL = new THREE.Mesh(fgGeo, steelMat);
+      fgL.position.set(-Whalf, 4.1, Lhalf);
+      truck.add(fgL);
+      const fgR = new THREE.Mesh(fgGeo, steelMat);
+      fgR.position.set(Whalf, 4.1, Lhalf);
+      truck.add(fgR);
+
+      // 3. Elevated Operator Cabin (Front-Left Deck)
+      const cabGeo = new THREE.BoxGeometry(3.2, 2.8, 3.4);
+      const cab = new THREE.Mesh(cabGeo, truckYellowMat);
+      cab.position.set(-2.8, 4.9, 3.8);
       truck.add(cab);
 
-      // Cab Windshield
-      const winGeo = new THREE.BoxGeometry(3.2, 1.6, 0.4);
-      const winMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.15, metalness: 0.85 });
-      const win = new THREE.Mesh(winGeo, winMat);
-      win.position.set(-3.2, 6.1, 6.15);
+      // Cab Windshield (Forward-sloped tinted safety glass)
+      const winGeo = new THREE.BoxGeometry(2.8, 1.4, 0.3);
+      const win = new THREE.Mesh(winGeo, glassMat);
+      win.position.set(-2.8, 5.3, 5.52);
+      win.rotation.x = 0.08;
       truck.add(win);
 
-      // Radiator & Air Filter Enclosure (Front-Right Deck)
-      const engGeo = new THREE.BoxGeometry(4.6, 2.6, 4.2);
-      const engMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.8 });
-      const eng = new THREE.Mesh(engGeo, engMat);
-      eng.position.set(2.4, 4.8, 4.2);
+      // Side Windows
+      const sideWinGeo = new THREE.BoxGeometry(0.3, 1.2, 2.0);
+      const sideWinL = new THREE.Mesh(sideWinGeo, glassMat);
+      sideWinL.position.set(-4.42, 5.3, 3.8);
+      truck.add(sideWinL);
+
+      // Radiator Enclosure & Hood (Front-Right Deck)
+      const engGeo = new THREE.BoxGeometry(4.2, 2.4, 3.6);
+      const eng = new THREE.Mesh(engGeo, steelMat);
+      eng.position.set(2.1, 4.3, 3.8);
       truck.add(eng);
 
-      // Grille mesh in front of radiator
-      const grilleGeo = new THREE.BoxGeometry(4.2, 1.8, 0.4);
-      const grilleMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.95 });
-      const grille = new THREE.Mesh(grilleGeo, grilleMat);
-      grille.position.set(2.4, 4.8, 6.35);
+      // Front Grille
+      const grilleGeo = new THREE.BoxGeometry(3.8, 1.8, 0.3);
+      const grille = new THREE.Mesh(grilleGeo, darkMetalMat);
+      grille.position.set(2.1, 4.3, 5.66);
       truck.add(grille);
 
       // Headlights on bumper
-      const hlGeo = new THREE.BoxGeometry(1.0, 0.7, 0.4);
+      const hlGeo = new THREE.BoxGeometry(0.9, 0.6, 0.3);
       const hlMat = new THREE.MeshBasicMaterial({ color: 0xfef08a });
-      const hl1 = new THREE.Mesh(hlGeo, hlMat);
-      hl1.position.set(-4.2, 3.2, 7.3);
-      truck.add(hl1);
-      const hl2 = new THREE.Mesh(hlGeo, hlMat);
-      hl2.position.set( 4.2, 3.2, 7.3);
-      truck.add(hl2);
+      const hlL = new THREE.Mesh(hlGeo, hlMat);
+      hlL.position.set(-3.8, 2.8, 6.82);
+      truck.add(hlL);
+      const hlR = new THREE.Mesh(hlGeo, hlMat);
+      hlR.position.set( 3.8, 2.8, 6.82);
+      truck.add(hlR);
 
-      // Forward High-Intensity Work Spotlight
-      const spot = new THREE.SpotLight(0xfffbeb, 1.5, 120, Math.PI / 6, 0.4);
-      spot.position.set(0, 5.2, 7.4);
-      spot.target.position.set(0, 0, 7.4 + 90);
-      truck.add(spot);
-      truck.add(spot.target);
+      // Twin Exhaust Stacks
+      const exhGeo = new THREE.CylinderGeometry(0.22, 0.22, 3.2, 10);
+      const exhMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.8, roughness: 0.3 });
+      const exh = new THREE.Mesh(exhGeo, exhMat);
+      exh.position.set(-1.0, 5.8, 1.6);
+      truck.add(exh);
 
-      // 4. Articulated Large Dump Bed & Dumping Pivot (Hinged at rear axle)
+      // 4. Heavy Articulated Dump Bed with Visibly Sloped Side Walls (~18°)
       const bedPivot = new THREE.Group();
       bedPivot.name = 'BedPivot';
-      const hingeY = 3.8;
-      const hingeZ = -4.8;
+      const hingeY = 3.4;
+      const hingeZ = -Lhalf;
       bedPivot.position.set(0, hingeY, hingeZ);
 
-      // Dump Bed V-Shaped Basin Body
-      const bedGeo = new THREE.BoxGeometry(10.0, 3.8, 12.5);
-      const bedMat = new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.55 });
-      const bed = new THREE.Mesh(bedGeo, bedMat);
-      bed.position.set(0, 5.8 - hingeY, 1.0 - hingeZ);
-      bed.rotation.x = -0.05; // Resting dump rake angle
-      bedPivot.add(bed);
+      // Dump Bed Floor Plate
+      const floorGeo = new THREE.BoxGeometry(7.2, 0.5, 11.2);
+      const floor = new THREE.Mesh(floorGeo, truckYellowMat);
+      floor.position.set(0, 4.8 - hingeY, 0.6 - hingeZ);
+      bedPivot.add(floor);
 
-      // Overhead Protective Canopy (Rock Shield extending over cab)
-      const canopyGeo = new THREE.BoxGeometry(10.2, 0.5, 4.6);
-      const canopyMat = new THREE.MeshStandardMaterial({ color: 0xb45309, roughness: 0.6 });
+      // Sloped Left Wall (~18° outward flare)
+      const wallGeo = new THREE.BoxGeometry(0.45, 3.2, 11.2);
+      const wallL = new THREE.Mesh(wallGeo, truckYellowMat);
+      wallL.position.set(-4.1, 6.2 - hingeY, 0.6 - hingeZ);
+      wallL.rotation.z = 0.31;
+      bedPivot.add(wallL);
+
+      // Sloped Right Wall (~18° outward flare)
+      const wallR = new THREE.Mesh(wallGeo, truckYellowMat);
+      wallR.position.set( 4.1, 6.2 - hingeY, 0.6 - hingeZ);
+      wallR.rotation.z = -0.31;
+      bedPivot.add(wallR);
+
+      // Exterior Vertical Reinforcing Ribs (Bolsters)
+      const ribGeo = new THREE.BoxGeometry(0.28, 3.1, 0.45);
+      const ribMat = new THREE.MeshStandardMaterial({ color: 0xb45309, roughness: 0.6 });
+      [-3.8, -1.4, 1.0, 3.4].forEach(rz => {
+        const rL = new THREE.Mesh(ribGeo, ribMat);
+        rL.position.set(-4.3, 6.2 - hingeY, (0.6 + rz) - hingeZ);
+        rL.rotation.z = 0.31;
+        bedPivot.add(rL);
+        const rR = new THREE.Mesh(ribGeo, ribMat);
+        rR.position.set( 4.3, 6.2 - hingeY, (0.6 + rz) - hingeZ);
+        rR.rotation.z = -0.31;
+        bedPivot.add(rR);
+      });
+
+      // Front Bulkhead
+      const frontBulkGeo = new THREE.BoxGeometry(8.4, 3.6, 0.5);
+      const frontBulk = new THREE.Mesh(frontBulkGeo, truckYellowMat);
+      frontBulk.position.set(0, 6.5 - hingeY, 6.2 - hingeZ);
+      bedPivot.add(frontBulk);
+
+      // Overhead Protective Rock Canopy (extends forward over cab)
+      const canopyGeo = new THREE.BoxGeometry(8.8, 0.45, 4.4);
+      const canopyMat = new THREE.MeshStandardMaterial({ color: 0xb45309, roughness: 0.65 });
       const canopy = new THREE.Mesh(canopyGeo, canopyMat);
       canopy.position.set(0, 8.2 - hingeY, 7.8 - hingeZ);
       bedPivot.add(canopy);
 
-      // Raw Iron Ore / Coal Payload Mesh in dump bed
-      const payloadGeo = new THREE.BoxGeometry(8.8, 2.2, 10.0);
+      // Rear Ducktail Chute
+      const chuteGeo = new THREE.BoxGeometry(8.2, 0.5, 2.0);
+      const chute = new THREE.Mesh(chuteGeo, truckYellowMat);
+      chute.position.set(0, 5.2 - hingeY, -5.2 - hingeZ);
+      chute.rotation.x = -0.30;
+      bedPivot.add(chute);
+
+      // Mounded Ore / Coal Payload
+      const payloadGeo = new THREE.BoxGeometry(7.2, 2.0, 9.6);
       const payloadMat = new THREE.MeshStandardMaterial({ color: 0x1e1b18, roughness: 0.95, metalness: 0.05 });
       const payload = new THREE.Mesh(payloadGeo, payloadMat);
-      payload.position.set(0, 6.6 - hingeY, 0.8 - hingeZ);
+      payload.position.set(0, 6.0 - hingeY, 0.6 - hingeZ);
       bedPivot.add(payload);
       truck.payloadMesh = payload;
 
-      // Telescopic Hydraulic Lift Rams
-      const ramGeo = new THREE.CylinderGeometry(0.4, 0.4, 3.8, 12);
+      // Hydraulic Hoist Rams
+      const ramGeo = new THREE.CylinderGeometry(0.32, 0.32, 3.4, 12);
       const ramMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.85, roughness: 0.2 });
       const ramL = new THREE.Mesh(ramGeo, ramMat);
-      ramL.position.set(-2.2, 4.6 - hingeY, 2.8 - hingeZ);
+      ramL.position.set(-1.8, 4.2 - hingeY, 2.2 - hingeZ);
       bedPivot.add(ramL);
       const ramR = new THREE.Mesh(ramGeo, ramMat);
-      ramR.position.set( 2.2, 4.6 - hingeY, 2.8 - hingeZ);
+      ramR.position.set( 1.8, 4.2 - hingeY, 2.2 - hingeZ);
       bedPivot.add(ramR);
 
       truck.bedPivot = bedPivot;
       truck.add(bedPivot);
 
-      // 5. Contact Shadow underneath truck to ground all 6 tires onto haul road
-      const shadowGeo = new THREE.PlaneGeometry(13.0, 18.5);
+      // 5. Subtle Contact Shadow sitting directly underneath tires at local Y = 0.02
+      const shadowGeo = new THREE.PlaneGeometry(11.8, 16.5);
       shadowGeo.rotateX(-Math.PI / 2);
       const shadowMat = new THREE.MeshBasicMaterial({
         color: 0x000000,
         transparent: true,
-        opacity: 0.65,
+        opacity: 0.60,
         depthWrite: false
       });
       const shadowMesh = new THREE.Mesh(shadowGeo, shadowMat);
-      shadowMesh.position.y = 0.08;
+      shadowMesh.position.y = 0.02;
       truck.add(shadowMesh);
 
-      // 6. Fog-Guard Radar Safety Ring (Hidden during normal operations, illuminates on warning/hazard)
-      const ringGeo = new THREE.RingGeometry(11.5, 13.5, 24);
+      // 6. Selection Highlight Ground Bracket / Halo (subtle thin industrial perimeter)
+      const selRingGeo = new THREE.RingGeometry(6.6, 6.95, 32);
+      selRingGeo.rotateX(-Math.PI / 2);
+      const selRingMat = new THREE.MeshBasicMaterial({
+        color: 0x38bdf8,
+        transparent: true,
+        opacity: 0.50,
+        side: THREE.DoubleSide,
+        depthWrite: false
+      });
+      const selRing = new THREE.Mesh(selRingGeo, selRingMat);
+      selRing.position.y = 0.06;
+      selRing.visible = false;
+      truck.add(selRing);
+      truck.selectionRing = selRing;
+
+      // 7. Radar Safety Ring (Thin 0.35m perimeter outline, subtle opacity)
+      const ringGeo = new THREE.RingGeometry(11.0, 11.35, 36);
       ringGeo.rotateX(-Math.PI / 2);
       const ringMat = new THREE.MeshBasicMaterial({
         color: 0x10b981,
         transparent: true,
-        opacity: 0.0, // Invisible during normal clear driving
-        side: THREE.DoubleSide
+        opacity: 0.0,
+        side: THREE.DoubleSide,
+        depthWrite: false
       });
       const ring = new THREE.Mesh(ringGeo, ringMat);
-      ring.position.y = 0.2;
+      ring.position.y = 0.08;
       truck.add(ring);
       truck.radarRing = ring;
 
-      // 7. Visible Illuminated Vehicle ID Tag Sprite (Sleek dark glass pill badge)
-      const canvas = document.createElement('canvas');
-      canvas.width = 240;
-      canvas.height = 72;
-      const ctx = canvas.getContext('2d');
-      ctx.fillStyle = 'rgba(10, 15, 26, 0.88)';
-      ctx.beginPath();
-      if (ctx.roundRect) ctx.roundRect(4, 4, 232, 64, 8);
-      else ctx.rect(4, 4, 232, 64);
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(201, 162, 39, 0.85)';
-      ctx.lineWidth = 3;
-      ctx.stroke();
+      // 8. Vertical Leader Line from Truck Roof to Floating Label
+      const lineGeo = new THREE.CylinderGeometry(0.08, 0.08, 10.5, 8);
+      const lineMat = new THREE.MeshBasicMaterial({
+        color: 0xc9a227,
+        transparent: true,
+        opacity: 0.85,
+        depthTest: false
+      });
+      const leaderLine = new THREE.Mesh(lineGeo, lineMat);
+      leaderLine.position.set(0, 14.5, 0);
+      leaderLine.renderOrder = 998;
+      truck.add(leaderLine);
+      truck.leaderLine = leaderLine;
 
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 30px "Space Grotesk", monospace';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(truckId, 120, 37);
+      // 9. High-Resolution Dynamic 3D Floating DMP ID Label Sprite (~1.5x scale)
+      const canvas = document.createElement('canvas');
+      canvas.width = 440;
+      canvas.height = 180;
+      const ctx = canvas.getContext('2d');
+      truck.labelCanvas = canvas;
+      truck.labelCtx = ctx;
 
       const texture = new THREE.CanvasTexture(canvas);
-      const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
+      truck.labelTexture = texture;
+
+      const spriteMat = new THREE.SpriteMaterial({
+        map: texture,
+        transparent: true,
+        depthTest: false,
+        depthWrite: false
+      });
       const sprite = new THREE.Sprite(spriteMat);
-      sprite.position.set(0, 10.2, 0);
-      sprite.scale.set(10.5, 3.2, 1);
+      sprite.position.set(0, 20.8, 0);
+      sprite.scale.set(19.0, 7.8, 1.0);
+      sprite.renderOrder = 999;
       truck.add(sprite);
+      truck.labelSprite = sprite;
+
+      // Initial label render
+      this.drawTruckLabel(truck, primaryId, secondaryId, 0, 'STOP', false);
 
       return truck;
+    }
+
+    /**
+     * Draw professional industrial DMP vehicle identification tag onto canvas.
+     */
+    drawTruckLabel(truck, primaryId, secondaryId, speedKmh, statusText, isSelected) {
+      if (!truck || !truck.labelCanvas || !truck.labelCtx) return;
+      const ctx = truck.labelCtx;
+      const w = truck.labelCanvas.width;
+      const h = truck.labelCanvas.height;
+
+      ctx.clearRect(0, 0, w, h);
+
+      // Dark semi-opaque rounded rectangle container
+      const bgColor = isSelected ? 'rgba(12, 22, 36, 0.94)' : 'rgba(10, 14, 22, 0.90)';
+      ctx.fillStyle = bgColor;
+      ctx.beginPath();
+      if (ctx.roundRect) {
+        ctx.roundRect(6, 6, w - 12, h - 12, 14);
+      } else {
+        ctx.rect(6, 6, w - 12, h - 12);
+      }
+      ctx.fill();
+
+      // Border: Cyan if selected, Warm Gold otherwise
+      ctx.strokeStyle = isSelected ? 'rgba(56, 189, 248, 0.95)' : 'rgba(201, 162, 39, 0.85)';
+      ctx.lineWidth = isSelected ? 4 : 3;
+      ctx.stroke();
+
+      // Row 1: Primary ID (e.g. DMP-101)
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillStyle = isSelected ? '#38bdf8' : '#ffffff';
+      ctx.font = 'bold 50px "Space Grotesk", sans-serif';
+      ctx.fillText(primaryId, w / 2, 20);
+
+      // Row 2: Secondary ID & Model (e.g. TRUCK_01)
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '600 24px "IBM Plex Mono", monospace';
+      ctx.fillText(secondaryId, w / 2, 80);
+
+      // Row 3: Status Indicator Badge
+      let dotColor = '#10b981';
+      let statStr = `MOVING · ${Math.round(speedKmh)} km/h`;
+      if (statusText === 'STOP' || speedKmh < 0.5) {
+        dotColor = '#ef4444';
+        statStr = 'STOPPED';
+      } else if (statusText === 'SLOW DOWN' || speedKmh < 14) {
+        dotColor = '#f59e0b';
+        statStr = `CAUTION · ${Math.round(speedKmh)} km/h`;
+      }
+
+      const badgeY = 126;
+      ctx.beginPath();
+      ctx.arc(w / 2 - ctx.measureText(statStr).width / 2 - 12, badgeY + 12, 6, 0, Math.PI * 2);
+      ctx.fillStyle = dotColor;
+      ctx.fill();
+
+      ctx.fillStyle = dotColor;
+      ctx.font = '700 24px "IBM Plex Mono", monospace';
+      ctx.fillText(statStr, w / 2 + 6, badgeY);
+
+      if (truck.labelTexture) {
+        truck.labelTexture.needsUpdate = true;
+      }
     }
 
     /**
@@ -1488,7 +1804,7 @@
 
       defaultIds.forEach((id, idx) => {
         const vId = (fleetList && fleetList[idx] && fleetList[idx].id) ? fleetList[idx].id : `TRUCK_0${idx+1}`;
-        const truckMesh = this.createMiningTruck(id, 0xd49b28);
+        const truckMesh = this.createMiningTruck(id, vId, 0xd49b28);
         truckMesh.name = vId;
         this.truckObjects[vId] = {
           mesh: truckMesh,
@@ -1511,7 +1827,7 @@
 
     /**
      * UPDATE TRUCK LOCATIONS DIRECTLY FROM AUTHORITATIVE BACKEND TELEMETRY
-     * No independent clock, no performance.now(), no synthetic tProg progress math.
+     * No independent clock, zero independent progression math.
      * Positions strictly follow (v.lat, v.lng, v.elevation_m, v.heading).
      */
     updateFleetTelemetry(fleet) {
@@ -1521,7 +1837,7 @@
         const item = this.truckObjects[v.id];
         if (!item || !item.mesh) return;
 
-        // Out-of-order sequence guard: discard stale packets from slower/colder serverless responses
+        // Out-of-order sequence guard: discard stale packets
         if (v.sequence !== undefined && item.lastSequence !== undefined && v.sequence < item.lastSequence) {
           return;
         }
@@ -1538,14 +1854,25 @@
           ? v.elevation_m
           : this.sampleCarvedElevation(v.lng, v.lat);
         const targetWorld = this.lonLatToWorld(v.lng, v.lat, elev, this.vscale);
-        targetWorld.y += 0.12; // Contact patch elevation offset
+
+        // Constrain targetWorld strictly to haul-road corridor (Requirement 3)
+        const roadInfo = this.getNearestRoadPoint(targetWorld.x, targetWorld.z);
+        const maxLaneOffset = roadInfo.isSwitchback ? 4.5 : 3.0;
+        if (roadInfo.lateralDist > maxLaneOffset) {
+          const excess = roadInfo.lateralDist - maxLaneOffset;
+          const pull = excess / roadInfo.lateralDist;
+          targetWorld.x += (roadInfo.point.x - targetWorld.x) * pull;
+          targetWorld.z += (roadInfo.point.z - targetWorld.z) * pull;
+        }
+
+        // Ground truck onto physical haul-road surface (Requirement 2)
+        const roadSurfaceY = this.getHaulRoadSurfaceAt(targetWorld.x, targetWorld.z);
+        targetWorld.y = roadSurfaceY + 0.02;
 
         // Authoritative yaw rotation:
-        // Heading is in degrees clockwise from North (0° = North, 90° = East, 180° = South, 270° = West).
-        // Model faces +Z (South) at rotation.y = 0.
-        // Therefore rotation.y = Math.PI - (heading * Math.PI / 180.0).
         const headingDeg = (v.heading !== undefined && v.heading !== null) ? v.heading : 0;
         const targetYaw = Math.PI - (headingDeg * Math.PI / 180.0);
+        item.backendYaw = targetYaw;
 
         if (!item.initialized) {
           item.mesh.position.set(targetWorld.x, targetWorld.y, targetWorld.z);
@@ -1564,15 +1891,19 @@
           item.targetYaw = targetYaw;
         }
 
-        // Radar safety ring color based on authoritative risk / action
+        // Update 3D floating identification label
+        const isSel = (v.id === this.selectedVehicleId);
+        this.drawTruckLabel(item.mesh, item.idText, v.id, v.speed_kmh || 0, v.action || (item.isMoving ? 'MOVING' : 'STOP'), isSel);
+
+        // Radar safety ring color based on authoritative risk / action (subtle tone, non-dominating)
         if (item.mesh.radarRing) {
           const riskTotal = (v.risk_score && v.risk_score.total !== undefined) ? v.risk_score.total : 0;
           if (v.action === 'STOP' || riskTotal >= 70 || (v.dist_front !== undefined && v.dist_front < 60)) {
             item.mesh.radarRing.material.color.setHex(0xef4444); // Red collision hazard
-            item.mesh.radarRing.material.opacity = 0.85;
+            item.mesh.radarRing.material.opacity = 0.35;
           } else if (v.action === 'SLOW DOWN' || riskTotal >= 40 || (v.dist_front !== undefined && v.dist_front < 150)) {
             item.mesh.radarRing.material.color.setHex(0xf59e0b); // Amber caution
-            item.mesh.radarRing.material.opacity = 0.65;
+            item.mesh.radarRing.material.opacity = 0.25;
           } else {
             item.mesh.radarRing.material.color.setHex(0x10b981); // Green clear
             item.mesh.radarRing.material.opacity = 0.0; // Completely invisible during normal clear driving
@@ -1586,31 +1917,70 @@
     /**
      * FRAME INTERPOLATION (SMOOTHING A -> B BETWEEN 1-SECOND SERVER TICKS)
      * Real-time 4-wheel contact patch sampling, critically damped suspension,
-     * longitudinal slope pitching, lateral roll, and switchback steering smoothing.
+     * longitudinal slope pitching, lateral roll, and road-curvature conforming dead reckoning.
      */
-    stepInterpolation(dt = 0.016) {
+    stepInterpolation(dt = 0.016, camera = null) {
+      if (camera) this.activeCamera = camera;
+
       for (const vId in this.truckObjects) {
         const item = this.truckObjects[vId];
         if (!item || !item.mesh || !item.initialized) continue;
 
-        // Smooth continuous dead-reckoning extrapolation between 1-second server polls:
-        // Continues advancing targetPos forward along its current heading so the truck NEVER freezes or stutters
+        // 1. Constrained dead reckoning along road curvature between 1-second server polls
+        // Eliminates straight-line tangents cutting across curves or off haul-road berms
         if (item.isMoving && item.speedMps > 0.1) {
-          const fwdX = -Math.sin(item.targetYaw);
-          const fwdZ = -Math.cos(item.targetYaw);
-          item.targetPos.x += fwdX * item.speedMps * dt;
-          item.targetPos.z += fwdZ * item.speedMps * dt;
+          const roadInfo = this.getNearestRoadPoint(item.targetPos.x, item.targetPos.z);
+          const truckFwdX = -Math.sin(item.targetYaw);
+          const truckFwdZ = -Math.cos(item.targetYaw);
+          const dot = truckFwdX * roadInfo.tangent.x + truckFwdZ * roadInfo.tangent.z;
+          const roadDir = dot >= 0 ? 1.0 : -1.0;
+
+          const moveDist = item.speedMps * dt;
+          item.targetPos.x += roadInfo.tangent.x * roadDir * moveDist;
+          item.targetPos.z += roadInfo.tangent.z * roadDir * moveDist;
+
+          // Road corridor lateral constraint (Requirement 3)
+          // Keep truck strictly within its travel lane (±2-4m from centerline)
+          const maxLaneOffset = roadInfo.isSwitchback ? 4.5 : 3.0;
+          if (roadInfo.lateralDist > maxLaneOffset) {
+            const pullFactor = Math.min(1.0, dt * 8.0);
+            item.targetPos.x += (roadInfo.point.x - item.targetPos.x) * pullFactor;
+            item.targetPos.z += (roadInfo.point.z - item.targetPos.z) * pullFactor;
+          } else if (roadInfo.lateralDist > 1.0) {
+            const pullFactor = Math.min(0.25, dt * 2.5);
+            item.targetPos.x += (roadInfo.point.x - item.targetPos.x) * pullFactor;
+            item.targetPos.z += (roadInfo.point.z - item.targetPos.z) * pullFactor;
+          }
+
+          // Road curvature steering alignment along road tangent
+          const backendYaw = (item.backendYaw !== undefined) ? item.backendYaw : item.targetYaw;
+          const targetRoadYaw = Math.atan2(-roadInfo.tangent.x * roadDir, -roadInfo.tangent.z * roadDir);
+          let roadYawDiff = targetRoadYaw - backendYaw;
+          while (roadYawDiff < -Math.PI) roadYawDiff += Math.PI * 2;
+          while (roadYawDiff > Math.PI) roadYawDiff -= Math.PI * 2;
+          const clampedOffset = Math.max(-0.15, Math.min(0.15, roadYawDiff));
+          item.targetYaw = backendYaw + clampedOffset;
         }
 
-        // Smoothly interpolate horizontal position (X, Z) towards backend target
+        // Smooth horizontal movement towards targetPos
         const alpha = Math.min(1.0, dt * 6.0);
         item.mesh.position.x += (item.targetPos.x - item.mesh.position.x) * alpha;
         item.mesh.position.z += (item.targetPos.z - item.mesh.position.z) * alpha;
 
+        // Hard corridor clamp on mesh position (Requirement 3)
+        const curRoadInfo = this.getNearestRoadPoint(item.mesh.position.x, item.mesh.position.z);
+        const maxMeshDist = curRoadInfo.isSwitchback ? 5.2 : 3.6;
+        if (curRoadInfo.lateralDist > maxMeshDist) {
+          const excess = curRoadInfo.lateralDist - maxMeshDist;
+          const pull = excess / curRoadInfo.lateralDist;
+          item.mesh.position.x += (curRoadInfo.point.x - item.mesh.position.x) * pull;
+          item.mesh.position.z += (curRoadInfo.point.z - item.mesh.position.z) * pull;
+        }
+
         const posX = item.mesh.position.x;
         const posZ = item.mesh.position.z;
 
-        // Smooth yaw rotation lerp with rate-limiting around hairpins
+        // Smooth yaw rotation
         let dyaw = item.targetYaw - item.mesh.rotation.y;
         while (dyaw < -Math.PI) dyaw += Math.PI * 2;
         while (dyaw > Math.PI) dyaw -= Math.PI * 2;
@@ -1623,65 +1993,141 @@
         const rightX = Math.cos(curYaw);
         const rightZ = -Math.sin(curYaw);
 
-        // 4-Wheel Contact Patch Terrain Sampling:
-        // Half-wheelbase = 4.8m, half-track = 4.5m
-        const Lhalf = 4.8;
-        const Whalf = 4.5;
+        // 4-Wheel Contact Patch Road Sampling (Requirement 4):
+        // Half-wheelbase = 4.5m, half-track = 4.2m
+        const Lhalf = 4.5;
+        const Whalf = 4.2;
 
-        // Contact patch positions (FL, FR, RL, RR)
         const flX = posX + fwdX * Lhalf - rightX * Whalf;
         const flZ = posZ + fwdZ * Lhalf - rightZ * Whalf;
         const frX = posX + fwdX * Lhalf + rightX * Whalf;
-        const frZ = posZ + fwdZ * Lhalf + rightZ * Whalf;
+        const frZ = posZ + fwdZ * Lhalf + rightX * Whalf;
         const rlX = posX - fwdX * Lhalf - rightX * Whalf;
         const rlZ = posZ - fwdZ * Lhalf - rightZ * Whalf;
         const rrX = posX - fwdX * Lhalf + rightX * Whalf;
         const rrZ = posZ - fwdZ * Lhalf + rightZ * Whalf;
 
-        // Exact rendered terrain heights at contact points
-        const hFL = (this.getRenderedTerrainHeight(flX, flZ) - this.yMin) * this.vscale;
-        const hFR = (this.getRenderedTerrainHeight(frX, frZ) - this.yMin) * this.vscale;
-        const hRL = (this.getRenderedTerrainHeight(rlX, rlZ) - this.yMin) * this.vscale;
-        const hRR = (this.getRenderedTerrainHeight(rrX, rrZ) - this.yMin) * this.vscale;
-        const hMid = (this.getRenderedTerrainHeight(posX, posZ) - this.yMin) * this.vscale;
+        // Exact haul-road surface heights at contact points
+        const hFL = this.getHaulRoadSurfaceAt(flX, flZ);
+        const hFR = this.getHaulRoadSurfaceAt(frX, frZ);
+        const hRL = this.getHaulRoadSurfaceAt(rlX, rlZ);
+        const hRR = this.getHaulRoadSurfaceAt(rrX, rrZ);
 
-        const hFront = (hFL + hFR) * 0.5;
-        const hRear = (hRL + hRR) * 0.5;
-        const hLeft = (hFL + hRL) * 0.5;
-        const hRight = (hFR + hRR) * 0.5;
-
-        // Elevation guarantee: wheels sit on road surface without clipping
-        const axleCenterH = (hFront + hRear) * 0.5;
-        const maxContactH = Math.max(hFL, hFR, hRL, hRR);
-        const targetY = Math.max(axleCenterH, hMid, maxContactH - 0.25) + 0.12;
+        // Truck elevation = average of 4 wheel contact points + contact tolerance (Requirement 4)
+        const targetY = (hFL + hFR + hRL + hRR) * 0.25 + 0.02;
 
         // Critically damped vertical suspension smoothing
         item.mesh.position.y += (targetY - item.mesh.position.y) * Math.min(1.0, dt * 10.0);
 
         // Longitudinal pitch along slope (uphill: nose up -> negative rotation.x)
         const wheelbase = Lhalf * 2.0;
+        const hFront = (hFL + hFR) * 0.5;
+        const hRear = (hRL + hRR) * 0.5;
         const slopePitch = -Math.atan2(hFront - hRear, wheelbase);
         const clampedPitch = Math.max(-0.45, Math.min(0.45, slopePitch));
         item.mesh.rotation.x += (clampedPitch - item.mesh.rotation.x) * Math.min(1.0, dt * 8.0);
 
         // Lateral roll across slope/camber (banking right -> negative rotation.z)
         const trackWidth = Whalf * 2.0;
+        const hLeft = (hFL + hRL) * 0.5;
+        const hRight = (hFR + hRR) * 0.5;
         const slopeRoll = -Math.atan2(hRight - hLeft, trackWidth);
         const clampedRoll = Math.max(-0.20, Math.min(0.20, slopeRoll));
         item.mesh.rotation.z += (clampedRoll - item.mesh.rotation.z) * Math.min(1.0, dt * 8.0);
 
-        // Authentic Dump Bed Dumping Animation at Deposition Center (Stockpile Yard / WP 0)
+        // Distance-Adaptive Scaling for 3D Floating Labels (~1.5x scale, camera-facing, readable)
+        if (item.mesh.labelSprite && this.activeCamera) {
+          const camDist = this.activeCamera.position.distanceTo(item.mesh.position);
+          const scaleFactor = Math.max(0.85, Math.min(2.5, camDist / 500.0));
+          item.mesh.labelSprite.scale.set(19.0 * scaleFactor, 7.8 * scaleFactor, 1.0);
+          item.mesh.labelSprite.position.y = 20.8 + (scaleFactor - 1.0) * 5.0;
+        }
+
+        // Dump bed animation at stockpile yard
         if (item.mesh.bedPivot) {
           const bData = item.backendData;
           const isDumping = bData && (bData.lifecycle_state === 'UNLOADING' || bData.lifecycle_state === 'DUMPING');
-          const targetBedAngle = isDumping ? -0.585 : 0.0; // ~33.5 degrees dump tilt
+          const targetBedAngle = isDumping ? -0.585 : 0.0;
           const bedSpeed = isDumping ? 1.8 : 2.2;
           item.mesh.bedPivot.rotation.x += (targetBedAngle - item.mesh.bedPivot.rotation.x) * Math.min(1.0, dt * bedSpeed);
 
           if (item.mesh.payloadMesh) {
-            // Empties payload as bed tilts up or if payload_tons is 0
             const hasPayload = bData && bData.payload_tons !== undefined ? (bData.payload_tons > 1.0) : true;
             item.mesh.payloadMesh.visible = hasPayload && (item.mesh.bedPivot.rotation.x > -0.22);
+          }
+        }
+
+        // 5. Temporary Road Tracking Debug Visualizer (Requirement 5)
+        const isDebugActive = this.showRoadDebug || (typeof window !== 'undefined' && !!window.DEBUG_ROAD_TRACKING);
+        if (isDebugActive) {
+          if (!this.roadDebugGroup || !this.roadDebugGroup.parent) {
+            this.setRoadDebugVisible(this.scene || (item.mesh && item.mesh.parent ? item.mesh.parent : null), true);
+          }
+          if (item.debugMarkers) {
+            const clearance = (this.roadClearance !== undefined) ? this.roadClearance : (0.58 * Math.max(1.0, this.vscale));
+            const roadCenterY = curRoadInfo.point.y + clearance;
+            const truckContactY = item.mesh.position.y;
+
+            // Green dot at nearest road centerline point
+            item.debugMarkers.roadPt.position.set(curRoadInfo.point.x, roadCenterY + 0.15, curRoadInfo.point.z);
+            // Red dot at truck contact point
+            item.debugMarkers.mid.position.set(posX, truckContactY, posZ);
+            // Yellow line connecting them
+            item.debugMarkers.offsetLine.geometry.setFromPoints([
+              new THREE.Vector3(curRoadInfo.point.x, roadCenterY + 0.15, curRoadInfo.point.z),
+              new THREE.Vector3(posX, truckContactY, posZ)
+            ]);
+
+            // Wheel contact dots
+            item.debugMarkers.fl.position.set(flX, hFL + 0.15, flZ);
+            item.debugMarkers.fr.position.set(frX, hFR + 0.15, frZ);
+            item.debugMarkers.rl.position.set(rlX, hRL + 0.15, rlZ);
+            item.debugMarkers.rr.position.set(rrX, hRR + 0.15, rrZ);
+
+            // Display distance between truck and road centerline:
+            // "TRUCK_03 Road Offset: X.X m, Elev Diff: Y.Y m"
+            const roadOffset = curRoadInfo.lateralDist.toFixed(1);
+            const elevDiff = Math.abs(truckContactY - roadCenterY).toFixed(1);
+            const debugStats = `${item.idText || vId} Road Offset: ${roadOffset} m, Elev Diff: ${elevDiff} m`;
+            item.roadDebugStats = debugStats;
+
+            if (vId === 'TRUCK_03' || item.idText === 'TRUCK_03') {
+              if (typeof window !== 'undefined') {
+                window.DEBUG_ROAD_STATS_TRUCK_03 = debugStats;
+                let hudEl = document.getElementById('debug-road-tracking-hud');
+                if (!hudEl) {
+                  hudEl = document.createElement('div');
+                  hudEl.id = 'debug-road-tracking-hud';
+                  hudEl.style.position = 'fixed';
+                  hudEl.style.bottom = '48px';
+                  hudEl.style.left = '50%';
+                  hudEl.style.transform = 'translateX(-50%)';
+                  hudEl.style.background = 'rgba(10, 15, 26, 0.92)';
+                  hudEl.style.border = '1px solid #10b981';
+                  hudEl.style.color = '#38bdf8';
+                  hudEl.style.padding = '8px 18px';
+                  hudEl.style.borderRadius = '5px';
+                  hudEl.style.fontFamily = "'IBM Plex Mono', monospace";
+                  hudEl.style.fontSize = '12px';
+                  hudEl.style.fontWeight = 'bold';
+                  hudEl.style.zIndex = '9999';
+                  hudEl.style.pointerEvents = 'none';
+                  hudEl.style.boxShadow = '0 4px 16px rgba(0,0,0,0.6)';
+                  hudEl.style.letterSpacing = '0.04em';
+                  document.body.appendChild(hudEl);
+                }
+                hudEl.textContent = `◈ ${debugStats}`;
+                hudEl.style.display = 'block';
+              }
+            }
+          }
+        } else {
+          if (this.roadDebugGroup && this.roadDebugGroup.visible) {
+            this.roadDebugGroup.visible = false;
+          }
+          if (typeof window !== 'undefined') {
+            const hudEl = document.getElementById('debug-road-tracking-hud');
+            if (hudEl) hudEl.style.display = 'none';
           }
         }
       }
@@ -1702,7 +2148,6 @@
       }
       if (!item || !item.mesh) return null;
       const geo = this.worldToLonLat(item.mesh.position.x, item.mesh.position.z);
-      const elev = ((item.mesh.position.y - 0.12) / this.vscale) + this.yMin;
       const surfaceElev = this.sampleCarvedElevation(geo.lon, geo.lat);
       let headingDeg = (Math.PI - item.mesh.rotation.y) * 180.0 / Math.PI;
       headingDeg = (headingDeg % 360 + 360) % 360;
@@ -1710,7 +2155,7 @@
         id: vId,
         lat: geo.lat,
         lng: geo.lon,
-        elevation_m: elev,
+        elevation_m: surfaceElev,
         surface_elevation_m: surfaceElev,
         heading: headingDeg,
         backend: item.backendData || null
@@ -2103,6 +2548,7 @@
 
     setVerticalScale(scene, vscale) {
       this.vscale = vscale;
+      this.roadClearance = 0.58 * Math.max(1.0, vscale);
       this.buildTerrain(scene, vscale);
       this.buildHaulRoads(scene, vscale);
       this.buildHazardZones(scene, vscale);
@@ -2111,16 +2557,88 @@
     }
 
     /**
-     * Panoramic camera starting position:
-     * High-vantage overview that visually frames the surrounding natural terrain,
-     * the active open-cast mine pit, stepped benches, winding haul roads, moving haul trucks,
-     * and the northern stockpile/deposition yard.
+     * Optional 3D Haul Road & Vehicle Physics Debug Visualization (Requirement 17)
+     * Shows haul-road centerline, 4-wheel contact patches, nearest road station,
+     * and lateral offset vectors.
+     */
+    setRoadDebugVisible(scene, visible) {
+      this.showRoadDebug = !!visible;
+      if (typeof window !== 'undefined') {
+        window.DEBUG_ROAD_TRACKING = this.showRoadDebug;
+      }
+      if (!this.roadDebugGroup) {
+        this.roadDebugGroup = new THREE.Group();
+        this.roadDebugGroup.name = 'BailadilaRoadDebugGroup';
+
+        // 1. Haul Road Centerline Ribbon
+        if (this.sampledRoad && this.sampledRoad.length) {
+          const clr = (this.roadClearance !== undefined) ? this.roadClearance : 0.87;
+          const pts = this.sampledRoad.map(p => new THREE.Vector3(p.x, p.y + clr, p.z));
+          pts.push(new THREE.Vector3(this.sampledRoad[0].x, this.sampledRoad[0].y + clr, this.sampledRoad[0].z));
+          const lineGeo = new THREE.BufferGeometry().setFromPoints(pts);
+          const lineMat = new THREE.LineBasicMaterial({ color: 0x38bdf8, linewidth: 2 });
+          const line = new THREE.Line(lineGeo, lineMat);
+          this.roadDebugGroup.add(line);
+        }
+
+        // 2. Contact markers for each truck (Requirement 5)
+        const sphereGeoMinor = new THREE.SphereGeometry(0.75, 12, 12);
+        const sphereGeoMajor = new THREE.SphereGeometry(1.5, 16, 16);
+        const matContact = new THREE.MeshBasicMaterial({ color: 0x38bdf8, depthTest: false });
+        // Green dot at nearest road centerline point (Requirement 5)
+        const matRoadPt = new THREE.MeshBasicMaterial({ color: 0x22c55e, depthTest: false });
+        // Red dot at truck contact point (Requirement 5)
+        const matMid = new THREE.MeshBasicMaterial({ color: 0xef4444, depthTest: false });
+        // Yellow line connecting them (Requirement 5)
+        const offLineMat = new THREE.LineBasicMaterial({ color: 0xfacc15, linewidth: 4, depthTest: false });
+
+        for (const vId in this.truckObjects) {
+          const item = this.truckObjects[vId];
+          if (!item) continue;
+          const fl = new THREE.Mesh(sphereGeoMinor, matContact);
+          const fr = new THREE.Mesh(sphereGeoMinor, matContact);
+          const rl = new THREE.Mesh(sphereGeoMinor, matContact);
+          const rr = new THREE.Mesh(sphereGeoMinor, matContact);
+          const mid = new THREE.Mesh(sphereGeoMajor, matMid);
+          const roadPt = new THREE.Mesh(sphereGeoMajor, matRoadPt);
+          mid.renderOrder = 999;
+          roadPt.renderOrder = 999;
+
+          const offLineGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+          const offLine = new THREE.Line(offLineGeo, offLineMat);
+          offLine.renderOrder = 998;
+
+          this.roadDebugGroup.add(fl);
+          this.roadDebugGroup.add(fr);
+          this.roadDebugGroup.add(rl);
+          this.roadDebugGroup.add(rr);
+          this.roadDebugGroup.add(mid);
+          this.roadDebugGroup.add(roadPt);
+          this.roadDebugGroup.add(offLine);
+
+          item.debugMarkers = { fl, fr, rl, rr, mid, roadPt, offsetLine: offLine };
+        }
+      }
+
+      this.roadDebugGroup.visible = this.showRoadDebug;
+      const targetScene = scene || this.scene;
+      if (targetScene) {
+        if (this.showRoadDebug && !this.roadDebugGroup.parent) {
+          targetScene.add(this.roadDebugGroup);
+        }
+      }
+    }
+
+    /**
+     * Panoramic camera starting position (Requirement 4):
+     * Directly frames the active Deposit-14 haul circuit, pit benches, and all 6 haul trucks.
+     * Distance ~865m ensures trucks and their large 3D DMP labels are immediately visible on page load.
      */
     getRecommendedCameraOverview() {
       const pC = this.pitPos;
       return {
-        position: new THREE.Vector3(pC.x + 2300, 2100, pC.z + 2400),
-        target: new THREE.Vector3(pC.x - 40, 520, pC.z - 450)
+        position: new THREE.Vector3(pC.x + 640, 1050, pC.z - 170),
+        target: new THREE.Vector3(pC.x + 120, 630, pC.z - 720)
       };
     }
   }

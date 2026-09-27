@@ -2310,6 +2310,7 @@ def get_fleet():
 
             v_list.append({
                 "id": v["id"],
+                "dmp_id": v.get("dmp_id", f"DMP-10{int(v['id'][-1]) if v['id'][-1].isdigit() else 1}"),
                 "name": v["name"],
                 "model": v["model"],
                 "type": v["type"],

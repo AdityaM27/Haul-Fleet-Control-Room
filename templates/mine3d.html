@@ -281,6 +281,14 @@
     </label>
   </div>
 
+  <div class="toggle-row">
+    <span><span style="color:#38bdf8;">◈</span> Road & Physics Debug</span>
+    <label class="switch">
+      <input type="checkbox" id="chk-debug-road">
+      <span class="slider-toggle"></span>
+    </label>
+  </div>
+
   <div class="section-lbl">ENVIRONMENT & RELIEF CONTROLS</div>
 
   <div class="field">
@@ -494,6 +502,7 @@
   const chkRoads = document.getElementById('chk-roads');
   const chkTrucks = document.getElementById('chk-trucks');
   const chkHazards = document.getElementById('chk-hazards');
+  const chkDebugRoad = document.getElementById('chk-debug-road');
 
   const fogSlider = document.getElementById('fog-slider');
   const lblFog = document.getElementById('lbl-fog');
@@ -572,6 +581,9 @@
   chkRoads.addEventListener('change', (e) => engine.setRoadsVisible(e.target.checked));
   chkTrucks.addEventListener('change', (e) => engine.setTrucksVisible(e.target.checked));
   chkHazards.addEventListener('change', (e) => engine.setHazardsVisible(e.target.checked));
+  if (chkDebugRoad) {
+    chkDebugRoad.addEventListener('change', (e) => engine.setRoadDebugVisible(scene, e.target.checked));
+  }
 
   // Fog Slider (Fog-Guard Integration)
   fogSlider.addEventListener('input', (e) => {
@@ -803,7 +815,7 @@
     const dt = Math.min(clock.getDelta(), 0.05);
 
     // Frame-by-frame smoothing towards authoritative backend coordinates
-    engine.stepInterpolation(dt);
+    engine.stepInterpolation(dt, camera);
 
     if (currentMode === 'orbit') {
       controls.update();

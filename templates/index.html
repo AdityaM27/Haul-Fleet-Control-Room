@@ -1710,34 +1710,74 @@
     }
 
     /* ==========================================================================
-       FIRST-TIME OPERATOR ORIENTATION ONBOARDING OVERLAY
+       GUIDED SPOTLIGHT PRODUCT TOUR (OPERATOR ONBOARDING)
        ========================================================================== */
-    .orientation-overlay {
+    .orientation-overlay,
+    .tour-overlay {
       display: none;
       position: fixed;
       inset: 0;
-      background: rgba(30, 36, 33, 0.65);
-      backdrop-filter: blur(4px);
-      z-index: 200;
-      place-items: center;
+      z-index: 99998;
+      pointer-events: auto;
+      /* NO blur! Background dashboard remains sharp and recognizable */
     }
-    .orientation-overlay.open { display: grid; }
+    .orientation-overlay.open,
+    .tour-overlay.open {
+      display: block;
+    }
 
-    .orientation-card {
+    /* Dynamic Cutout Spotlight Box */
+    .tour-spotlight-box {
+      position: fixed;
+      /* Semi-transparent slate overlay dimmed around the cutout hole */
+      box-shadow: 0 0 0 9999px rgba(15, 23, 42, 0.65);
+      border: 2px solid var(--action-primary);
+      border-radius: var(--radius-sm);
+      pointer-events: none;
+      z-index: 99999;
+      /* Crisp 220ms enterprise transition between elements */
+      transition: top 0.22s cubic-bezier(0.2, 0, 0, 1),
+                  left 0.22s cubic-bezier(0.2, 0, 0, 1),
+                  width 0.22s cubic-bezier(0.2, 0, 0, 1),
+                  height 0.22s cubic-bezier(0.2, 0, 0, 1);
+      box-sizing: border-box;
+    }
+    .tour-spotlight-box::after {
+      content: '';
+      position: absolute;
+      inset: -3px;
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      border-radius: calc(var(--radius-sm) + 2px);
+      pointer-events: none;
+    }
+
+    /* Floating Contextual Tooltip Card */
+    .tour-tooltip-card {
+      position: fixed;
       background: #FFFFFF;
       border: 1px solid var(--border);
-      border-radius: var(--radius-lg);
-      box-shadow: 0 12px 36px rgba(0,0,0,0.18);
-      width: 90%;
-      max-width: 500px;
-      padding: 24px 26px;
+      border-radius: var(--radius-md);
+      box-shadow: 0 16px 36px -4px rgba(15, 23, 42, 0.25), 0 6px 12px -2px rgba(15, 23, 42, 0.12);
+      width: 360px;
+      max-width: calc(100vw - 32px);
+      padding: 18px 20px;
       display: flex;
       flex-direction: column;
-      gap: 14px;
-      position: relative;
+      gap: 12px;
+      z-index: 100000;
+      pointer-events: auto;
+      box-sizing: border-box;
+      transition: top 0.22s cubic-bezier(0.2, 0, 0, 1),
+                  left 0.22s cubic-bezier(0.2, 0, 0, 1);
     }
 
-    .orientation-badge {
+    .tour-tooltip-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .tour-badge {
       font-size: 10px;
       font-weight: 700;
       letter-spacing: 0.8px;
@@ -1745,81 +1785,162 @@
       color: var(--action-primary);
       background: var(--status-safe-bg);
       border: 1px solid var(--status-safe-border);
-      padding: 3px 8px;
+      padding: 2.5px 8px;
       border-radius: var(--radius-xs);
-      align-self: flex-start;
+      font-family: var(--font-mono);
     }
 
-    .orientation-title {
-      font-size: 17px;
+    .tour-close-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 14px;
+      cursor: pointer;
+      padding: 2px 6px;
+      border-radius: var(--radius-xs);
+      line-height: 1;
+      transition: all 0.15s ease;
+    }
+    .tour-close-btn:hover {
+      background: var(--bg-surface-secondary);
+      color: var(--text-primary);
+    }
+
+    .tour-title {
+      font-size: 15.5px;
       font-weight: 700;
       color: var(--text-primary);
       letter-spacing: -0.3px;
+      line-height: 1.25;
+      margin-top: -2px;
     }
 
-    .orientation-body {
-      font-size: 13px;
+    .tour-body {
+      font-size: 12.5px;
       color: var(--text-secondary);
       line-height: 1.55;
     }
 
-    .orientation-progress {
+    .tour-progress-wrap {
       display: flex;
-      gap: 6px;
-      margin: 8px 0;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 2px;
     }
 
-    .orientation-dot {
-      width: 8px;
-      height: 8px;
+    .tour-progress-dots {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .tour-dot {
+      width: 7px;
+      height: 7px;
       border-radius: 50%;
       background: var(--border-medium);
       transition: all 0.2s ease;
+      cursor: pointer;
     }
-    .orientation-dot.active {
+    .tour-dot:hover {
+      background: var(--text-muted);
+    }
+    .tour-dot.active {
       background: var(--action-primary);
-      width: 20px;
+      width: 18px;
       border-radius: 4px;
     }
 
-    .orientation-actions {
+    .tour-step-counter {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-weight: 600;
+      font-family: var(--font-mono);
+    }
+
+    .tour-pref-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+    .tour-pref-row input {
+      accent-color: var(--action-primary);
+      cursor: pointer;
+    }
+    .tour-pref-row label {
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .tour-actions {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-top: 6px;
-      padding-top: 14px;
+      margin-top: 4px;
+      padding-top: 12px;
       border-top: 1px solid var(--border-subtle);
     }
 
-    .orientation-btn-primary {
-      background: var(--action-primary);
-      color: #FFFFFF;
+    .tour-btn-link {
+      background: transparent;
       border: none;
-      padding: 8px 16px;
-      border-radius: var(--radius-sm);
-      font-size: 12.5px;
-      font-weight: 600;
+      color: var(--text-muted);
+      font-size: 12px;
+      font-weight: 500;
       cursor: pointer;
+      padding: 4px 6px;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+      transition: color 0.15s ease;
     }
-    .orientation-btn-primary:hover { background: var(--action-primary-hover); }
+    .tour-btn-link:hover {
+      color: var(--text-primary);
+    }
 
-    .orientation-btn-secondary {
+    .tour-btn-group {
+      display: flex;
+      gap: 8px;
+    }
+
+    .tour-btn-secondary {
       background: transparent;
       border: 1px solid var(--border);
       color: var(--text-secondary);
-      padding: 7px 14px;
+      padding: 6px 14px;
       border-radius: var(--radius-sm);
-      font-size: 12.5px;
-      font-weight: 500;
+      font-size: 12px;
+      font-weight: 600;
       cursor: pointer;
+      transition: background 0.15s ease, color 0.15s ease;
     }
-    .orientation-btn-secondary:hover { background: var(--bg-surface-secondary); color: var(--text-primary); }
+    .tour-btn-secondary:hover {
+      background: var(--bg-surface-secondary);
+      color: var(--text-primary);
+    }
 
-    /* Highlight ring for active orientation target */
+    .tour-btn-primary {
+      background: var(--action-primary);
+      color: #FFFFFF;
+      border: none;
+      padding: 7px 16px;
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .tour-btn-primary:hover {
+      background: var(--action-primary-hover);
+    }
+
+    /* Target highlight class when tour is active */
     .orientation-target-highlight {
-      outline: 3px solid var(--action-primary) !important;
-      outline-offset: 2px !important;
-      transition: outline 0.2s ease;
+      /* Spotlight box handles visual framing cleanly without modifying stacking context */
     }
 
     /* Contextual Tooltip Component */
@@ -1943,9 +2064,8 @@
       </button>
 
       <a href="/" class="brand-mark">
-        <div class="brand-icon-box">HF</div>
         <div class="brand-text-col">
-          <div class="brand-name">HAUL FLEET</div>
+          <div class="brand-name">RESURGENCE</div>
           <div class="brand-subtitle">Bailadila Operations</div>
         </div>
       </a>
@@ -1988,7 +2108,7 @@
     <!-- ====================================================================
          ZONE 1: LEFT FLEET SIDEBAR
          ==================================================================== -->
-    <aside class="fleet-rail" id="fleetRail">
+    <aside class="fleet-rail" id="fleetRail" data-tour="fleet-panel">
       <div class="rail-section-header">
         <div class="rail-header-top">
           <span class="rail-section-title">Fleet</span>
@@ -2091,7 +2211,7 @@
       </div>
 
       <!-- Scenarios Control Bar -->
-      <div class="scenarios-control-bar">
+      <div class="scenarios-control-bar" id="scenariosControlBar" data-tour="scenario-controls">
         <span class="scen-lbl">⚡ SCENARIOS:</span>
         <button type="button" class="scenario-btn active" data-scenario="CLEAR_RUN" onclick="applyScenario('CLEAR_RUN')">🟢 Nominal Run</button>
         <button type="button" class="scenario-btn" data-scenario="DENSE_FOG" onclick="applyScenario('DENSE_FOG')">🌫️ Dense Fog</button>
@@ -2107,7 +2227,7 @@
       <div class="twin-viewport-container" id="twinViewportContainer">
 
         <!-- 3D Three.js Open-Cast Mine Digital Twin -->
-        <div id="mine3DCard">
+        <div id="mine3DCard" data-tour="3d-twin">
           <div id="threeCanvasWrap"></div>
 
           <!-- View Options Popover Dropdown (Section 8) -->
@@ -2142,7 +2262,7 @@
           </div>
 
           <!-- Digital-Twin Sync Validator HUD Overlay (Preserves all required audit tokens) -->
-          <div id="syncValidatorOverlay">
+          <div id="syncValidatorOverlay" data-tour="safety-status">
             <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);padding-bottom:3px;margin-bottom:3px">
               <span style="font-weight:700;color:var(--text-primary);letter-spacing:0.3px">DIGITAL-TWIN SYNC VALIDATOR</span>
               <span id="syncOverallStatus" style="color:var(--status-safe);font-weight:700">DIGITAL TWIN SYNCED</span>
@@ -2232,7 +2352,7 @@
          ZONE 3: RIGHT SELECTED VEHICLE OPERATIONS PANEL
          Clear hierarchy: Level 1 (Immediate) -> Level 2 -> Level 3 (Expandable)
          ==================================================================== -->
-    <aside class="operations-panel" id="operationsPanel">
+    <aside class="operations-panel" id="operationsPanel" data-tour="vehicle-details">
 
       <!-- Sticky Hero Vehicle Card -->
       <div class="ops-hero-card">
@@ -2350,7 +2470,7 @@
           <span style="font-size:9.5px;color:var(--text-muted);font-weight:500">Autonomous Governor</span>
         </div>
 
-        <div class="command-card" id="commandCard">
+        <div class="command-card" id="commandCard" data-tour="route-governor">
           <div class="cmd-icon" id="cmdIcon">✓</div>
           <div class="cmd-text-col">
             <div class="cmd-value" id="cmdValue">ROUTE CLEAR</div>
@@ -2782,34 +2902,50 @@
 </div>
 
 <!-- ====================================================================
-     OPERATOR ORIENTATION ONBOARDING OVERLAY (Section 17)
+     OPERATOR ORIENTATION SPOTLIGHT PRODUCT TOUR (Section 17)
      ==================================================================== -->
-<div class="orientation-overlay" id="orientationOverlay">
-  <div class="orientation-card">
-    <div class="orientation-badge" id="orientStepBadge">ORIENTATION 1 OF 5</div>
-    <div class="orientation-title" id="orientStepTitle">WELCOME TO HAUL FLEET CONTROL ROOM</div>
-    <div class="orientation-body" id="orientStepText">
-      Monitor mine vehicles, terrain, hazards and fleet safety from one control room.
+<div class="orientation-overlay tour-overlay" id="orientationOverlay" onclick="handleTourOverlayClick(event)">
+  <!-- Dynamic Spotlight Cutout Frame (animates smoothly between target elements) -->
+  <div class="tour-spotlight-box" id="tourSpotlightBox"></div>
+
+  <!-- Floating Contextual Tooltip Card (positioned dynamically next to active target) -->
+  <div class="tour-tooltip-card" id="tourTooltipCard" onclick="event.stopPropagation()">
+    <!-- Header with step badge & close button -->
+    <div class="tour-tooltip-header">
+      <div class="tour-badge" id="orientStepBadge">ORIENTATION 1 OF 5</div>
+      <button type="button" class="tour-close-btn" onclick="finishOrientation()" title="Close tour (Esc)">✕</button>
     </div>
 
-    <div class="orientation-progress" id="orientProgressDots">
-      <span class="orientation-dot active"></span>
-      <span class="orientation-dot"></span>
-      <span class="orientation-dot"></span>
-      <span class="orientation-dot"></span>
-      <span class="orientation-dot"></span>
+    <!-- Title and content -->
+    <div class="tour-title" id="orientStepTitle">FLEET MONITORING</div>
+    <div class="tour-body" id="orientStepText">
+      Monitor all connected haul vehicles from this panel. View vehicle status, speed, alerts and operating state at a glance.
     </div>
 
-    <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-secondary);margin-top:2px">
-      <input type="checkbox" id="orientDontShowCheck" style="accent-color:var(--action-primary);cursor:pointer">
-      <label for="orientDontShowCheck" style="cursor:pointer">Don't show this orientation again</label>
+    <!-- Step Indicator: Dots + Counter Text -->
+    <div class="tour-progress-wrap" id="orientProgressWrap">
+      <div class="tour-progress-dots" id="orientProgressDots">
+        <span class="tour-dot active" data-step="1" onclick="openOrientation(1)"></span>
+        <span class="tour-dot" data-step="2" onclick="openOrientation(2)"></span>
+        <span class="tour-dot" data-step="3" onclick="openOrientation(3)"></span>
+        <span class="tour-dot" data-step="4" onclick="openOrientation(4)"></span>
+        <span class="tour-dot" data-step="5" onclick="openOrientation(5)"></span>
+      </div>
+      <span class="tour-step-counter" id="orientStepCounter">Step 1 of 5</span>
     </div>
 
-    <div class="orientation-actions">
-      <button type="button" class="orientation-btn-secondary" id="orientPrevBtn" onclick="prevOrientationStep()" style="visibility:hidden">Back</button>
-      <div style="display:flex;gap:6px">
-        <button type="button" class="orientation-btn-secondary" onclick="finishOrientation()">Skip</button>
-        <button type="button" class="orientation-btn-primary" id="orientNextBtn" onclick="nextOrientationStep()">START ORIENTATION</button>
+    <!-- Don't show again toggle -->
+    <div class="tour-pref-row">
+      <input type="checkbox" id="orientDontShowCheck">
+      <label for="orientDontShowCheck">Don't show this orientation again</label>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="tour-actions">
+      <button type="button" class="tour-btn-link" onclick="finishOrientation()">Skip Tour</button>
+      <div class="tour-btn-group">
+        <button type="button" class="tour-btn-secondary" id="orientPrevBtn" onclick="prevOrientationStep()">Back</button>
+        <button type="button" class="tour-btn-primary" id="orientNextBtn" onclick="nextOrientationStep()">Next →</button>
       </div>
     </div>
   </div>
@@ -4247,63 +4383,105 @@ setInterval(updateClock, 1000);
 updateClock();
 
 // =============================================================================
-// FIRST-TIME OPERATOR ORIENTATION STATE MACHINE (Section 17)
+// GUIDED SPOTLIGHT PRODUCT TOUR (Section 17)
+// Dynamic DOM-anchored spotlight, contextual tooltip, and step state machine
 // =============================================================================
 let currentOrientationStep = 1;
 const TOTAL_ORIENTATION_STEPS = 5;
 
 const orientationSteps = [
   {
+    step: 0,
+    badge: "OPERATOR ONBOARDING",
+    title: "WELCOME TO HAUL FLEET",
+    text: "Let's take a quick tour of the control room to explore fleet tracking, the 3D digital twin, scenario testing, and real-time safety systems.",
+    targetSelector: '[data-tour="fleet-panel"], #fleetRail',
+    placement: "right",
+    nextText: "START TOUR →",
+    counterText: "Quick Tour • 5 Steps",
+    isWelcome: true
+  },
+  {
     step: 1,
     badge: "ORIENTATION 1 OF 5",
-    title: "WELCOME TO HAUL FLEET CONTROL ROOM",
-    text: "Monitor mine vehicles, terrain, hazards and fleet safety from one control room. This interface gives operators real-time operational awareness across the entire pit and haul roads.",
-    nextText: "START ORIENTATION",
-    targetId: null
+    title: "FLEET MONITORING",
+    text: "Monitor all connected haul vehicles from this panel. View vehicle status, speed, alerts and operating state at a glance.",
+    targetSelector: '[data-tour="fleet-panel"], #fleetRail',
+    placement: "right",
+    nextText: "Next →",
+    counterText: "Step 1 of 5"
   },
   {
     step: 2,
     badge: "ORIENTATION 2 OF 5",
-    title: "YOUR FLEET",
-    text: "Select a truck here to inspect its live status, route, speed and safety information. Filter by real hardware or simulated autonomous dumpers at any time.",
-    nextText: "NEXT",
-    targetId: "fleetRail"
+    title: "3D DIGITAL TWIN",
+    text: "View the mine terrain, haul roads, active vehicles, hazards and sensor detections in the live digital-twin environment.",
+    targetSelector: '[data-tour="3d-twin"], #mine3DCard, #twinViewportContainer',
+    placement: "inside-top",
+    nextText: "Next →",
+    counterText: "Step 2 of 5"
   },
   {
     step: 3,
     badge: "ORIENTATION 3 OF 5",
-    title: "DIGITAL TWIN",
-    text: "This is the digital twin of the mine. Track haul roads, terrain, vehicles and detected hazards in full 3D, 2D GIS map, or split view. You can inspect camera views and adjust layer toggles via View Options.",
-    nextText: "NEXT",
-    targetId: "mine3DCard"
+    title: "SCENARIO CONTROLS",
+    text: "Test operational conditions such as dense fog, boulder hazards, hairpin cautions and convoy scenarios.",
+    targetSelector: '[data-tour="scenario-controls"], #scenariosControlBar, .scenarios-control-bar',
+    placement: "bottom",
+    nextText: "Next →",
+    counterText: "Step 3 of 5"
   },
   {
     step: 4,
     badge: "ORIENTATION 4 OF 5",
-    title: "OPERATIONS",
-    text: "Everything important about the selected truck appears here — velocity, recommended safe speed, risk factors, sensors, camera dehazing and mechanical diagnostics.",
-    nextText: "NEXT",
-    targetId: "operationsPanel"
+    title: "VEHICLE SAFETY & TELEMETRY",
+    text: "View live vehicle speed, safety status, risk severity, fog conditions, route safety and sensor information.",
+    targetSelector: '[data-tour="vehicle-details"], #operationsPanel',
+    placement: "left",
+    nextText: "Next →",
+    counterText: "Step 4 of 5"
   },
   {
     step: 5,
     badge: "ORIENTATION 5 OF 5",
-    title: "SAFETY & SENSORS",
-    text: "Safety alerts appear here first. Green indicates normal operation, amber requires attention, and red commands immediate braking when forward sensors or telemetry identify road obstacles.",
+    title: "DIGITAL TWIN & SAFETY STATUS",
+    text: "Monitor synchronization, route safety and autonomous safety decisions in real time.",
+    targetSelector: '[data-tour="safety-status"], #syncValidatorOverlay',
+    fallbackSelector: '[data-tour="route-governor"], #commandCard',
+    placement: "right",
     nextText: "FINISH",
-    targetId: "commandCard"
+    counterText: "Step 5 of 5"
   }
 ];
+
+function isTourOpen() {
+  const overlay = document.getElementById('orientationOverlay');
+  return overlay && overlay.classList.contains('open');
+}
 
 function openOrientation(step = 1) {
   currentOrientationStep = step;
   const overlay = document.getElementById('orientationOverlay');
   if (overlay) overlay.classList.add('open');
+
+  // Ensure 3D mode is active when highlighting 3D or sync validator
+  if (currentOrientationStep === 2 || currentOrientationStep === 5) {
+    if (typeof setCenterViewMode === 'function') {
+      const btn3d = document.getElementById('tabView3D');
+      if (btn3d && !btn3d.classList.contains('active')) {
+        setCenterViewMode('3d');
+      }
+    }
+  }
+
   renderOrientationStep();
 }
 
 function renderOrientationStep() {
-  const stepData = orientationSteps[currentOrientationStep - 1];
+  const overlay = document.getElementById('orientationOverlay');
+  if (!overlay || !overlay.classList.contains('open')) return;
+
+  const stepData = orientationSteps.find(s => s.step === currentOrientationStep) || orientationSteps[1];
   if (!stepData) return;
 
   const badgeEl = document.getElementById('orientStepBadge');
@@ -4311,28 +4489,142 @@ function renderOrientationStep() {
   const textEl = document.getElementById('orientStepText');
   const nextBtn = document.getElementById('orientNextBtn');
   const prevBtn = document.getElementById('orientPrevBtn');
-  const dots = document.querySelectorAll('.orientation-dot');
+  const counterEl = document.getElementById('orientStepCounter');
+  const dots = document.querySelectorAll('.tour-dot');
 
   if (badgeEl) badgeEl.textContent = stepData.badge;
   if (titleEl) titleEl.textContent = stepData.title;
   if (textEl) textEl.textContent = stepData.text;
   if (nextBtn) nextBtn.textContent = stepData.nextText;
-  if (prevBtn) prevBtn.style.visibility = (currentOrientationStep === 1) ? 'hidden' : 'visible';
+  if (counterEl) counterEl.textContent = stepData.counterText;
 
-  dots.forEach((dot, idx) => {
-    dot.classList.toggle('active', idx === currentOrientationStep - 1);
+  // Navigation buttons state
+  if (prevBtn) {
+    if (currentOrientationStep === 0) {
+      prevBtn.style.display = 'none';
+    } else {
+      prevBtn.style.display = 'inline-block';
+      prevBtn.textContent = 'Back';
+    }
+  }
+
+  // Update progress dots (steps 1 to 5)
+  dots.forEach(dot => {
+    const s = parseInt(dot.getAttribute('data-step') || '0', 10);
+    dot.classList.toggle('active', s === currentOrientationStep);
   });
 
-  // Remove previous highlights
+  // Resolve target element dynamically
+  let target = document.querySelector(stepData.targetSelector);
+  if ((!target || target.offsetParent === null) && stepData.fallbackSelector) {
+    target = document.querySelector(stepData.fallbackSelector);
+  }
+
+  // Highlight active target
   document.querySelectorAll('.orientation-target-highlight').forEach(el => {
     el.classList.remove('orientation-target-highlight');
   });
-
-  // Highlight active target element
-  if (stepData.targetId) {
-    const target = document.getElementById(stepData.targetId);
-    if (target) target.classList.add('orientation-target-highlight');
+  if (target) {
+    target.classList.add('orientation-target-highlight');
+    // Ensure target is partially scrolled into view if needed
+    if (typeof target.scrollIntoView === 'function') {
+      target.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+    }
   }
+
+  // Calculate spotlight cutout and tooltip placement
+  positionTourElements(target, stepData.placement);
+}
+
+function positionTourElements(targetEl, preferredPlacement) {
+  const spotlight = document.getElementById('tourSpotlightBox');
+  const tooltip = document.getElementById('tourTooltipCard');
+  if (!spotlight || !tooltip) return;
+
+  const pad = 6;
+  let rect;
+  if (targetEl && targetEl.offsetParent !== null) {
+    rect = targetEl.getBoundingClientRect();
+  } else {
+    // Graceful fallback to centered region
+    rect = {
+      top: 80,
+      left: 80,
+      bottom: window.innerHeight - 80,
+      right: window.innerWidth - 80,
+      width: Math.min(800, window.innerWidth - 160),
+      height: Math.min(500, window.innerHeight - 160)
+    };
+  }
+
+  // Spotlight Cutout Framing
+  const sTop = Math.max(0, rect.top - pad);
+  const sLeft = Math.max(0, rect.left - pad);
+  const sWidth = Math.min(window.innerWidth - sLeft, rect.width + pad * 2);
+  const sHeight = Math.min(window.innerHeight - sTop, rect.height + pad * 2);
+
+  spotlight.style.top = `${Math.round(sTop)}px`;
+  spotlight.style.left = `${Math.round(sLeft)}px`;
+  spotlight.style.width = `${Math.round(sWidth)}px`;
+  spotlight.style.height = `${Math.round(sHeight)}px`;
+
+  // Tooltip Dimension Measurement
+  const tipW = tooltip.offsetWidth || 360;
+  const tipH = tooltip.offsetHeight || 220;
+  const margin = 16;
+
+  let tipTop = 0;
+  let tipLeft = 0;
+
+  if (preferredPlacement === 'right') {
+    tipLeft = rect.right + margin;
+    tipTop = rect.top + 28;
+  } else if (preferredPlacement === 'left') {
+    tipLeft = rect.left - tipW - margin;
+    tipTop = rect.top + 28;
+  } else if (preferredPlacement === 'bottom') {
+    tipLeft = rect.left + 24;
+    tipTop = rect.bottom + margin;
+  } else if (preferredPlacement === 'top') {
+    tipLeft = rect.left + 24;
+    tipTop = rect.top - tipH - margin;
+  } else if (preferredPlacement === 'inside-top') {
+    tipLeft = rect.left + (rect.width - tipW) / 2;
+    tipTop = rect.top + margin + 12;
+  } else {
+    tipLeft = rect.left + margin;
+    tipTop = rect.bottom + margin;
+  }
+
+  // Horizontal edge collision avoidance & auto-flip
+  if (preferredPlacement === 'right' && (tipLeft + tipW > window.innerWidth - margin)) {
+    if (rect.left - tipW - margin >= margin) {
+      tipLeft = rect.left - tipW - margin;
+    } else {
+      tipLeft = window.innerWidth - tipW - margin;
+    }
+  } else if (preferredPlacement === 'left' && (tipLeft < margin)) {
+    if (rect.right + margin + tipW <= window.innerWidth - margin) {
+      tipLeft = rect.right + margin;
+    } else {
+      tipLeft = margin;
+    }
+  }
+
+  // Vertical edge collision avoidance
+  if (tipTop + tipH > window.innerHeight - margin) {
+    tipTop = window.innerHeight - tipH - margin;
+  }
+  if (tipTop < margin) {
+    tipTop = margin;
+  }
+
+  // Viewport bounds clamp: NEVER allow tooltip to escape screen
+  tipLeft = Math.max(margin, Math.min(tipLeft, window.innerWidth - tipW - margin));
+  tipTop = Math.max(margin, Math.min(tipTop, window.innerHeight - tipH - margin));
+
+  tooltip.style.top = `${Math.round(tipTop)}px`;
+  tooltip.style.left = `${Math.round(tipLeft)}px`;
 }
 
 function nextOrientationStep() {
@@ -4347,6 +4639,9 @@ function nextOrientationStep() {
 function prevOrientationStep() {
   if (currentOrientationStep > 1) {
     currentOrientationStep--;
+    renderOrientationStep();
+  } else if (currentOrientationStep === 1) {
+    currentOrientationStep = 0; // Return to Welcome card
     renderOrientationStep();
   }
 }
@@ -4365,12 +4660,44 @@ function finishOrientation() {
   }
 }
 
+function handleTourOverlayClick(e) {
+  // Allow clicks to be absorbed by overlay so background buttons aren't triggered
+  if (e.target && e.target.id === 'orientationOverlay') {
+    // Subtle hint or no-op so tour isn't accidentally dismissed
+  }
+}
+
+// Window resize and scroll recalculations
+window.addEventListener('resize', () => {
+  if (isTourOpen()) {
+    renderOrientationStep();
+  }
+});
+
+window.addEventListener('scroll', () => {
+  if (isTourOpen()) {
+    renderOrientationStep();
+  }
+}, true);
+
+// Keyboard navigation (Escape to close, Arrows to step)
+window.addEventListener('keydown', (e) => {
+  if (!isTourOpen()) return;
+  if (e.key === 'Escape') {
+    finishOrientation();
+  } else if (e.key === 'ArrowRight') {
+    nextOrientationStep();
+  } else if (e.key === 'ArrowLeft') {
+    prevOrientationStep();
+  }
+});
+
 // Auto open orientation for first-time operators
 window.addEventListener('DOMContentLoaded', () => {
   const isBypass = window.location.href.includes('clean') || window.location.href.includes('no_orient') || window.location.search.includes('clean');
   const seen = localStorage.getItem('haul_fleet_orientation_seen') || isBypass;
   if (!seen) {
-    setTimeout(() => openOrientation(1), 700);
+    setTimeout(() => openOrientation(0), 800);
   }
 });
 
