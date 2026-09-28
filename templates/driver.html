@@ -6,100 +6,242 @@
   <title>Resurgence — Driver Safety & Perception Console</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <!-- Three.js & OrbitControls for In-Cab 3D Spatial Perception Radar -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 
   <style>
+    /* ==========================================================================
+       INDUSTRIAL MINING OPERATIONS DESIGN SYSTEM — DRIVER IN-CAB CONSOLE
+       Clean, Light/Neutral, Trustworthy, Human-Designed Operational Interface
+       ========================================================================== */
     :root {
-      --bg: #070b12;
-      --panel-bg: #0c121e;
-      --panel-elevated: #111a2b;
-      --border: rgba(148, 163, 184, 0.14);
-      --border-bright: rgba(56, 189, 248, 0.35);
-      --text: #f8fafc;
-      --text-muted: #94a3b8;
-      --text-dim: #64748b;
-      --cyan: #38bdf8;
-      --blue: #0284c7;
-      --green: #10b981;
-      --amber: #f59e0b;
-      --red: #ef4444;
-      --purple: #a855f7;
+      /* Neutral Foundation */
+      --bg-app: #F4F5F2;              /* Warm concrete neutral */
+      --bg-surface: #FFFFFF;          /* Pure white cards/panels */
+      --bg-surface-secondary: #F7F8F6;/* Clean secondary row/card surface */
+      --bg-surface-elevated: #FFFFFF; /* High clarity surfaces */
+      --bg-surface-hover: #ECEEEA;    /* Soft tactile hover */
+      --bg-surface-active: #E2E5E0;   /* Pressed state */
+
+      /* Thin Crisp Borders */
+      --border-subtle: #E6EAE4;
+      --border: #D9DDD8;
+      --border-medium: #D0D5CE;
+      --border-strong: #B4BCB2;
+
+      /* High-Legibility Typography */
+      --text-main: #1E2421;           /* Deep slate/charcoal */
+      --text-primary: #1E2421;
+      --text-secondary: #58615B;      /* Medium stone */
+      --text-muted: #8A928C;          /* Calm quiet labels */
+      --text-dim: #8A928C;
+
+      /* Restrained Operational Status Colors */
+      --green: #2E7D5B;               /* SAFE / Normal operation */
+      --status-safe: #2E7D5B;
+      --status-safe-bg: #EAF4EE;
+      --status-safe-border: #B7DEC8;
+      --green-dim: rgba(46, 125, 91, 0.12);
+
+      --amber: #C58A18;               /* CAUTION / Attention needed */
+      --status-caution: #C58A18;
+      --status-caution-bg: #FDF6E8;
+      --status-caution-border: #F1DDB4;
+      --amber-dim: rgba(197, 138, 24, 0.14);
+
+      --status-warning: #D46B32;      /* WARNING */
+      --status-warning-bg: #FAF0E9;
+      --status-warning-border: #F2D2BE;
+
+      --red: #C74646;                 /* CRITICAL / Emergency stop */
+      --status-critical: #C74646;
+      --status-critical-bg: #FBEFEF;
+      --status-critical-border: #F3C4C4;
+      --red-dim: rgba(199, 70, 70, 0.14);
+
+      /* Primary Operational Accent (Deep Slate / Forest Slate) */
+      --cyan: #2A6E55;                /* Neutral deep pine/slate instead of neon cyan */
+      --cyan-dim: rgba(42, 110, 85, 0.12);
+      --action-primary: #1E3A2F;
+      --action-primary-hover: #142820;
+
+      /* Shadows: Minimal & Flat */
+      --shadow-sm: 0 1px 2px rgba(30, 36, 33, 0.04);
+      --shadow-md: 0 2px 6px rgba(30, 36, 33, 0.06);
+      --shadow-lg: 0 6px 18px rgba(30, 36, 33, 0.08);
+
+      /* Corner Radii */
+      --radius-xs: 3px;
+      --radius-sm: 4px;
+      --radius-md: 6px;
+      --radius-lg: 8px;
+
+      /* Layout Dimensions */
+      --header-h: 52px;
+
+      /* Typography */
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --font-mono: 'IBM Plex Mono', 'SF Mono', Consolas, monospace;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: 'JetBrains Mono', monospace;
+
+    html, body {
       min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      overflow-x: hidden;
+      background: var(--bg-app);
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      font-size: 13px;
+      line-height: 1.45;
+      -webkit-font-smoothing: antialiased;
     }
 
-    /* TOP COCKPIT HEADER BAR */
+    /* Scrollbars */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg-surface-secondary); }
+    ::-webkit-scrollbar-thumb { background: var(--border-medium); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--border-strong); }
+
+    /* ==========================================================================
+       TOP COCKPIT NAVIGATION BAR
+       ========================================================================== */
     .cockpit-header {
-      background: #090e18;
+      height: var(--header-h);
+      min-height: var(--header-h);
+      background: var(--bg-surface);
       border-bottom: 1px solid var(--border);
-      padding: 10px 20px;
+      padding: 0 18px;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      flex-wrap: wrap;
       gap: 12px;
       position: sticky;
       top: 0;
       z-index: 100;
+      box-shadow: var(--shadow-sm);
     }
-    .brand-section { display: flex; align-items: center; gap: 12px; }
-    .brand-badge {
-      background: linear-gradient(135deg, #0284c7, #0369a1);
-      padding: 5px 10px;
-      border-radius: 6px;
-      font-family: 'Space Grotesk', sans-serif;
-      font-weight: 800;
+
+    .brand-section {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-mark {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      text-decoration: none;
+      color: inherit;
+    }
+
+    .brand-icon-box {
+      width: 28px;
+      height: 28px;
+      background: var(--action-primary);
+      color: #FFFFFF;
+      border-radius: var(--radius-sm);
+      font-weight: 700;
       font-size: 13px;
-      letter-spacing: 1px;
-      color: #fff;
+      display: grid;
+      place-items: center;
+      letter-spacing: -0.5px;
     }
-    .truck-title-group { display: flex; flex-direction: column; }
-    .truck-main-name {
-      font-family: 'Space Grotesk', sans-serif;
-      font-size: 16px;
-      font-weight: 800;
-      color: var(--cyan);
+
+    .brand-text-col {
+      display: flex;
+      flex-direction: column;
+      line-height: 1.15;
+    }
+
+    .brand-name {
+      font-weight: 700;
+      font-size: 14px;
+      letter-spacing: 0.3px;
+      color: var(--text-primary);
+    }
+
+    .brand-subtitle {
+      font-size: 10.5px;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .topbar-divider {
+      width: 1px;
+      height: 22px;
+      background: var(--border);
+    }
+
+    .operational-context {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--bg-surface-secondary);
+      border: 1px solid var(--border);
+      padding: 4px 10px;
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+
+    .operational-context strong {
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+
+    .truck-title-group {
       display: flex;
       align-items: center;
       gap: 8px;
-    }
-    .truck-sub-info {
-      font-size: 10.5px;
-      color: var(--text-muted);
-    }
-    .vehicle-select-dropdown {
-      background: #0b1329;
-      color: var(--cyan);
-      border: 1px solid rgba(56, 189, 248, 0.4);
-      border-radius: 6px;
+      background: var(--bg-surface-secondary);
+      border: 1px solid var(--border);
       padding: 3px 8px;
-      font-size: 11px;
-      font-family: inherit;
+      border-radius: var(--radius-sm);
+    }
+
+    .truck-main-name {
+      display: flex;
+      align-items: center;
+      gap: 6px;
       font-weight: 700;
+      font-size: 12px;
+      color: var(--text-primary);
+    }
+
+    .vehicle-select-dropdown {
+      background: var(--bg-surface);
+      color: var(--text-primary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xs);
+      padding: 3px 7px;
+      font-size: 11px;
+      font-family: var(--font-sans);
+      font-weight: 600;
       cursor: pointer;
       outline: none;
-      transition: all 0.2s;
+      transition: all 0.15s;
     }
     .vehicle-select-dropdown:hover, .vehicle-select-dropdown:focus {
-      border-color: var(--cyan);
-      background: #152238;
-      box-shadow: 0 0 10px rgba(56, 189, 248, 0.3);
+      border-color: var(--border-strong);
+      box-shadow: var(--shadow-sm);
     }
-    .vehicle-select-dropdown option {
-      background: #0b1329;
-      color: #f1f5f9;
+
+    .status-pill {
+      font-size: 10.5px;
+      padding: 2.5px 7px;
+      border-radius: var(--radius-xs);
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+
+    .status-incab {
+      background: var(--status-safe-bg);
+      color: var(--status-safe);
+      border: 1px solid var(--status-safe-border);
     }
 
     /* HEADER TELEMETRY RIBBON */
@@ -107,46 +249,98 @@
       display: flex;
       align-items: center;
       gap: 12px;
-      background: rgba(15, 23, 42, 0.7);
+      background: var(--bg-surface-secondary);
       border: 1px solid var(--border);
       padding: 4px 12px;
-      border-radius: 6px;
+      border-radius: var(--radius-sm);
       font-size: 11px;
     }
     .telem-item {
       display: flex;
-      align-items: center;
-      gap: 5px;
+      align-items: baseline;
+      gap: 4px;
     }
-    .telem-lbl { color: var(--text-dim); text-transform: uppercase; font-size: 9.5px; }
-    .telem-val { font-weight: 700; color: #fff; }
+    .telem-lbl {
+      color: var(--text-muted);
+      text-transform: uppercase;
+      font-size: 9.5px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+    }
+    .telem-val {
+      font-family: var(--font-mono);
+      font-weight: 700;
+      font-size: 13px;
+      color: var(--text-primary);
+    }
 
-    .header-actions { display: flex; align-items: center; gap: 8px; }
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
     .hdr-btn {
-      background: rgba(255, 255, 255, 0.04);
+      background: var(--bg-surface-secondary);
       border: 1px solid var(--border);
-      color: var(--text);
-      padding: 6px 12px;
-      border-radius: 6px;
+      color: var(--text-secondary);
+      padding: 4px 10px;
+      border-radius: var(--radius-sm);
       font-size: 11px;
       font-weight: 600;
       cursor: pointer;
-      transition: all 0.2s;
-      text-decoration: none;
       display: inline-flex;
       align-items: center;
-      gap: 6px;
+      gap: 5px;
+      transition: all 0.15s ease;
+      text-decoration: none;
     }
-    .hdr-btn:hover { background: rgba(56, 189, 248, 0.15); border-color: var(--cyan); color: var(--cyan); }
-    .hdr-btn.hazard-btn { border-color: rgba(239, 68, 68, 0.4); color: var(--red); background: rgba(239, 68, 68, 0.08); }
-    .hdr-btn.hazard-btn:hover { background: rgba(239, 68, 68, 0.2); }
+    .hdr-btn:hover {
+      background: var(--bg-surface-hover);
+      color: var(--text-primary);
+      border-color: var(--border-strong);
+    }
+
+    .hdr-btn.sync-btn {
+      background: var(--status-safe-bg);
+      border-color: var(--status-safe-border);
+      color: var(--status-safe);
+    }
+    .hdr-btn.sync-btn:hover {
+      background: #DEEFE4;
+      border-color: #9FD3B6;
+    }
+
+    .hdr-btn.hazard-btn {
+      background: var(--status-critical-bg);
+      border-color: var(--status-critical-border);
+      color: var(--status-critical);
+    }
+    .hdr-btn.hazard-btn:hover {
+      background: #F8E2E2;
+      border-color: #EAAFAF;
+    }
+
+    .pulse-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--status-safe);
+      display: inline-block;
+      animation: pulseGreen 1.4s infinite;
+    }
+    @keyframes pulseGreen {
+      0% { opacity: 0.6; transform: scale(0.9); }
+      50% { opacity: 1; transform: scale(1.15); }
+      100% { opacity: 0.6; transform: scale(0.9); }
+    }
 
     /* MAIN CONSOLE LAYOUT */
     .console-container {
-      padding: 14px 18px 24px;
+      padding: 16px 20px 24px;
       display: flex;
       flex-direction: column;
-      gap: 14px;
+      gap: 16px;
       max-width: 1720px;
       margin: 0 auto;
       width: 100%;
@@ -157,33 +351,36 @@
     .primary-viewport-grid {
       display: grid;
       grid-template-columns: 1.62fr 1fr;
-      gap: 14px;
+      gap: 16px;
       align-items: stretch;
     }
 
     /* BASE HUD CARD */
     .hud-card {
-      background: var(--panel-bg);
+      background: var(--bg-surface);
       border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 14px;
+      border-radius: var(--radius-lg);
+      padding: 14px 16px;
       display: flex;
       flex-direction: column;
       gap: 10px;
       position: relative;
+      box-shadow: var(--shadow-sm);
     }
+
     .card-hdr {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border-subtle);
+      padding-bottom: 10px;
     }
+
     .card-title {
-      font-family: 'Space Grotesk', sans-serif;
-      font-size: 13.5px;
+      font-size: 13px;
       font-weight: 700;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.1px;
+      color: var(--text-primary);
       display: flex;
       align-items: center;
       gap: 8px;
@@ -193,18 +390,30 @@
        1. 3D RADAR STYLING (PRIMARY VISUAL)
        ========================================================================= */
     .radar-card {
-      border-color: rgba(56, 189, 248, 0.25);
-      background: radial-gradient(circle at 50% 50%, rgba(14, 22, 38, 0.95), #070b13 90%);
+      border-color: var(--border);
     }
+
+    .radar-tech-badge {
+      font-size: 10px;
+      color: var(--text-secondary);
+      font-weight: 600;
+      font-family: var(--font-mono);
+      background: var(--bg-surface-secondary);
+      border: 1px solid var(--border);
+      padding: 2px 7px;
+      border-radius: var(--radius-xs);
+    }
+
     #radar3DContainer {
       width: 100%;
       height: 480px;
-      border-radius: 8px;
-      background: #050810;
-      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: #0A0E17;
+      border: 1px solid #1E2738;
       overflow: hidden;
       position: relative;
       cursor: grab;
+      box-shadow: inset 0 0 20px rgba(0,0,0,0.5);
     }
     #radar3DContainer:active { cursor: grabbing; }
 
@@ -214,114 +423,134 @@
       pointer-events: none;
       z-index: 10;
       font-size: 10px;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.3px;
     }
+
     .radar-hud-top-left {
       top: 10px; left: 12px;
       display: flex; flex-direction: column; gap: 4px;
     }
+
     .radar-status-badge {
       display: inline-flex; align-items: center; gap: 6px;
-      background: rgba(11, 18, 32, 0.88);
-      border: 1px solid rgba(56, 189, 248, 0.35);
-      padding: 3px 8px; border-radius: 4px;
-      color: var(--cyan); font-weight: 700; font-size: 9.5px;
-    }
-    .pulse-dot {
-      width: 6px; height: 6px; border-radius: 50%;
-      background: var(--green); box-shadow: 0 0 8px var(--green);
-      display: inline-block;
-      animation: pulseGreen 1.4s infinite;
-    }
-    @keyframes pulseGreen {
-      0% { opacity: 0.5; transform: scale(0.9); }
-      50% { opacity: 1; transform: scale(1.2); }
-      100% { opacity: 0.5; transform: scale(0.9); }
+      background: rgba(10, 14, 23, 0.88);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      padding: 3px 8px; border-radius: var(--radius-xs);
+      color: #E2E8F0; font-weight: 700; font-size: 9.5px;
+      font-family: var(--font-mono);
+      backdrop-filter: blur(4px);
     }
 
     .radar-hud-top-right {
       top: 10px; right: 12px;
-      background: rgba(11, 18, 32, 0.88);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      padding: 3px 8px; border-radius: 4px;
-      color: var(--text-muted); font-size: 9.5px; font-weight: 600;
+      background: rgba(10, 14, 23, 0.88);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      padding: 3px 8px; border-radius: var(--radius-xs);
+      color: #94A3B8; font-size: 9.5px; font-weight: 600;
+      font-family: var(--font-mono);
+      backdrop-filter: blur(4px);
     }
 
     /* TACTICAL CAMERA PRESET CONTROLS */
     .radar-cam-controls {
       position: absolute;
-      bottom: 10px; left: 12px;
+      bottom: 12px; left: 12px;
       z-index: 20;
-      display: flex; gap: 6px;
+      display: flex; gap: 4px;
     }
+
     .radar-view-btn {
       background: rgba(15, 23, 42, 0.9);
-      border: 1px solid var(--border);
-      color: var(--text-muted);
-      padding: 4px 8px; border-radius: 4px;
-      font-size: 9.5px; font-family: inherit; font-weight: 700;
-      cursor: pointer; transition: all 0.2s;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      color: #94A3B8;
+      padding: 4px 9px; border-radius: var(--radius-xs);
+      font-size: 10px; font-family: var(--font-sans); font-weight: 600;
+      cursor: pointer; transition: all 0.15s;
     }
-    .radar-view-btn:hover, .radar-view-btn.active {
-      background: rgba(56, 189, 248, 0.18);
-      border-color: var(--cyan);
-      color: var(--cyan);
+    .radar-view-btn:hover {
+      background: rgba(30, 41, 59, 0.95);
+      color: #F1F5F9;
+      border-color: rgba(255, 255, 255, 0.3);
+    }
+    .radar-view-btn.active {
+      background: #1E3A2F;
+      border-color: #2E7D5B;
+      color: #FFFFFF;
+      font-weight: 700;
     }
 
     /* RADAR SENSOR READOUT FOOTER */
     .radar-sensors-strip {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
-      gap: 8px;
+      gap: 10px;
     }
+
     .radar-sector-chip {
-      background: rgba(255, 255, 255, 0.02);
+      background: var(--bg-surface-secondary);
       border: 1px solid var(--border);
-      border-radius: 6px;
+      border-radius: var(--radius-md);
       padding: 8px 10px;
       text-align: center;
       transition: all 0.2s;
     }
     .radar-sector-chip.hazard {
-      border-color: var(--red);
-      background: rgba(239, 68, 68, 0.1);
+      border-color: var(--status-critical-border);
+      background: var(--status-critical-bg);
       animation: alertPulse 1.2s infinite;
     }
     .radar-sector-chip.caution {
-      border-color: var(--amber);
-      background: rgba(245, 158, 11, 0.08);
+      border-color: var(--status-caution-border);
+      background: var(--status-caution-bg);
     }
+
     .sector-lbl {
-      font-size: 8.5px;
+      font-size: 9.5px;
       color: var(--text-muted);
       text-transform: uppercase;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.4px;
+      font-weight: 600;
     }
     .sector-dist {
-      font-family: 'Space Grotesk', sans-serif;
+      font-family: var(--font-mono);
       font-size: 16px;
-      font-weight: 800;
-      color: #fff;
+      font-weight: 700;
+      color: var(--text-primary);
       margin: 2px 0;
     }
     .sector-status {
-      font-size: 8px;
+      font-size: 9px;
       font-weight: 700;
       text-transform: uppercase;
+      letter-spacing: 0.3px;
     }
 
     /* =========================================================================
        2. LIVE CAMERA FEED STYLING
        ========================================================================= */
     .camera-card {
-      border-color: rgba(148, 163, 184, 0.2);
+      border-color: var(--border);
     }
+
+    .cam-badge {
+      font-size: 9.5px;
+      color: var(--status-safe);
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: var(--status-safe-bg);
+      padding: 2px 7px;
+      border-radius: var(--radius-xs);
+      border: 1px solid var(--status-safe-border);
+    }
+
     .camera-feed-container {
       position: relative;
-      border-radius: 8px;
+      border-radius: var(--radius-md);
       overflow: hidden;
       border: 1px solid var(--border);
-      background: #040711;
+      background: #0A0E17;
       aspect-ratio: 4/3;
       display: flex;
       align-items: center;
@@ -335,50 +564,45 @@
     }
 
     /* CAMERA TACTICAL HUD OVERLAYS */
-    .cam-hud-badge {
-      position: absolute;
-      top: 10px; left: 10px; z-index: 10;
-      background: rgba(9, 14, 26, 0.9);
-      border: 1px solid rgba(56, 189, 248, 0.35);
-      padding: 3px 8px; border-radius: 4px;
-      font-size: 9px; font-weight: 700;
-      color: var(--cyan);
-      display: flex; align-items: center; gap: 6px;
-    }
     .cam-hud-time {
       position: absolute;
       top: 10px; right: 10px; z-index: 10;
-      background: rgba(9, 14, 26, 0.9);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      padding: 3px 8px; border-radius: 4px;
-      font-size: 9px; color: var(--text-muted);
+      background: rgba(10, 14, 23, 0.88);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      padding: 3px 8px; border-radius: var(--radius-xs);
+      font-size: 9.5px; color: #94A3B8;
+      font-family: var(--font-mono);
+      backdrop-filter: blur(4px);
     }
+
     .cam-hud-bottom {
       position: absolute;
       bottom: 10px; left: 10px; right: 10px; z-index: 10;
-      background: rgba(9, 14, 26, 0.88);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      padding: 4px 8px; border-radius: 4px;
-      font-size: 9px; color: var(--text-muted);
+      background: rgba(10, 14, 23, 0.88);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      padding: 4px 8px; border-radius: var(--radius-xs);
+      font-size: 9.5px; color: #94A3B8;
+      font-family: var(--font-mono);
       display: flex; justify-content: space-between; align-items: center;
+      backdrop-filter: blur(4px);
     }
 
     /* CORNER BRACKETS */
     .corner-bracket {
       position: absolute;
       width: 12px; height: 12px;
-      border-color: rgba(56, 189, 248, 0.5);
+      border-color: rgba(255, 255, 255, 0.4);
       pointer-events: none; z-index: 5;
     }
-    .corner-tl { top: 6px; left: 6px; border-top: 2px solid; border-left: 2px solid; }
-    .corner-tr { top: 6px; right: 6px; border-top: 2px solid; border-right: 2px solid; }
-    .corner-bl { bottom: 6px; left: 6px; border-bottom: 2px solid; border-left: 2px solid; }
-    .corner-br { bottom: 6px; right: 6px; border-bottom: 2px solid; border-right: 2px solid; }
+    .corner-tl { top: 8px; left: 8px; border-top: 2px solid; border-left: 2px solid; }
+    .corner-tr { top: 8px; right: 8px; border-top: 2px solid; border-right: 2px solid; }
+    .corner-bl { bottom: 8px; left: 8px; border-bottom: 2px solid; border-left: 2px solid; }
+    .corner-br { bottom: 8px; right: 8px; border-bottom: 2px solid; border-right: 2px solid; }
 
     /* PROFESSIONAL FALLBACK OVERLAY */
     .camera-fallback-screen {
       position: absolute; inset: 0;
-      background: #060912;
+      background: #0A0E17;
       display: none;
       flex-direction: column;
       align-items: center;
@@ -390,58 +614,93 @@
     .camera-fallback-screen.active { display: flex; }
     .fallback-icon { font-size: 32px; margin-bottom: 8px; opacity: 0.8; }
     .fallback-title {
-      font-family: 'Space Grotesk', sans-serif;
-      font-size: 13px; font-weight: 800;
-      color: var(--amber); letter-spacing: 0.5px;
+      font-size: 13px; font-weight: 700;
+      color: var(--status-caution); letter-spacing: 0.3px;
       margin-bottom: 4px;
     }
     .fallback-desc {
-      font-size: 10px; color: var(--text-muted);
+      font-size: 11px; color: #94A3B8;
       max-width: 280px; line-height: 1.4;
       margin-bottom: 12px;
     }
     .fallback-retry-btn {
-      background: rgba(56, 189, 248, 0.1);
-      border: 1px solid rgba(56, 189, 248, 0.35);
-      color: var(--cyan);
-      padding: 5px 12px; border-radius: 4px;
-      font-size: 10px; font-weight: 700;
-      cursor: pointer; transition: all 0.2s;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #F1F5F9;
+      padding: 4px 12px; border-radius: var(--radius-xs);
+      font-size: 10.5px; font-weight: 600;
+      cursor: pointer; transition: all 0.15s;
     }
-    .fallback-retry-btn:hover { background: rgba(56, 189, 248, 0.25); }
+    .fallback-retry-btn:hover {
+      background: rgba(255, 255, 255, 0.16);
+      border-color: rgba(255, 255, 255, 0.35);
+    }
 
-    /* CAMERA CHANNEL SELECTOR */
+    /* CAMERA CHANNEL SELECTOR & TEST BAR */
     .cam-channel-toolbar {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      gap: 6px;
-      background: rgba(255, 255, 255, 0.02);
+      gap: 8px;
+      background: var(--bg-surface-secondary);
       border: 1px solid var(--border);
-      border-radius: 6px;
+      border-radius: var(--radius-sm);
       padding: 6px 10px;
-      font-size: 10px;
+      font-size: 11px;
     }
-    .cam-toggle-group { display: flex; gap: 4px; }
-    .cam-toggle-btn {
-      background: rgba(255, 255, 255, 0.04);
+    .cam-toggle-group {
+      display: inline-flex;
+      gap: 2px;
+      background: var(--bg-surface-secondary);
       border: 1px solid var(--border);
-      color: var(--text-muted);
-      padding: 3px 8px; border-radius: 4px;
-      font-size: 9px; font-family: inherit; font-weight: 700;
-      cursor: pointer; transition: all 0.2s;
+      border-radius: var(--radius-xs);
+      padding: 2px;
+    }
+    .cam-toggle-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-secondary);
+      padding: 3px 8px;
+      border-radius: var(--radius-xs);
+      font-size: 10px;
+      font-family: var(--font-sans);
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .cam-toggle-btn:hover {
+      color: var(--text-primary);
     }
     .cam-toggle-btn.active {
-      background: rgba(56, 189, 248, 0.2);
-      border-color: var(--cyan);
-      color: var(--cyan);
+      background: var(--bg-surface);
+      color: var(--text-primary);
+      box-shadow: var(--shadow-sm);
+      font-weight: 700;
+    }
+
+    .cam-test-btn {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      padding: 3px 8px;
+      border-radius: var(--radius-xs);
+      font-size: 10px;
+      font-family: var(--font-sans);
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .cam-test-btn:hover {
+      background: var(--bg-surface-hover);
+      color: var(--text-primary);
+      border-color: var(--border-strong);
     }
 
     /* =========================================================================
        3. ALERT SYSTEM (FULL-WIDTH BOTTOM)
        ========================================================================= */
     .alerts-card {
-      border-color: rgba(245, 158, 11, 0.25);
+      border-color: var(--border);
     }
     .alerts-grid {
       display: grid;
@@ -449,46 +708,42 @@
       gap: 12px;
     }
     .alert-box {
-      border-radius: 8px;
+      border-radius: var(--radius-md);
       padding: 12px 14px;
       border: 1px solid var(--border);
-      background: rgba(255, 255, 255, 0.02);
+      background: var(--bg-surface);
       display: flex;
       flex-direction: column;
       justify-content: space-between;
       gap: 8px;
       position: relative;
       overflow: hidden;
-      transition: all 0.25s;
-    }
-    .alert-box::before {
-      content: '';
-      position: absolute;
-      left: 0; top: 0; bottom: 0; width: 4px;
+      transition: all 0.2s;
+      border-left: 4px solid var(--border-strong);
     }
 
     /* SEVERITY TIERS */
     .alert-box.critical {
-      border-color: rgba(239, 68, 68, 0.5);
-      background: linear-gradient(135deg, rgba(239, 68, 68, 0.12), rgba(15, 23, 42, 0.9));
-      box-shadow: 0 0 20px rgba(239, 68, 68, 0.2);
+      border-color: var(--status-critical-border);
+      background: var(--status-critical-bg);
+      border-left: 4px solid var(--status-critical);
+      box-shadow: 0 0 12px rgba(199, 70, 70, 0.18);
     }
-    .alert-box.critical::before { background: var(--red); }
     .alert-box.warning {
-      border-color: rgba(245, 158, 11, 0.4);
-      background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(15, 23, 42, 0.9));
+      border-color: var(--status-warning-border);
+      background: var(--status-warning-bg);
+      border-left: 4px solid var(--status-warning);
     }
-    .alert-box.warning::before { background: var(--amber); }
     .alert-box.caution {
-      border-color: rgba(234, 179, 8, 0.3);
-      background: rgba(234, 179, 8, 0.04);
+      border-color: var(--status-caution-border);
+      background: var(--status-caution-bg);
+      border-left: 4px solid var(--status-caution);
     }
-    .alert-box.caution::before { background: #eab308; }
     .alert-box.info {
-      border-color: rgba(16, 185, 129, 0.3);
-      background: rgba(16, 185, 129, 0.04);
+      border-color: var(--border);
+      background: var(--bg-surface);
+      border-left: 4px solid var(--status-safe);
     }
-    .alert-box.info::before { background: var(--green); }
 
     .alert-hdr {
       display: flex;
@@ -497,39 +752,40 @@
       gap: 6px;
     }
     .alert-type {
-      font-size: 8.5px;
-      font-weight: 800;
-      letter-spacing: 0.8px;
+      font-size: 9.5px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
       text-transform: uppercase;
+      color: var(--text-muted);
     }
-    .alert-box.critical .alert-type { color: var(--red); }
-    .alert-box.warning .alert-type { color: var(--amber); }
-    .alert-box.caution .alert-type { color: #eab308; }
-    .alert-box.info .alert-type { color: var(--green); }
+    .alert-box.critical .alert-type { color: var(--status-critical); }
+    .alert-box.warning .alert-type { color: var(--status-warning); }
+    .alert-box.caution .alert-type { color: var(--status-caution); }
+    .alert-box.info .alert-type { color: var(--status-safe); }
 
     .alert-title {
-      font-family: 'Space Grotesk', sans-serif;
-      font-size: 13.5px;
+      font-size: 13px;
       font-weight: 700;
-      color: #fff;
+      color: var(--text-primary);
       display: flex;
       align-items: center;
       gap: 6px;
     }
     .alert-body {
-      font-size: 10px;
-      color: var(--text-muted);
-      line-height: 1.4;
+      font-size: 11px;
+      color: var(--text-secondary);
+      line-height: 1.45;
     }
     .alert-metric {
+      font-family: var(--font-mono);
       font-weight: 700;
-      color: #fff;
+      color: var(--text-primary);
     }
 
     @keyframes alertPulse {
-      0% { box-shadow: 0 0 10px rgba(239, 68, 68, 0.2); }
-      50% { box-shadow: 0 0 25px rgba(239, 68, 68, 0.5); }
-      100% { box-shadow: 0 0 10px rgba(239, 68, 68, 0.2); }
+      0% { box-shadow: 0 0 4px rgba(199, 70, 70, 0.2); }
+      50% { box-shadow: 0 0 14px rgba(199, 70, 70, 0.45); }
+      100% { box-shadow: 0 0 4px rgba(199, 70, 70, 0.2); }
     }
 
     /* SYNCHRONIZED CAMERA OBSTACLE DETECTION RETICLE */
@@ -539,38 +795,39 @@
       left: 33%;
       width: 34%;
       height: 30%;
-      border: 2px solid #ef4444;
-      background: rgba(239, 68, 68, 0.12);
-      box-shadow: 0 0 20px rgba(239, 68, 68, 0.6), inset 0 0 15px rgba(239, 68, 68, 0.3);
+      border: 2px solid var(--status-critical);
+      background: rgba(199, 70, 70, 0.15);
+      box-shadow: 0 0 16px rgba(199, 70, 70, 0.5), inset 0 0 10px rgba(199, 70, 70, 0.2);
       pointer-events: none;
       z-index: 15;
       animation: camBoxPulse 1.2s infinite alternate;
-      border-radius: 4px;
+      border-radius: var(--radius-xs);
     }
     @keyframes camBoxPulse {
-      0% { border-color: #ef4444; box-shadow: 0 0 10px rgba(239, 68, 68, 0.4); }
-      100% { border-color: #f87171; box-shadow: 0 0 25px rgba(239, 68, 68, 0.85); }
+      0% { border-color: var(--status-critical); box-shadow: 0 0 8px rgba(199, 70, 70, 0.4); }
+      100% { border-color: #E25B5B; box-shadow: 0 0 20px rgba(199, 70, 70, 0.7); }
     }
     .cam-detection-tag {
       position: absolute;
-      top: -24px;
+      top: -22px;
       left: 0;
-      background: #ef4444;
+      background: var(--status-critical);
       color: #fff;
       font-size: 10px;
-      font-weight: 800;
-      padding: 2px 8px;
+      font-weight: 700;
+      padding: 2px 7px;
       border-radius: 3px 3px 0 0;
       white-space: nowrap;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.3px;
+      font-family: var(--font-sans);
     }
 
     /* DIGITAL TWIN SYNC MODAL */
     .sync-modal-backdrop {
       position: fixed;
       inset: 0;
-      background: rgba(3, 7, 18, 0.85);
-      backdrop-filter: blur(8px);
+      background: rgba(30, 36, 33, 0.55);
+      backdrop-filter: blur(4px);
       z-index: 999;
       display: flex;
       align-items: center;
@@ -578,22 +835,22 @@
       padding: 16px;
     }
     .sync-modal-card {
-      background: #0c121e;
-      border: 1px solid rgba(56, 189, 248, 0.35);
-      border-radius: 12px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
       width: 100%;
       max-width: 520px;
-      padding: 18px 22px;
-      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.85);
+      padding: 20px 22px;
+      box-shadow: var(--shadow-lg);
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 14px;
     }
     .sync-modal-hdr {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      border-bottom: 1px solid var(--border);
+      border-bottom: 1px solid var(--border-subtle);
       padding-bottom: 10px;
     }
     .sync-metric-grid {
@@ -602,21 +859,24 @@
       gap: 8px;
     }
     .sync-metric-box {
-      background: rgba(15, 23, 42, 0.6);
+      background: var(--bg-surface-secondary);
       border: 1px solid var(--border);
       padding: 8px 10px;
-      border-radius: 6px;
+      border-radius: var(--radius-sm);
     }
     .sync-metric-lbl {
-      font-size: 9px;
-      color: var(--text-dim);
+      font-size: 9.5px;
+      color: var(--text-muted);
       text-transform: uppercase;
+      font-weight: 600;
+      letter-spacing: 0.3px;
       margin-bottom: 3px;
     }
     .sync-metric-val {
-      font-size: 12px;
+      font-size: 12.5px;
+      font-family: var(--font-mono);
       font-weight: 700;
-      color: var(--text);
+      color: var(--text-primary);
     }
 
     /* RESPONSIVE BREAKPOINTS */
@@ -629,6 +889,7 @@
       .alerts-grid { grid-template-columns: 1fr; }
       .radar-sensors-strip { grid-template-columns: repeat(2, 1fr); }
       .header-telemetry-ribbon { display: none; }
+      .cockpit-header { height: auto; padding: 10px 14px; }
     }
   </style>
 </head>
@@ -637,7 +898,21 @@
   <!-- 1. DRIVER COCKPIT HEADER BAR -->
   <header class="cockpit-header">
     <div class="brand-section">
-      <div class="brand-badge">RESURGENCE</div>
+      <a href="/" class="brand-mark">
+        <div class="brand-icon-box">R</div>
+        <div class="brand-text-col">
+          <div class="brand-name">RESURGENCE</div>
+          <div class="brand-subtitle">Bailadila Operations</div>
+        </div>
+      </a>
+
+      <div class="topbar-divider"></div>
+
+      <div class="operational-context">
+        <span>Site:</span>
+        <strong>Bailadila Deposit 14</strong>
+      </div>
+
       <div class="truck-title-group">
         <div class="truck-main-name">
           <span>🚛</span>
@@ -650,10 +925,10 @@
             <option value="TRUCK_05" {% if target_vehicle_id == 'TRUCK_05' %}selected{% endif %}>Switch to TRUCK_05 (Hitachi EH5000)</option>
             <option value="TRUCK_06" {% if target_vehicle_id == 'TRUCK_06' %}selected{% endif %}>Switch to TRUCK_06 (Liebherr T284)</option>
           </select>
-          <span style="font-size:9px;padding:2px 7px;border-radius:4px;background:rgba(16,185,129,0.15);color:var(--green);border:1px solid rgba(16,185,129,0.3)">DRIVER CABIN</span>
+          <span class="status-pill status-incab">DRIVER CABIN</span>
         </div>
-        <div class="truck-sub-info">
-          Conceptual Deposit-14 simulation route | 77 GHz FMCW Spatial Radar & Vision AI
+        <div class="truck-sub-info" style="font-size:10px;color:var(--text-muted);display:flex;align-items:center;gap:4px">
+          <span>·</span> Conceptual Deposit-14 simulation route
         </div>
       </div>
     </div>
@@ -663,37 +938,41 @@
       <div class="telem-item">
         <span class="telem-lbl">Speed:</span>
         <span class="telem-val" id="hdrValSpeed">19.5</span>
-        <span style="font-size:9px;color:var(--text-dim)">km/h</span>
+        <span style="font-size:9.5px;color:var(--text-muted)">km/h</span>
       </div>
       <div style="width:1px;height:14px;background:var(--border)"></div>
       <div class="telem-item">
         <span class="telem-lbl">Gear:</span>
-        <span class="telem-val" id="hdrValGear" style="color:var(--cyan)">D2</span>
+        <span class="telem-val" id="hdrValGear" style="color:var(--text-primary)">D2</span>
       </div>
       <div style="width:1px;height:14px;background:var(--border)"></div>
       <div class="telem-item">
         <span class="telem-lbl">Safe Limit:</span>
-        <span class="telem-val" id="hdrValSafeSpeed" style="color:var(--green)">18.0</span>
-        <span style="font-size:9px;color:var(--text-dim)">km/h</span>
+        <span class="telem-val" id="hdrValSafeSpeed" style="color:var(--status-safe)">18.0</span>
+        <span style="font-size:9.5px;color:var(--text-muted)">km/h</span>
       </div>
       <div style="width:1px;height:14px;background:var(--border)"></div>
       <div class="telem-item">
         <span class="telem-lbl">Elev:</span>
         <span class="telem-val" id="hdrValElev">675</span>
-        <span style="font-size:9px;color:var(--text-dim)">m ASL</span>
+        <span style="font-size:9.5px;color:var(--text-muted)">m ASL</span>
       </div>
     </div>
 
     <!-- ACTIONS -->
     <div class="header-actions">
-      <button class="hdr-btn" id="btnToggleSyncModal" onclick="toggleSyncModal()" title="Inspect Digital Twin Spatial & Hazard Synchronization" style="border-color:rgba(16,185,129,0.35);color:var(--green)">
-        <span class="pulse-dot" style="background:#10b981;width:6px;height:6px"></span>
+      <button class="hdr-btn sync-btn" id="btnToggleSyncModal" onclick="toggleSyncModal()" title="Inspect Digital Twin Spatial & Hazard Synchronization">
+        <span class="pulse-dot"></span>
         <span id="hdrSyncBadgeText">TWIN: 100% SYNCED</span>
       </button>
       <button class="hdr-btn hazard-btn" id="btnInjectHazardHdr" onclick="triggerTestObstacle()" title="Inject physical world obstacle 10m ahead (2.0s TTL)">
         ⚠️ Inject Hazard
       </button>
-      <button class="hdr-btn" style="color:var(--red);border-color:rgba(239,68,68,0.3)" onclick="logout()">
+      <a href="/" class="hdr-btn" title="Return to Dispatch Control Room">
+        <span>🎛️</span>
+        <span>Control Room</span>
+      </a>
+      <button class="hdr-btn" style="color:var(--status-critical);border-color:var(--status-critical-border)" onclick="logout()">
         🔒 Disconnect
       </button>
     </div>
@@ -715,8 +994,8 @@
             <span>3D Spatial Perception Radar</span>
           </div>
           <div style="display:flex;align-items:center;gap:8px">
-            <span style="font-size:10px;color:var(--cyan);font-weight:700">77 GHz FMCW / 360° LIDAR</span>
-            <a href="/mine3d" target="_blank" class="radar-view-btn" style="text-decoration:none;display:inline-flex;align-items:center;gap:4px">
+            <span class="radar-tech-badge">77 GHz FMCW / 360° LIDAR</span>
+            <a href="/mine3d" target="_blank" class="hdr-btn" style="padding:2px 8px;font-size:10.5px">
               ⛶ 3D Mine Twin ↗
             </a>
           </div>
@@ -730,7 +1009,7 @@
               <span class="pulse-dot" id="radarPulseDot"></span>
               <span id="radarScanStatus">PERCEPTION SCAN: ACTIVE</span>
             </div>
-            <div style="font-size:8.5px;color:rgba(148,163,184,0.7)">
+            <div style="font-size:9px;color:#94A3B8;font-family:var(--font-mono)">
               RANGE: 80m | POLAR ENVELOPE
             </div>
           </div>
@@ -738,7 +1017,7 @@
           <!-- TOP-RIGHT HUD HEADING -->
           <div class="radar-hud-overlay radar-hud-top-right">
             <span>BEARING: </span>
-            <strong id="radarHeadingVal" style="color:var(--cyan)">240° SW</strong>
+            <strong id="radarHeadingVal" style="color:#60A5FA">240° SW</strong>
             <span style="margin: 0 4px; opacity:0.4">|</span>
             <span id="radarZoneVal">Zone 1</span>
           </div>
@@ -757,28 +1036,28 @@
           <div class="radar-sector-chip" id="chipFront">
             <div class="sector-lbl">▲ Forward Radar</div>
             <div class="sector-dist" id="distFront">245 cm</div>
-            <div class="sector-status" id="statFront" style="color:var(--green)">CLEAR (>150cm)</div>
+            <div class="sector-status" id="statFront" style="color:var(--status-safe)">CLEAR (>150cm)</div>
           </div>
 
           <!-- LEFT SENSOR -->
           <div class="radar-sector-chip" id="chipLeft">
             <div class="sector-lbl">◀ Left Flank</div>
             <div class="sector-dist" id="distLeft">180 cm</div>
-            <div class="sector-status" id="statLeft" style="color:var(--green)">CLEAR (>120cm)</div>
+            <div class="sector-status" id="statLeft" style="color:var(--status-safe)">CLEAR (>120cm)</div>
           </div>
 
           <!-- RIGHT SENSOR -->
           <div class="radar-sector-chip" id="chipRight">
             <div class="sector-lbl">Right Flank ▶</div>
             <div class="sector-dist" id="distRight">190 cm</div>
-            <div class="sector-status" id="statRight" style="color:var(--green)">CLEAR (>120cm)</div>
+            <div class="sector-status" id="statRight" style="color:var(--status-safe)">CLEAR (>120cm)</div>
           </div>
 
           <!-- REAR AWARENESS -->
           <div class="radar-sector-chip" id="chipRear">
             <div class="sector-lbl">▼ Rear Perimeter</div>
             <div class="sector-dist" id="distRear">CLEAR</div>
-            <div class="sector-status" id="statRear" style="color:var(--green)">BUFFER SECURED</div>
+            <div class="sector-status" id="statRear" style="color:var(--status-safe)">BUFFER SECURED</div>
           </div>
         </div>
       </div>
@@ -791,7 +1070,7 @@
           <div class="card-title">
             <span>📷</span>
             <span>Live Vehicle Camera</span>
-            <span style="font-size:9.5px;color:var(--cyan);font-weight:700;display:inline-flex;align-items:center;gap:5px;background:rgba(56,189,248,0.1);padding:2px 7px;border-radius:4px;border:1px solid rgba(56,189,248,0.3)">
+            <span class="cam-badge">
               <span class="pulse-dot" style="width:5px;height:5px"></span> CAM-01 [FORWARD BUMPER]
             </span>
           </div>
@@ -830,7 +1109,7 @@
             <div class="fallback-icon">📡</div>
             <div class="fallback-title">OPTICAL FEED SIGNAL UNAVAILABLE</div>
             <div class="fallback-desc">
-              Waiting for vehicle camera stream on channel <strong style="color:#fff">{{ target_vehicle_id }}</strong>...
+              Waiting for vehicle camera stream on channel <strong style="color:var(--text-primary)">{{ target_vehicle_id }}</strong>...
             </div>
             <button class="fallback-retry-btn" onclick="retryCameraFeed()">
               ↻ Reconnect Optical Channel
@@ -839,19 +1118,19 @@
 
           <!-- BOTTOM OPTICAL HUD STRIP -->
           <div class="cam-hud-bottom">
-            <span>FastPiDeWeather AI: <strong style="color:var(--cyan)">ACTIVE</strong></span>
-            <span>Visibility Sight: <strong id="camVisMeters" style="color:#fff">42 m</strong></span>
+            <span>FastPiDeWeather AI: <strong style="color:#60A5FA">ACTIVE</strong></span>
+            <span>Visibility Sight: <strong id="camVisMeters" style="color:#FFFFFF">42 m</strong></span>
           </div>
         </div>
 
         <!-- CAMERA TOOLBAR & SIMULATION CONTROLS -->
         <div class="cam-channel-toolbar">
-          <span style="font-size:9.5px;color:var(--text-muted)">Vision AI Testing:</span>
+          <span style="font-size:10px;font-weight:600;color:var(--text-muted)">Vision AI Testing:</span>
           <div style="display:flex;gap:4px;flex-wrap:wrap">
-            <button class="cam-toggle-btn" onclick="setDriverPreviewSample('pit_dense_fog')">Dense Fog</button>
-            <button class="cam-toggle-btn" onclick="setDriverPreviewSample('rain_mist')">Monsoon Rain</button>
-            <button class="cam-toggle-btn" onclick="setDriverPreviewSample('haul_road_dust')">Pit Dust</button>
-            <button class="cam-toggle-btn" style="color:var(--amber)" onclick="resetDriverCameraStream()">↺ Live Stream</button>
+            <button class="cam-test-btn" onclick="setDriverPreviewSample('pit_dense_fog')">Dense Fog</button>
+            <button class="cam-test-btn" onclick="setDriverPreviewSample('rain_mist')">Monsoon Rain</button>
+            <button class="cam-test-btn" onclick="setDriverPreviewSample('haul_road_dust')">Pit Dust</button>
+            <button class="cam-test-btn" style="color:var(--status-caution);border-color:var(--status-caution-border)" onclick="resetDriverCameraStream()">↺ Live Stream</button>
           </div>
         </div>
       </div>
@@ -868,8 +1147,8 @@
           <span>Driver Critical Alert System</span>
         </div>
         <div style="display:flex;align-items:center;gap:6px">
-          <span style="font-size:9.5px;color:var(--text-muted)">OVERALL PERCEPTION:</span>
-          <span id="overallSafetyBadge" style="font-size:10px;font-weight:800;color:var(--green)">✓ ALL SYSTEMS NOMINAL</span>
+          <span style="font-size:10px;font-weight:600;color:var(--text-muted)">OVERALL PERCEPTION:</span>
+          <span id="overallSafetyBadge" class="status-pill" style="font-size:10px;font-weight:700;background:var(--status-safe-bg);color:var(--status-safe);border:1px solid var(--status-safe-border)">✓ ALL SYSTEMS NOMINAL</span>
         </div>
       </div>
 
@@ -879,7 +1158,7 @@
         <div class="alert-box info" id="alertBoxObstacle">
           <div class="alert-hdr">
             <span class="alert-type">PROXIMITY ENVELOPE</span>
-            <span id="badgeObstacleSev" style="font-size:8.5px;font-weight:700">INFO</span>
+            <span id="badgeObstacleSev" style="font-size:9px;font-weight:700;font-family:var(--font-mono)">INFO</span>
           </div>
           <div class="alert-title">
             <span id="alertObstacleIcon">✓</span>
@@ -894,7 +1173,7 @@
         <div class="alert-box info" id="alertBoxVis">
           <div class="alert-hdr">
             <span class="alert-type">ATMOSPHERIC OPTICS</span>
-            <span id="badgeVisSev" style="font-size:8.5px;font-weight:700">INFO</span>
+            <span id="badgeVisSev" style="font-size:9px;font-weight:700;font-family:var(--font-mono)">INFO</span>
           </div>
           <div class="alert-title">
             <span id="alertVisIcon">✓</span>
@@ -909,7 +1188,7 @@
         <div class="alert-box info" id="alertBoxTerrain">
           <div class="alert-hdr">
             <span class="alert-type">HAUL CORRIDOR GRADE</span>
-            <span id="badgeTerrainSev" style="font-size:8.5px;font-weight:700">INFO</span>
+            <span id="badgeTerrainSev" style="font-size:9px;font-weight:700;font-family:var(--font-mono)">INFO</span>
           </div>
           <div class="alert-title">
             <span id="alertTerrainIcon">⛰️</span>
@@ -924,7 +1203,7 @@
         <div class="alert-box info" id="alertBoxSpeed">
           <div class="alert-hdr">
             <span class="alert-type">DSR SPEED & TRAFFIC</span>
-            <span id="badgeSpeedSev" style="font-size:8.5px;font-weight:700">INFO</span>
+            <span id="badgeSpeedSev" style="font-size:9px;font-weight:700;font-family:var(--font-mono)">INFO</span>
           </div>
           <div class="alert-title">
             <span id="alertSpeedIcon">⚡</span>
@@ -945,32 +1224,28 @@
       <div class="sync-modal-hdr">
         <div style="display:flex;align-items:center;gap:8px">
           <span style="font-size:16px">⚡</span>
-          <span style="font-weight:800;font-size:13px;letter-spacing:1px;color:#fff">DIGITAL-TWIN SYNC VALIDATOR</span>
+          <span style="font-weight:700;font-size:13px;letter-spacing:0.3px;color:var(--text-primary)">DIGITAL-TWIN SYNC VALIDATOR</span>
         </div>
         <button class="hdr-btn" onclick="toggleSyncModal()" style="padding:2px 8px;font-size:12px">✕</button>
       </div>
 
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.3);border-radius:6px">
-        <span style="font-size:11px;color:var(--text-muted)">OVERALL COHERENCE:</span>
-        <span id="dtModalOverallStatus" style="font-size:12px;font-weight:800;color:var(--green)">DIGITAL TWIN SYNCED</span>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--status-safe-bg);border:1px solid var(--status-safe-border);border-radius:var(--radius-sm)">
+        <span style="font-size:11px;font-weight:600;color:var(--text-secondary)">OVERALL COHERENCE:</span>
+        <span id="dtModalOverallStatus" style="font-size:12px;font-weight:700;color:var(--status-safe)">DIGITAL TWIN SYNCED</span>
       </div>
 
       <div class="sync-metric-grid">
         <div class="sync-metric-box">
           <div class="sync-metric-lbl">Vehicle ID</div>
-          <div class="sync-metric-val" id="dtModalVid">TRUCK_01</div>
+          <div class="sync-metric-val" id="dtModalTruckId">TRUCK_01</div>
         </div>
         <div class="sync-metric-box">
           <div class="sync-metric-lbl">Loop Waypoint</div>
           <div class="sync-metric-val" id="dtModalWp">WP 0 (Yard)</div>
         </div>
         <div class="sync-metric-box">
-          <div class="sync-metric-lbl">GPS Geographic Lat</div>
-          <div class="sync-metric-val" id="dtModalLat">18.58083°N</div>
-        </div>
-        <div class="sync-metric-box">
-          <div class="sync-metric-lbl">GPS Geographic Lng</div>
-          <div class="sync-metric-val" id="dtModalLng">81.22315°E</div>
+          <div class="sync-metric-lbl">GPS Coordinates</div>
+          <div class="sync-metric-val" id="dtModalCoords">[18.580830, 81.223150]</div>
         </div>
         <div class="sync-metric-box">
           <div class="sync-metric-lbl">DEM Surface Elevation</div>
@@ -980,21 +1255,25 @@
           <div class="sync-metric-lbl">True Compass Heading</div>
           <div class="sync-metric-val" id="dtModalHeading">240.0°</div>
         </div>
+        <div class="sync-metric-box">
+          <div class="sync-metric-lbl">Perception Protocol</div>
+          <div class="sync-metric-val" style="color:var(--cyan)">77 GHz FMCW</div>
+        </div>
       </div>
 
-      <div style="border-top:1px solid var(--border);padding-top:10px">
-        <div style="font-size:10px;font-weight:700;color:var(--cyan);margin-bottom:6px">AUTHORITATIVE WORLD OBSTACLES:</div>
-        <div style="display:flex;justify-content:space-between;font-size:11px;padding:3px 0">
-          <span style="color:var(--text-dim)">Active in Shared World:</span>
-          <strong id="dtModalObsCount" style="color:var(--green)">0 Active</strong>
+      <div style="border-top:1px solid var(--border-subtle);padding-top:10px">
+        <div style="font-size:10px;font-weight:700;color:var(--action-primary);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.3px">AUTHORITATIVE WORLD OBSTACLES:</div>
+        <div style="display:flex;justify-content:space-between;font-size:11.5px;padding:3px 0">
+          <span style="color:var(--text-secondary)">Active in Shared World:</span>
+          <strong id="dtModalObsCount" style="color:var(--status-safe);font-family:var(--font-mono)">0 Active</strong>
         </div>
-        <div style="display:flex;justify-content:space-between;font-size:11px;padding:3px 0">
-          <span style="color:var(--text-dim)">Nearest Hazard Entity:</span>
-          <strong id="dtModalObsNearest" style="color:#fff">NONE (CLEAR)</strong>
+        <div style="display:flex;justify-content:space-between;font-size:11.5px;padding:3px 0">
+          <span style="color:var(--text-secondary)">Nearest Hazard Entity:</span>
+          <strong id="dtModalObsNearest" style="color:var(--text-primary);font-family:var(--font-mono)">NONE (CLEAR)</strong>
         </div>
-        <div style="display:flex;justify-content:space-between;font-size:11px;padding:3px 0">
-          <span style="color:var(--text-dim)">In-Cab Radar Projection:</span>
-          <strong id="dtModalObsProjection" style="color:var(--cyan)">Aligned with 3D Radar Origin</strong>
+        <div style="display:flex;justify-content:space-between;font-size:11.5px;padding:3px 0">
+          <span style="color:var(--text-secondary)">In-Cab Radar Projection:</span>
+          <strong id="dtModalObsProjection" style="color:var(--cyan);font-family:var(--font-mono)">Aligned with 3D Radar Origin</strong>
         </div>
       </div>
 

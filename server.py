@@ -2356,6 +2356,12 @@ def get_fleet():
                 "nearest_obstacle": v.get("nearest_obstacle"),
                 "obstacles": list(world_obstacles.values()),
                 "vehicle_state": v.get("vehicle_state"),
+                "sensors": {k: ({**val, "age_s": round(time.time() - val["ts"], 1)}
+                                if isinstance(val, dict) and "ts" in val else val)
+                            for k, val in (v.get("sensors") or {}).items()},
+                "active_node": v.get("active_node"),
+                "nodes": {k: {"role": n["role"], "age_s": round(time.time() - n["ts"], 1), "packets": n["count"]}
+                          for k, n in (v.get("nodes") or {}).items()},
             })
 
             if v["action"] == "STOP":
@@ -2678,6 +2684,11 @@ def set_vehicle_mode():
     })
 
 
+NODE_FAILOVER_S = 4.0      # seconds of PRIMARY silence before BACKUP takes over
+IMU_IMPACT_G = 2.5        # total acceleration (g) treated as an impact
+IMU_TILT_WARN_DEG = 25.0  # pitch/roll (deg) treated as rollover risk
+
+
 @app.route("/update", methods=["POST"])
 def update_telemetry():
     """
@@ -2702,7 +2713,57 @@ def update_telemetry():
         v["last_hardware_packet"] = time.time()
         v["packet_count"] += 1
 
+        # ---- Multi-node failover: Raspberry Pi = PRIMARY, ESP32 = BACKUP -------
+        # A packet with no "node" field is treated as PRIMARY (old ESP32 firmware
+        # keeps working). BACKUP packets are only applied when no PRIMARY node
+        # has been heard from within NODE_FAILOVER_S seconds.
+        node = str(data.get("node", "PI")).upper()
+        role = str(data.get("role") or ("BACKUP" if node.startswith("ESP32") else "PRIMARY")).upper()
+        now_t = time.time()
+        nodes = v.setdefault("nodes", {})
+        nodes[node] = {"ts": now_t, "role": role, "count": nodes.get(node, {}).get("count", 0) + 1}
+        if role == "BACKUP" and any(
+            n["role"] == "PRIMARY" and now_t - n["ts"] < NODE_FAILOVER_S for n in nodes.values()
+        ):
+            return jsonify({"status": "ok", "vehicle_id": vid, "applied": False,
+                            "standby": True, "active_node": v.get("active_node")})
+        prev_active = v.get("active_node")
+        v["active_node"] = node
+        if prev_active and prev_active != node:
+            log_safety_event(vid, "NODE_FAILOVER", "WARNING", v["lat"], v["lng"],
+                             f"{vid} telemetry source switched {prev_active} -> {node}.")
+
+        # ---- Extra sensors: LiDAR + IMU (both optional) -------------------------
+        sensors = v.setdefault("sensors", {})
+        lidar = data.get("lidar")
+        if isinstance(lidar, dict):
+            sensors["lidar"] = {**lidar, "ts": now_t}
+        imu = data.get("imu")
+        if isinstance(imu, dict):
+            sensors["imu"] = {**imu, "ts": now_t}
+            try:
+                tilt = max(abs(float(imu.get("pitch", 0))), abs(float(imu.get("roll", 0))))
+                g_mag = float(imu.get("accel_g", 1.0))
+            except (TypeError, ValueError):
+                tilt, g_mag = 0.0, 1.0
+            if now_t - v.get("_last_imu_evt", 0) > 10:
+                if g_mag >= IMU_IMPACT_G:
+                    v["_last_imu_evt"] = now_t
+                    log_safety_event(vid, "IMPACT_DETECTED", "CRITICAL", v["lat"], v["lng"],
+                                     f"{vid} IMU shock {g_mag:.2f} g.")
+                elif tilt >= IMU_TILT_WARN_DEG:
+                    v["_last_imu_evt"] = now_t
+                    log_safety_event(vid, "TILT_WARNING", "WARNING", v["lat"], v["lng"],
+                                     f"{vid} tilt {tilt:.0f} deg (rollover risk).")
+
         front = int(data.get("dist_front", v["dist_front"]))
+        sensors["front_ultrasonic_cm"] = front
+        # Fuse: trust the CLOSER of ultrasonic and LiDAR (conservative for safety)
+        if isinstance(lidar, dict) and lidar.get("ok") and lidar.get("front_cm") is not None:
+            try:
+                front = min(front, int(lidar["front_cm"]))
+            except (TypeError, ValueError):
+                pass
         left = int(data.get("dist_left", v["dist_left"]))
         right = int(data.get("dist_right", v["dist_right"]))
         action = data.get("action") or decide_action(front, left, right)
@@ -2742,6 +2803,13 @@ def update_telemetry():
             v["gear"] = "D1"
         else:
             v["status"] = "NORMAL"
+
+        _imu = sensors.get("imu") or {}
+        try:
+            if v["status"] == "NORMAL" and max(abs(float(_imu.get("pitch", 0))), abs(float(_imu.get("roll", 0)))) >= IMU_TILT_WARN_DEG:
+                v["status"] = "CAUTION"
+        except (TypeError, ValueError):
+            pass
 
         v["is_moving"] = (v["speed_kmh"] > 0.5 and v["action"] != "STOP")
 

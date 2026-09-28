@@ -403,6 +403,7 @@ void loop() {
 
       String jsonPayload = "{";
       jsonPayload += "\"vehicle_id\":\"" + String(VEHICLE_ID) + "\",";
+      jsonPayload += "\"node\":\"ESP32_BACKUP\",";  // Pi is PRIMARY; server uses this only if the Pi goes silent
       jsonPayload += "\"dist_front\":" + String(distFront) + ",";
       jsonPayload += "\"dist_left\":" + String(distLeft) + ",";
       jsonPayload += "\"dist_right\":" + String(distRight) + ",";

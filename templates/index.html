@@ -708,6 +708,14 @@
       position: relative;
     }
 
+    /* Twin Top Controls Wrapper (Header Bar + Scenarios Bar) */
+    .twin-top-controls {
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      z-index: 10;
+    }
+
     /* Twin Header Bar */
     .twin-header-bar {
       height: 44px;
@@ -2170,57 +2178,60 @@
          ==================================================================== -->
     <section class="digital-twin-zone">
 
-      <!-- Twin Header Bar -->
-      <div class="twin-header-bar">
-        <div class="twin-title-group">
-          <span class="twin-badge-live">
-            <span class="sys-pulse-dot" style="width:5px;height:5px"></span>
-            LIVE
+      <!-- Twin Top Controls (View Modes, Camera Navigation & Scenarios) -->
+      <div class="twin-top-controls" id="twinTopControls" data-tour="viewport-controls">
+        <!-- Twin Header Bar -->
+        <div class="twin-header-bar">
+          <div class="twin-title-group">
+            <span class="twin-badge-live">
+              <span class="sys-pulse-dot" style="width:5px;height:5px"></span>
+              LIVE
+            </span>
+            <span class="twin-title-text" id="activeZoneTitle">Bailadila Deposit 14 — Digital Twin</span>
+          </div>
+
+          <div class="twin-tools-group">
+            <!-- View Switcher: 3D Twin vs 2D GIS Map vs Dual -->
+            <div class="segmented-control view-mode-tabs">
+              <button type="button" class="segmented-btn view-tab-btn active" id="tabView3D" onclick="setCenterViewMode('3d')">3D TWIN</button>
+              <button type="button" class="segmented-btn view-tab-btn" id="tabViewMap" onclick="setCenterViewMode('map')">2D MAP</button>
+              <button type="button" class="segmented-btn view-tab-btn" id="tabViewSplit" onclick="setCenterViewMode('split')">SPLIT</button>
+            </div>
+
+            <!-- Camera Modes -->
+            <div class="segmented-control cam-mode-buttons">
+              <button type="button" class="segmented-btn mine3d-cam-btn active" id="btnCamOrbit" onclick="set3DCameraMode('orbit')">Orbit</button>
+              <button type="button" class="segmented-btn mine3d-cam-btn" id="btnCamFollow" onclick="set3DCameraMode('follow')">Follow</button>
+              <button type="button" class="segmented-btn mine3d-cam-btn" id="btnCamChase" onclick="set3DCameraMode('chase')">Chase</button>
+              <button type="button" class="segmented-btn mine3d-cam-btn" id="btnCamCockpit" onclick="set3DCameraMode('cockpit')">Cockpit</button>
+            </div>
+
+            <button type="button" class="ctrl-btn" style="flex:none;padding:3px 8px;font-size:10.5px" onclick="reset3DCameraTarget()">
+              🔄 Reset
+            </button>
+
+            <!-- Compact View Options Popover Trigger -->
+            <button type="button" class="btn-view-options" id="btnViewOptions" onclick="toggleViewOptionsPopover(event)">
+              <span>⚙</span>
+              <span>View Options ▾</span>
+            </button>
+
+            <a href="/mine3d" target="_blank" class="twin-link-btn" title="Open Fullscreen 3D Twin">⛶ Fullscreen ↗</a>
+          </div>
+        </div>
+
+        <!-- Scenarios Control Bar -->
+        <div class="scenarios-control-bar" id="scenariosControlBar" data-tour="scenario-controls">
+          <span class="scen-lbl">⚡ SCENARIOS:</span>
+          <button type="button" class="scenario-btn active" data-scenario="CLEAR_RUN" onclick="applyScenario('CLEAR_RUN')">🟢 Nominal Run</button>
+          <button type="button" class="scenario-btn" data-scenario="DENSE_FOG" onclick="applyScenario('DENSE_FOG')">🌫️ Dense Fog</button>
+          <button type="button" class="scenario-btn" data-scenario="OBSTACLE_AHEAD" onclick="applyScenario('OBSTACLE_AHEAD')">🛑 Boulder Hazard</button>
+          <button type="button" class="scenario-btn" data-scenario="HAIRPIN_CAUTION" onclick="applyScenario('HAIRPIN_CAUTION')">⚠️ Hairpin Caution</button>
+          <button type="button" class="scenario-btn" data-scenario="TRAFFIC_CLOSE" onclick="applyScenario('TRAFFIC_CLOSE')">🚛 Convoy Headway</button>
+          <span id="activeScenarioBadge" class="status-pill" style="margin-left:auto;font-size:9.5px;background:var(--bg-surface);color:var(--text-secondary);border:1px solid var(--border)">
+            CLEAR RUN
           </span>
-          <span class="twin-title-text" id="activeZoneTitle">Bailadila Deposit 14 — Digital Twin</span>
         </div>
-
-        <div class="twin-tools-group">
-          <!-- View Switcher: 3D Twin vs 2D GIS Map vs Dual -->
-          <div class="segmented-control view-mode-tabs">
-            <button type="button" class="segmented-btn view-tab-btn active" id="tabView3D" onclick="setCenterViewMode('3d')">3D TWIN</button>
-            <button type="button" class="segmented-btn view-tab-btn" id="tabViewMap" onclick="setCenterViewMode('map')">2D MAP</button>
-            <button type="button" class="segmented-btn view-tab-btn" id="tabViewSplit" onclick="setCenterViewMode('split')">SPLIT</button>
-          </div>
-
-          <!-- Camera Modes -->
-          <div class="segmented-control cam-mode-buttons">
-            <button type="button" class="segmented-btn mine3d-cam-btn active" id="btnCamOrbit" onclick="set3DCameraMode('orbit')">Orbit</button>
-            <button type="button" class="segmented-btn mine3d-cam-btn" id="btnCamFollow" onclick="set3DCameraMode('follow')">Follow</button>
-            <button type="button" class="segmented-btn mine3d-cam-btn" id="btnCamChase" onclick="set3DCameraMode('chase')">Chase</button>
-            <button type="button" class="segmented-btn mine3d-cam-btn" id="btnCamCockpit" onclick="set3DCameraMode('cockpit')">Cockpit</button>
-          </div>
-
-          <button type="button" class="ctrl-btn" style="flex:none;padding:3px 8px;font-size:10.5px" onclick="reset3DCameraTarget()">
-            🔄 Reset
-          </button>
-
-          <!-- Compact View Options Popover Trigger -->
-          <button type="button" class="btn-view-options" id="btnViewOptions" onclick="toggleViewOptionsPopover(event)">
-            <span>⚙</span>
-            <span>View Options ▾</span>
-          </button>
-
-          <a href="/mine3d" target="_blank" class="twin-link-btn" title="Open Fullscreen 3D Twin">⛶ Fullscreen ↗</a>
-        </div>
-      </div>
-
-      <!-- Scenarios Control Bar -->
-      <div class="scenarios-control-bar" id="scenariosControlBar" data-tour="scenario-controls">
-        <span class="scen-lbl">⚡ SCENARIOS:</span>
-        <button type="button" class="scenario-btn active" data-scenario="CLEAR_RUN" onclick="applyScenario('CLEAR_RUN')">🟢 Nominal Run</button>
-        <button type="button" class="scenario-btn" data-scenario="DENSE_FOG" onclick="applyScenario('DENSE_FOG')">🌫️ Dense Fog</button>
-        <button type="button" class="scenario-btn" data-scenario="OBSTACLE_AHEAD" onclick="applyScenario('OBSTACLE_AHEAD')">🛑 Boulder Hazard</button>
-        <button type="button" class="scenario-btn" data-scenario="HAIRPIN_CAUTION" onclick="applyScenario('HAIRPIN_CAUTION')">⚠️ Hairpin Caution</button>
-        <button type="button" class="scenario-btn" data-scenario="TRAFFIC_CLOSE" onclick="applyScenario('TRAFFIC_CLOSE')">🚛 Convoy Headway</button>
-        <span id="activeScenarioBadge" class="status-pill" style="margin-left:auto;font-size:9.5px;background:var(--bg-surface);color:var(--text-secondary);border:1px solid var(--border)">
-          CLEAR RUN
-        </span>
       </div>
 
       <!-- Viewport Canvas Container -->
@@ -2632,6 +2643,7 @@
             <div>
               <div style="font-weight:700;font-size:11px" id="hwStatusBadge">🟢 ESP32 LIVE ACTIVE</div>
               <div style="font-size:9px;color:var(--text-muted)">Telemetry uplink on /update</div>
+              <div style="font-size:9px;color:var(--text-muted);margin-top:2px" id="hwSensorLine"></div>
             </div>
             <button type="button" class="mode-switch-btn" id="hwToggleModeBtn" onclick="toggleTruckHardwareMode()">
               Switch Mode
@@ -2910,10 +2922,9 @@
 
   <!-- Floating Contextual Tooltip Card (positioned dynamically next to active target) -->
   <div class="tour-tooltip-card" id="tourTooltipCard" onclick="event.stopPropagation()">
-    <!-- Header with step badge & close button -->
+    <!-- Header with step badge -->
     <div class="tour-tooltip-header">
       <div class="tour-badge" id="orientStepBadge">ORIENTATION 1 OF 5</div>
-      <button type="button" class="tour-close-btn" onclick="finishOrientation()" title="Close tour (Esc)">✕</button>
     </div>
 
     <!-- Title and content -->
@@ -3440,6 +3451,21 @@ function applyVehicleToUI(v) {
   if (hwStatusBadge) {
     hwStatusBadge.textContent = isReal ? `🟢 ESP32 LIVE (${v.packet_count || 0} pkts)` : `🔷 SIMULATED AUTONOMOUS`;
     hwStatusBadge.style.color = isReal ? 'var(--status-safe)' : 'var(--text-primary)';
+  }
+
+  // Pi / ESP32 backup / LiDAR / IMU status line
+  const hwSensorLine = document.getElementById('hwSensorLine');
+  if (hwSensorLine) {
+    const nodes = v.nodes || {}, s = v.sensors || {};
+    const parts = [];
+    Object.keys(nodes).forEach(k => {
+      const n = nodes[k], live = n.age_s < 4, active = v.active_node === k;
+      parts.push(`${live ? '🟢' : '🔴'} ${k}${active ? '★' : ''}`);
+    });
+    if (s.lidar) parts.push((s.lidar.ok && s.lidar.age_s < 4) ? `LiDAR ${s.lidar.front_cm}cm` : 'LiDAR ✖ (no data)');
+    if (s.imu && s.imu.age_s >= 4) parts.push('IMU ✖ (no data)');
+    else if (s.imu) parts.push(`IMU ${Number(s.imu.accel_g || 0).toFixed(2)}g · P${Number(s.imu.pitch || 0).toFixed(0)}° R${Number(s.imu.roll || 0).toFixed(0)}°`);
+    hwSensorLine.textContent = isReal ? parts.join(' | ') : '';
   }
 
   const hwToggleBtn = document.getElementById('hwToggleModeBtn');
@@ -4451,9 +4477,10 @@ const orientationSteps = [
   {
     step: 3,
     badge: "ORIENTATION 3 OF 5",
-    title: "SCENARIO CONTROLS",
-    text: "Test operational conditions such as dense fog, boulder hazards, hairpin cautions and convoy scenarios.",
-    targetSelector: '[data-tour="scenario-controls"], #scenariosControlBar, .scenarios-control-bar',
+    title: "VIEW MODES, NAVIGATION & SCENARIOS",
+    text: "Switch between 3D Digital Twin, 2D GIS Map, and Split View for multi-angle monitoring.\n\n• Camera Navigation: Select Orbit (free inspect), Follow (track hauler), Chase, or Cockpit POV.\n• Scenarios: Test operational conditions such as Dense Fog, Boulder Hazards, Hairpin Cautions, and Convoy Headway.",
+    targetSelector: '[data-tour="viewport-controls"], #twinTopControls, [data-tour="scenario-controls"], #scenariosControlBar',
+    fallbackSelector: '#scenariosControlBar',
     placement: "bottom",
     nextText: "Next →",
     counterText: "Step 3 of 5"
@@ -4491,8 +4518,8 @@ function openOrientation(step = 1) {
   const overlay = document.getElementById('orientationOverlay');
   if (overlay) overlay.classList.add('open');
 
-  // Ensure 3D mode is active when highlighting 3D or sync validator
-  if (currentOrientationStep === 2 || currentOrientationStep === 5) {
+  // Ensure 3D mode is active when highlighting 3D, viewport controls, or sync validator
+  if (currentOrientationStep === 2 || currentOrientationStep === 3 || currentOrientationStep === 5) {
     if (typeof setCenterViewMode === 'function') {
       const btn3d = document.getElementById('tabView3D');
       if (btn3d && !btn3d.classList.contains('active')) {
@@ -4719,8 +4746,15 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
-// Auto open orientation for first-time operators
+// Auto open orientation for first-time operators or via ?tour=N param
 window.addEventListener('DOMContentLoaded', () => {
+  const urlParams = new URLSearchParams(window.location.search);
+  const tourParam = urlParams.get('tour') || urlParams.get('step');
+  if (tourParam !== null) {
+    const s = parseInt(tourParam, 10);
+    setTimeout(() => openOrientation(isNaN(s) ? 1 : s), 700);
+    return;
+  }
   const isBypass = window.location.href.includes('clean') || window.location.href.includes('no_orient') || window.location.search.includes('clean');
   const seen = localStorage.getItem('haul_fleet_orientation_seen') || isBypass;
   if (!seen) {

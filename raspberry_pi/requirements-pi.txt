@@ -1,0 +1,7 @@
+requests>=2.31
+pyserial>=3.5
+gpiozero>=2.0
+lgpio>=0.2          # GPIO backend (needed on Raspberry Pi 5, works on 4/3 too)
+opencv-python-headless>=4.8   # only with --camera
+smbus2>=0.4                   # IMU
+rplidar-roboticia>=0.9.5      # only if you use an RPLIDAR
