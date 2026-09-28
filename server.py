@@ -12,6 +12,7 @@ Key Upgrades:
 """
 
 import base64
+import hmac
 import json
 import math
 import os
@@ -2684,6 +2685,10 @@ def set_vehicle_mode():
     })
 
 
+# Optional shared secret for hardware nodes. When the HARDWARE_API_KEY environment
+# variable is set (do this on any public deployment), /update rejects requests that
+# do not send a matching "X-API-Key" header. Unset = open (fine on a private LAN).
+HARDWARE_API_KEY = os.environ.get("HARDWARE_API_KEY", "")
 NODE_FAILOVER_S = 4.0      # seconds of PRIMARY silence before BACKUP takes over
 IMU_IMPACT_G = 2.5        # total acceleration (g) treated as an impact
 IMU_TILT_WARN_DEG = 25.0  # pitch/roll (deg) treated as rollover risk
@@ -2695,6 +2700,10 @@ def update_telemetry():
     Accepts telemetry updates from external ESP32 + GPS hardware node.
     Supports vehicle IDs: TRUCK_01, HAUL_01, DUMPER_01, PROTOTYPE_1.
     """
+    if HARDWARE_API_KEY and not hmac.compare_digest(
+            request.headers.get("X-API-Key", ""), HARDWARE_API_KEY):
+        return jsonify({"status": "error", "msg": "Invalid or missing API key"}), 401
+
     data = request.get_json(force=True, silent=True)
     if not data:
         return jsonify({"status": "error", "msg": "No JSON payload"}), 400

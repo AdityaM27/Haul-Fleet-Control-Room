@@ -38,6 +38,7 @@ from pi_sensors import MPU6050, RPLidar, SimIMU, SimLidar, TFLuna
 # Every value can be overridden with a CLI flag or an environment variable.
 DEFAULT_SERVER = os.environ.get("HAUL_SERVER", "http://192.168.1.50:5000")
 DEFAULT_VEHICLE = os.environ.get("HAUL_VEHICLE", "TRUCK_01")
+DEFAULT_API_KEY = os.environ.get("HAUL_API_KEY", "")  # must match server HARDWARE_API_KEY
 
 GPS_PORT = os.environ.get("GPS_PORT", "/dev/serial0")
 GPS_BAUD = int(os.environ.get("GPS_BAUD", "9600"))  # NEO-6M = 9600, ZED-F9P = 38400/115200
@@ -229,6 +230,8 @@ def main():
     ap = argparse.ArgumentParser(description="Raspberry Pi telemetry node")
     ap.add_argument("--server", default=DEFAULT_SERVER, help="Dashboard base URL")
     ap.add_argument("--vehicle", default=DEFAULT_VEHICLE)
+    ap.add_argument("--api-key", default=DEFAULT_API_KEY,
+                    help="shared secret (server env HARDWARE_API_KEY)")
     ap.add_argument("--sim", action="store_true", help="fake GPS + sonar, no hardware")
     ap.add_argument("--no-gps", action="store_true", help="use fallback coordinates")
     ap.add_argument("--no-sonar", action="store_true", help="skip ultrasonic sensors")
@@ -278,6 +281,8 @@ def main():
         ).start()
 
     session = requests.Session()
+    if args.api_key:
+        session.headers["X-API-Key"] = args.api_key
     sent = failed = 0
     print(f"[NODE] {args.vehicle} -> {server}/update every {SEND_INTERVAL_S}s")
     try:
@@ -318,7 +323,9 @@ def main():
                           f"risk={j.get('risk_score')}")
             except requests.RequestException as e:
                 failed += 1
-                print(f"[FAIL] #{failed} {e}")
+                code = getattr(getattr(e, "response", None), "status_code", None)
+                hint = "  <- wrong/missing API key (--api-key)" if code == 401 else ""
+                print(f"[FAIL] #{failed} {e}{hint}")
 
             time.sleep(max(0.0, SEND_INTERVAL_S - (time.time() - t0)))
     except KeyboardInterrupt:

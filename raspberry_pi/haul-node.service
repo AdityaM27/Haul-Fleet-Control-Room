@@ -4,11 +4,15 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
+# Replace "pi" (User and paths) with the username you created in Raspberry Pi Imager.
 User=pi
 WorkingDirectory=/home/pi/raspberry_pi
-Environment=HAUL_SERVER=http://192.168.1.50:5000
+# Your website URL (Railway) or http://<laptop-ip>:5000 for a local server
+Environment=HAUL_SERVER=https://YOUR-APP.up.railway.app
 Environment=HAUL_VEHICLE=TRUCK_01
-ExecStart=/home/pi/raspberry_pi/venv/bin/python pi_node.py --lidar tfluna --imu --camera
+# Must equal the HARDWARE_API_KEY variable set on the website (leave empty if unset there)
+Environment=HAUL_API_KEY=change-me
+ExecStart=/home/pi/raspberry_pi/venv/bin/python pi_node.py --lidar rplidar --imu --camera
 Restart=always
 RestartSec=3
 

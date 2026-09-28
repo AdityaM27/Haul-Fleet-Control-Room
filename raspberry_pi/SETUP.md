@@ -30,6 +30,9 @@
 
 ## 1. Wiring (BCM GPIO numbers)
 
+Step-by-step build procedure: test each sensor as you wire it with `python3 hw_check.py imu|gps|sonar|lidar|camera`.
+
+
 | Part | Pi connection |
 |---|---|
 | GPS NEO-6M TX | Pi RX = GPIO15 (pin 10) |

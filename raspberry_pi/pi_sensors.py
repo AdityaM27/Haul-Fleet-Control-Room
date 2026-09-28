@@ -77,14 +77,17 @@ class RPLidar(_Worker):
     `front_offset_deg` so that 0 = straight ahead for how you mounted it.
     """
 
-    def __init__(self, port="/dev/ttyUSB0", front_offset_deg=0.0, half_fov=20.0):
+    def __init__(self, port="/dev/ttyUSB0", front_offset_deg=0.0, half_fov=20.0, min_cm=20.0):
         super().__init__()
         self.port, self.off, self.half = port, front_offset_deg, half_fov
+        # Ignore anything closer than min_cm: the scanner's blind zone and the
+        # truck's own body/mast would otherwise cause false STOPs.
+        self.min_cm = min_cm
 
     def _sector_min(self, scan, centre):
         best = None
         for _q, ang, mm in scan:
-            if mm <= 0:
+            if mm <= 0 or mm / 10.0 < self.min_cm:
                 continue
             d = abs(((ang - self.off - centre + 180) % 360) - 180)
             if d <= self.half:

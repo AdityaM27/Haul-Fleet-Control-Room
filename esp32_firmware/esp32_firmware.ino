@@ -44,6 +44,7 @@ const char* WIFI_PASSWORD = "vnrvjiet@123";
 const char* SERVER_URL    = "http://172.16.24.93:5000/update";
 
 const char* VEHICLE_ID    = "TRUCK_01"; // Binds to Truck 1 in Resurgence
+const char* API_KEY       = "";         // must equal server HARDWARE_API_KEY ("" = none)
 
 // ==============================================================================
 // 2. PIN DEFINITIONS
@@ -400,6 +401,7 @@ void loop() {
       HTTPClient http;
       http.begin(SERVER_URL);
       http.addHeader("Content-Type", "application/json");
+      if (strlen(API_KEY) > 0) http.addHeader("X-API-Key", API_KEY);
 
       String jsonPayload = "{";
       jsonPayload += "\"vehicle_id\":\"" + String(VEHICLE_ID) + "\",";
