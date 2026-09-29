@@ -3060,12 +3060,32 @@ function setCenterViewMode(mode) {
 }
 
 // =============================================================================
-// LEAFLET MAP SETUP (DEPOSIT 14 & KIRANDUL COMPLEX)
+// MAP CONTROLLER & ARCHITECTURE (2D LEAFLET & 3D DIGITAL TWIN)
 // =============================================================================
+let mapInstance = null;
+let mapInitialized = false;
+let satelliteLayerActivated = false;
+const deviceMarkers = new Map();
+const vehicleMarkers = {};
+let firstValidDeviceCentered = false;
+let userInteractedWith2DMap = false;
+let userInteractedWith3D = false;
+const onlinePhysicalDevices = new Set();
+
 const map = L.map('fleetMap', {
   center: [18.5850, 81.2200],
   zoom: 15,
   zoomControl: true
+});
+mapInstance = map;
+mapInitialized = true;
+
+// Track manual user interactions to preserve camera position
+map.on('movestart', (e) => {
+  if (e && e.originalEvent) userInteractedWith2DMap = true;
+});
+map.on('zoomstart', (e) => {
+  if (e && e.originalEvent) userInteractedWith2DMap = true;
 });
 
 const streetTileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -3081,15 +3101,33 @@ const satTileLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/se
 let currentMapLayer = 'street';
 streetTileLayer.addTo(map);
 
+function initializeMapOnce() {
+  if (mapInitialized && mapInstance) {
+    return mapInstance;
+  }
+  if (!mapInstance && typeof map !== 'undefined' && map) {
+    mapInstance = map;
+    mapInitialized = true;
+  }
+  if (!mine3DInit && typeof initMine3DViewer === 'function') {
+    initMine3DViewer();
+  }
+  return mapInstance;
+}
+
 function switchMapLayer(layerName) {
   if (layerName === 'satellite') {
-    if (map.hasLayer(streetTileLayer)) map.removeLayer(streetTileLayer);
-    if (!map.hasLayer(satTileLayer)) satTileLayer.addTo(map);
-    currentMapLayer = 'satellite';
+    if (currentMapLayer !== 'satellite') {
+      if (map.hasLayer(streetTileLayer)) map.removeLayer(streetTileLayer);
+      if (!map.hasLayer(satTileLayer)) satTileLayer.addTo(map);
+      currentMapLayer = 'satellite';
+    }
   } else {
-    if (map.hasLayer(satTileLayer)) map.removeLayer(satTileLayer);
-    if (!map.hasLayer(streetTileLayer)) streetTileLayer.addTo(map);
-    currentMapLayer = 'street';
+    if (currentMapLayer !== 'street') {
+      if (map.hasLayer(satTileLayer)) map.removeLayer(satTileLayer);
+      if (!map.hasLayer(streetTileLayer)) streetTileLayer.addTo(map);
+      currentMapLayer = 'street';
+    }
   }
   setTimeout(() => map.invalidateSize(), 60);
 
@@ -3101,7 +3139,105 @@ function switchMapLayer(layerName) {
   });
 }
 
-const vehicleMarkers = {};
+function activateSatelliteMapOnce() {
+  // 1. Activate satellite layer once on Leaflet GIS map without reloading
+  if (!satelliteLayerActivated) {
+    if (currentMapLayer !== 'satellite') {
+      switchMapLayer('satellite');
+    }
+    satelliteLayerActivated = true;
+  }
+
+  // 2. Initialize 3D map once if not already initialized
+  if (!mine3DInit && typeof initMine3DViewer === 'function') {
+    initMine3DViewer();
+  }
+
+  // 3. Ensure satellite 3D map view is displayed
+  const twinCard = document.getElementById('mine3DCard');
+  if (twinCard && twinCard.style.display === 'none') {
+    if (typeof setCenterViewMode === 'function') {
+      setCenterViewMode('3d');
+    } else {
+      twinCard.style.display = 'flex';
+      if (typeof onMine3DResize === 'function') onMine3DResize();
+    }
+  }
+}
+
+function setDeviceOnline(deviceId, isOnline = true) {
+  if (!deviceId) return;
+  if (isOnline) {
+    onlinePhysicalDevices.add(deviceId);
+  } else {
+    onlinePhysicalDevices.delete(deviceId);
+  }
+}
+
+function updateDeviceMarker(v) {
+  if (!v || !v.id) return;
+  const lat = Number(v.lat);
+  const lng = Number(v.lng);
+  if (isNaN(lat) || isNaN(lng) || (lat === 0 && lng === 0)) return;
+
+  const isSel = (v.id === selectedVehicleId);
+  const mapObj = initializeMapOnce();
+
+  if (!deviceMarkers.has(v.id)) {
+    // Create marker ONLY when device is first detected
+    const marker = L.marker([lat, lng], {
+      icon: createVehicleIcon(v, isSel)
+    }).addTo(mapObj);
+
+    marker.on('click', () => selectVehicle(v.id));
+    const entry = { marker, v };
+    deviceMarkers.set(v.id, entry);
+    vehicleMarkers[v.id] = entry;
+  } else {
+    // Update existing marker in-place without recreating or flickering
+    const entry = deviceMarkers.get(v.id);
+    entry.marker.setLatLng([lat, lng]);
+    entry.marker.setIcon(createVehicleIcon(v, isSel));
+    entry.v = v;
+    vehicleMarkers[v.id] = entry;
+  }
+}
+
+function handleDeviceData(device) {
+  if (!device || !device.id) return;
+
+  const isPhys = (device.source_type === 'REAL_HARDWARE') ||
+                 (device.hardware_status === 'CONNECTED_LIVE') ||
+                 (device.hardware_status === 'ONLINE') ||
+                 (device.packet_count && device.packet_count > 0);
+
+  const hasCoords = (device.lat !== undefined && device.lng !== undefined &&
+                     !isNaN(Number(device.lat)) && !isNaN(Number(device.lng)) &&
+                     (Number(device.lat) !== 0 || Number(device.lng) !== 0));
+
+  const isTransmitting = isPhys && (device.is_connected !== false) && hasCoords;
+
+  if (isTransmitting) {
+    // Device is transmitting valid data -> mark ONLINE
+    setDeviceOnline(device.id, true);
+
+    // Automatically activate satellite map view once
+    activateSatelliteMapOnce();
+
+    // Automatically center map ONLY on the first valid device (unless user already interacted)
+    if (!firstValidDeviceCentered && !userInteractedWith2DMap && hasCoords) {
+      const mapObj = initializeMapOnce();
+      if (mapObj && mapObj.panTo) {
+        mapObj.panTo([device.lat, device.lng]);
+      }
+      firstValidDeviceCentered = true;
+    }
+  }
+
+  // Initialize map only once and update marker
+  initializeMapOnce();
+  updateDeviceMarker(device);
+}
 const zoneLayers = {};
 let canonicalHaulRoadLayer = null;
 
@@ -3365,21 +3501,9 @@ async function fetchFleet() {
       }
     }
 
-    // Update Leaflet Markers
+    // Update Leaflet Markers via handleDeviceData architecture
     fleetList.forEach(v => {
-      const isSel = v.id === selectedVehicleId;
-      if (!vehicleMarkers[v.id]) {
-        const marker = L.marker([v.lat, v.lng], {
-          icon: createVehicleIcon(v, isSel)
-        }).addTo(map);
-
-        marker.on('click', () => selectVehicle(v.id));
-        vehicleMarkers[v.id] = { marker, v };
-      } else {
-        vehicleMarkers[v.id].marker.setLatLng([v.lat, v.lng]);
-        vehicleMarkers[v.id].marker.setIcon(createVehicleIcon(v, isSel));
-        vehicleMarkers[v.id].v = v;
-      }
+      handleDeviceData(v);
     });
 
     renderSidebar();
@@ -4265,6 +4389,17 @@ async function initMine3DViewer() {
     TWO: THREE.TOUCH.PAN
   };
 
+  // Track operator manual interaction with 3D viewport to preserve camera view
+  controls3D.addEventListener('start', () => {
+    userInteractedWith3D = true;
+  });
+  renderer3D.domElement.addEventListener('pointerdown', () => {
+    userInteractedWith3D = true;
+  }, { passive: true });
+  renderer3D.domElement.addEventListener('wheel', () => {
+    userInteractedWith3D = true;
+  }, { passive: true });
+
   const hemiLight = new THREE.HemisphereLight(0xdde3ea, 0x1a2128, 1.35);
   scene3D.add(hemiLight);
 
@@ -4394,11 +4529,32 @@ function onMine3DResize() {
   }
 }
 
+let hasAutoCenteredFirst3DDevice = false;
+function autoCenter3DOnFirstDevice(device) {
+  if (hasAutoCenteredFirst3DDevice || userInteractedWith3D) return;
+  if (!controls3D || !camera3D || !dashBailadilaEngine) return;
+  const item = dashBailadilaEngine.truckObjects[device.id];
+  if (item && item.mesh) {
+    hasAutoCenteredFirst3DDevice = true;
+    const p = item.mesh.position;
+    controls3D.target.set(p.x, p.y + 4.0, p.z);
+    controls3D.update();
+  }
+}
+
 function update3DMine(fleet) {
   if (!scene3D || !dashBailadilaEngine) return;
   dashBailadilaEngine.updateFleetTelemetry(fleet);
   if (dashBailadilaEngine.updateObstacles && currentFleetObstacles) {
     dashBailadilaEngine.updateObstacles(currentFleetObstacles);
+  }
+
+  // Smoothly center 3D target ONCE when the first valid physical device transmits
+  if (!hasAutoCenteredFirst3DDevice && !userInteractedWith3D && fleet) {
+    const firstDev = fleet.find(v => (v.source_type === 'REAL_HARDWARE' || v.hardware_status === 'CONNECTED_LIVE' || (v.packet_count && v.packet_count > 0)) && v.is_connected !== false);
+    if (firstDev) {
+      autoCenter3DOnFirstDevice(firstDev);
+    }
   }
 
   const targetLbl = document.getElementById('threeDTargetLabel');

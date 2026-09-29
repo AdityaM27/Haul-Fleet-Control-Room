@@ -2714,7 +2714,51 @@ def update_telemetry():
 
     with fleet_lock:
         if vid not in fleet_data:
-            return jsonify({"status": "error", "msg": f"Unknown vehicle_id: {raw_vid}"}), 404
+            count = len(fleet_data) + 1
+            colors = ["#20d5c7", "#38e78a", "#3b82f6", "#f59e0b", "#ec4899", "#a855f7", "#06b6d4", "#eab308", "#10b981"]
+            avatar_color = colors[(count - 1) % len(colors)]
+            wp_idx = (count * 2) % len(QUARRY_WAYPOINTS)
+            wp = QUARRY_WAYPOINTS[wp_idx]
+            lat_init = float(data.get("lat", wp["lat"])) if float(data.get("lat", 0.0)) != 0.0 else wp["lat"]
+            lng_init = float(data.get("lng", wp["lng"])) if float(data.get("lng", 0.0)) != 0.0 else wp["lng"]
+            zone_init = get_zone_for_point(lat_init, lng_init)
+            fleet_data[vid] = {
+                "id": vid,
+                "name": str(data.get("name") or vid),
+                "model": str(data.get("model") or "Haul Unit"),
+                "type": str(data.get("type") or "Hardware Node"),
+                "max_payload": float(data.get("max_payload", 320)),
+                "avatar_color": str(data.get("avatar_color") or avatar_color),
+                "source_type": "REAL_HARDWARE",
+                "hardware_status": "CONNECTED_LIVE",
+                "last_hardware_packet": time.time(),
+                "packet_count": 0,
+                "status": "NORMAL",
+                "action": "CLEAR",
+                "speed_kmh": float(data.get("speed", 0.0)),
+                "target_speed": zone_init["max_safe_speed"],
+                "gear": "D1",
+                "battery_pct": 100.0,
+                "engine_temp_c": 80.0,
+                "tire_pressure_psi": 100.0,
+                "payload_tons": 0.0,
+                "dist_front": 250,
+                "dist_left": 200,
+                "dist_right": 200,
+                "gps_valid": bool(data.get("gps_valid", True)),
+                "lat": lat_init,
+                "lng": lng_init,
+                "elevation_m": round(sample_mine_surface_elevation(lat_init, lng_init), 1),
+                "heading": float(data.get("heading", 0.0)),
+                "wp_idx": wp_idx,
+                "wp_t": 0.0,
+                "trail": [[lat_init, lng_init]],
+                "current_zone": zone_init,
+                "closest_truck": {"distance_m": 999.0, "name": "None"},
+                "log": [],
+                "nodes": {},
+                "sensors": {}
+            }
 
         v = fleet_data[vid]
         v["source_type"] = "REAL_HARDWARE"

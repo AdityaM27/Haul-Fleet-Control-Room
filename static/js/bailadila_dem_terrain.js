@@ -1826,6 +1826,37 @@
     }
 
     /**
+     * DYNAMICALLY ADD A NEW DEVICE TO FLEET GROUP
+     * Creates new truck mesh without recreating the scene, clearing existing trucks, or resetting camera.
+     */
+    addTruckToFleet(v) {
+      if (!this.truckGroup) return null;
+      const vId = v.id;
+      if (this.truckObjects[vId]) return this.truckObjects[vId];
+      const id = v.dmp_id || v.name || vId;
+      let colorHex = 0xd49b28;
+      if (v.avatar_color) {
+        const parsed = parseInt(String(v.avatar_color).replace('#', '0x'), 16);
+        if (!isNaN(parsed)) colorHex = parsed;
+      }
+      const truckMesh = this.createMiningTruck(id, vId, colorHex);
+      truckMesh.name = vId;
+      const idx = Object.keys(this.truckObjects).length;
+      const item = {
+        mesh: truckMesh,
+        idText: id,
+        idx,
+        targetPos: new THREE.Vector3(),
+        targetYaw: 0,
+        initialized: false,
+        backendData: v
+      };
+      this.truckObjects[vId] = item;
+      this.truckGroup.add(truckMesh);
+      return item;
+    }
+
+    /**
      * UPDATE TRUCK LOCATIONS DIRECTLY FROM AUTHORITATIVE BACKEND TELEMETRY
      * No independent clock, zero independent progression math.
      * Positions strictly follow (v.lat, v.lng, v.elevation_m, v.heading).
@@ -1834,7 +1865,10 @@
       if (!fleet || !Array.isArray(fleet)) return;
 
       fleet.forEach(v => {
-        const item = this.truckObjects[v.id];
+        let item = this.truckObjects[v.id];
+        if (!item || !item.mesh) {
+          item = this.addTruckToFleet(v);
+        }
         if (!item || !item.mesh) return;
 
         // Out-of-order sequence guard: discard stale packets
