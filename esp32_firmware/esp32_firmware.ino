@@ -28,6 +28,7 @@
 
 #include <WiFi.h>
 #include <HTTPClient.h>
+#include <WiFiClientSecure.h>   // needed for https:// (Railway/Vercel/Render, etc.)
 #include <TinyGPS++.h>
 #include <Wire.h>
 #include <Adafruit_GFX.h>
@@ -36,15 +37,15 @@
 // ==============================================================================
 // 1. CONFIGURATION
 // ==============================================================================
-const char* WIFI_SSID     = "VNRVJIET_E";
-const char* WIFI_PASSWORD = "vnrvjiet@123";
+const char* WIFI_SSID     = "YOUR_WIFI_SSID";       // <-- your phone hotspot / router name
+const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";   // <-- its password
 
-// Your laptop's local IP address (port 5000)
-// Current Wi-Fi IP: 172.16.24.93 | Windows Hotspot IP: 192.168.137.1
-const char* SERVER_URL    = "http://172.16.24.93:5000/update";
+// Your deployed website's /update endpoint. Use https:// for Railway/Vercel/Render.
+// For a laptop on the same LAN instead, use "http://<laptop-ip>:5000/update".
+const char* SERVER_URL    = "https://YOUR-APP-NAME.up.railway.app/update";
 
 const char* VEHICLE_ID    = "TRUCK_01"; // Binds to Truck 1 in Resurgence
-const char* API_KEY       = "";         // must equal server HARDWARE_API_KEY ("" = none)
+const char* API_KEY       = "PASTE_YOUR_HARDWARE_API_KEY_HERE"; // must equal the website's HARDWARE_API_KEY ("" = none set)
 
 // ==============================================================================
 // 2. PIN DEFINITIONS
@@ -399,7 +400,17 @@ void loop() {
 
     if (WiFi.status() == WL_CONNECTED) {
       HTTPClient http;
-      http.begin(SERVER_URL);
+      WiFiClientSecure secureClient;   // only used for https:// URLs
+      bool isHttps = (strncmp(SERVER_URL, "https://", 8) == 0);
+
+      if (isHttps) {
+        // Skips certificate validation. Simple and fine for a student/hobby project;
+        // for production you would pin the server's CA certificate instead.
+        secureClient.setInsecure();
+        http.begin(secureClient, SERVER_URL);
+      } else {
+        http.begin(SERVER_URL);        // plain http:// (e.g. a laptop on the LAN)
+      }
       http.addHeader("Content-Type", "application/json");
       if (strlen(API_KEY) > 0) http.addHeader("X-API-Key", API_KEY);
 
